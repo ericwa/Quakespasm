@@ -644,75 +644,38 @@ void Host_ServerFrame (void)
 
 // send all messages to the clients
 	SV_SendClientMessages ();
-	
-// Autosave stuff
 
-  static double oldhealth = 0;
-  static double lastautosave = 0;
-  static int autosaveindex = 0;
-  static char *autosavemap[2];
-  static double autosavetime[2];
-  static const float AUTOSAVE_DURATION = 30;
-  static const float AUTOSAVE_SAFETY_MARGIN = 10;
-  static const float AUTOSAVE_SAFE_HEALTH = 65;
-
-	if (!deathmatch.value && !coop.value && !sv.paused &&
-		sv.active && !cl.intermission && svs.maxclients == 1)
+    // autosave
+    qboolean autosaveAllowed = (!deathmatch.value &&
+                              !coop.value &&
+                              !sv.paused &&
+                              sv.active &&
+                              !cl.intermission &&
+                              svs.maxclients == 1 &&
+                              sv_player->v.deadflag == DEAD_NO);
+	if (autosaveAllowed)
 	{
-		// Reset the last autosave time if it is out of bounds (i.e. we changed
-		// maps)
+        static double oldhealth = 0;
+        static double lastautosave = 0;
+
+		// Reset the last autosave time if it is out of bounds (i.e. we changed maps)
 		if (lastautosave > sv.time)
 		{
 			lastautosave = 0;
 		}
-		
-		if (oldhealth > 0 && sv_player->v.health <= 0 &&
-			(sv.time - lastautosave) <= AUTOSAVE_SAFETY_MARGIN)
-		{
-			// Player just died within a few seconds of an autosave, so
-			// replace that autosave with the backup (if one exists)
-			fprintf(stderr, "Invalidate last autosave");
-		}
-		
-		if ((sv.time - lastautosave) > AUTOSAVE_DURATION)
-		{
-			// Eligible for autosave
-			if (sv_player->v.health >= AUTOSAVE_SAFE_HEALTH)
-			{
-				// If we have plenty of health, save right now
-				fprintf(stderr, "Healthy autosave");
 
-				Cmd_ExecuteString ("save quick", src_command);
-				lastautosave = sv.time;
-			}
-			else if (sv_player->v.health > oldhealth)
-			{
-				fprintf(stderr, "Unhealthy, just got health autosave");
-				// If we have less than AUTOSAVE_SAFE_HEALTH, only save if we just
-				// picked up a healthpack
-				Cmd_ExecuteString ("save quick", src_command);	
-				lastautosave = sv.time;
-				// FIXME: picking up 15 health when we have 1 might not warrant 
-				// an autosave
-			}
-		}
-	}
-	
-	oldhealth = sv_player->v.health;
-	
-	/*
-	if (ericw % 100 == 0)
-	{
-		fprintf(stderr, "1000 frames. server time: %lf\n", sv.time);
-		if (ericw % 300 == 0)
+		if ((sv.time - lastautosave) > 30
+            && (sv_player->v.health >= 25 || sv_player->v.health > oldhealth))
 		{
-			if (!sv.paused)
-			{
-				fprintf(stderr, "autosaving...\n");
-				Cmd_ExecuteString ("save quick", src_command);
-			}
+            char command[MAX_QPATH + 10];
+		    sprintf(command, "save auto_%s", sv.name);
+
+			Cmd_ExecuteString (command, src_command);
+			lastautosave = sv.time;
 		}
-	}*/
+
+		oldhealth = sv_player->v.health;
+	}
 }
 
 /*

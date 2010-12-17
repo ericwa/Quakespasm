@@ -33,6 +33,9 @@ extern int com_nummissionpacks; //johnfitz
 
 int	current_skill;
 
+char lastsavename[MAX_QPATH]; // autosave
+char lastsavemapname[MAX_QPATH]; // autosave
+
 void Mod_Print (void);
 
 /*
@@ -889,6 +892,42 @@ void Host_Changelevel_f (void)
 	SV_SpawnServer (level);
 }
 
+static qboolean _autoloadIfPossible()
+{
+    if (!deathmatch.value &&
+        !coop.value &&
+        sv.active &&
+        !cl.intermission &&
+        svs.maxclients == 1 &&
+        sv_player->v.deadflag != DEAD_NO)
+	{
+		if (0 == strcmp(sv.name, lastsavemapname))
+		{
+		    char command[MAX_QPATH + 5];
+		    sprintf(command, "load %s", lastsavename);
+
+            Cmd_ExecuteString (command, src_command);
+            return true;
+		}
+	}
+    return false;
+}
+
+/*
+==================
+Host_Autoload_f
+
+Automatically loads either the
+==================
+*/
+void Host_Autoload_f (void)
+{
+	if (!_autoloadIfPossible())
+	{
+	    Host_Restart_f();
+	}
+}
+
 /*
 ==================
 Host_Restart_f
@@ -908,18 +947,14 @@ void Host_Restart_f (void)
 	strcpy (mapname, sv.name);	// must copy out, because it gets cleared
 								// in sv_spawnserver
 
-	fprintf(stderr, "Host_Restart_f '%s' health %lf\n", mapname, sv_player->v.health);
-	
-// Autosave stuff
-
-	if (!deathmatch.value && !coop.value && !sv.paused &&
-		sv.active && !cl.intermission && svs.maxclients == 1)
+	if (_autoloadIfPossible()) // autosave
 	{
-		//if (0 == strcmp(mapname, autosavemap[autosaveindex]))
-		Cmd_ExecuteString ("load quick", src_command);
 		return;
 	}
-	
+
+    lastsavemapname[0] = '\0'; // autosave - we are explicitly restarting the level, so don't autoload
+    lastsavename[0] = '\0';
+
 	SV_SpawnServer (mapname);
 }
 
@@ -1050,6 +1085,9 @@ void Host_Savegame_f (void)
 			return;
 		}
 	}
+
+    strcpy(lastsavename, Cmd_Argv(1)); // autosave
+    strcpy(lastsavemapname, sv.name); // autosave
 
 	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (name, ".sav");
@@ -2304,6 +2342,7 @@ void Host_InitCommands (void)
 	Cmd_AddCommand ("load", Host_Loadgame_f);
 	Cmd_AddCommand ("save", Host_Savegame_f);
 	Cmd_AddCommand ("give", Host_Give_f);
+	Cmd_AddCommand ("autoload", Host_Autoload_f); //autosave
 
 	Cmd_AddCommand ("startdemos", Host_Startdemos_f);
 	Cmd_AddCommand ("demos", Host_Demos_f);
