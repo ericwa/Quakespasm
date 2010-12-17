@@ -38,6 +38,9 @@ char lastsavemapname[MAX_QPATH]; // autosave
 
 void Mod_Print (void);
 
+static qboolean _autoloadIfPossible();
+static void _resetAutoload();
+
 /*
 ==================
 Host_Quit_f
@@ -830,6 +833,8 @@ void Host_Map_f (void)
 	key_dest = key_game;			// remove console or menu
 	SCR_BeginLoadingPlaque ();
 
+    _resetAutoload(); // autosave
+
 	svs.serverflags = 0;			// haven't completed an episode yet
 	strcpy (name, Cmd_Argv(1));
 	// remove (any) trailing ".bsp" from mapname S.A.
@@ -889,6 +894,7 @@ void Host_Changelevel_f (void)
 	SV_SaveSpawnparms ();
 	strcpy (level, Cmd_Argv(1));
 	fprintf(stderr, "Host_Changelevel_f '%s'\n", level);
+	_resetAutoload(); // autosave
 	SV_SpawnServer (level);
 }
 
@@ -898,8 +904,7 @@ static qboolean _autoloadIfPossible()
         !coop.value &&
         sv.active &&
         !cl.intermission &&
-        svs.maxclients == 1 &&
-        sv_player->v.deadflag != DEAD_NO)
+        svs.maxclients == 1)
 	{
 		if (0 == strcmp(sv.name, lastsavemapname))
 		{
@@ -911,6 +916,12 @@ static qboolean _autoloadIfPossible()
 		}
 	}
     return false;
+}
+
+static void _resetAutoload()
+{
+    lastsavemapname[0] = '\0'; // autosave - we are explicitly restarting the level, so don't autoload
+    lastsavename[0] = '\0';
 }
 
 /*
@@ -947,13 +958,16 @@ void Host_Restart_f (void)
 	strcpy (mapname, sv.name);	// must copy out, because it gets cleared
 								// in sv_spawnserver
 
-	if (_autoloadIfPossible()) // autosave
+	if (sv_player->v.deadflag != DEAD_NO) // autosave
 	{
-		return;
+	    // If we are dead, attempt to autoload
+	    if (_autoloadIfPossible())
+	    {
+	        return;
+	    }
 	}
 
-    lastsavemapname[0] = '\0'; // autosave - we are explicitly restarting the level, so don't autoload
-    lastsavename[0] = '\0';
+    _resetAutoload();
 
 	SV_SpawnServer (mapname);
 }
