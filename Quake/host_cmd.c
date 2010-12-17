@@ -885,6 +885,7 @@ void Host_Changelevel_f (void)
 	key_dest = key_game;	// remove console or menu
 	SV_SaveSpawnparms ();
 	strcpy (level, Cmd_Argv(1));
+	fprintf(stderr, "Host_Changelevel_f '%s'\n", level);
 	SV_SpawnServer (level);
 }
 
@@ -906,6 +907,19 @@ void Host_Restart_f (void)
 		return;
 	strcpy (mapname, sv.name);	// must copy out, because it gets cleared
 								// in sv_spawnserver
+
+	fprintf(stderr, "Host_Restart_f '%s' health %lf\n", mapname, sv_player->v.health);
+	
+// Autosave stuff
+
+	if (!deathmatch.value && !coop.value && !sv.paused &&
+		sv.active && !cl.intermission && svs.maxclients == 1)
+	{
+		//if (0 == strcmp(mapname, autosavemap[autosaveindex]))
+		Cmd_ExecuteString ("load quick", src_command);
+		return;
+	}
+	
 	SV_SpawnServer (mapname);
 }
 
