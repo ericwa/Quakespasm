@@ -664,16 +664,9 @@ void Host_ServerFrame (void)
 			lastautosave = 0;
 		}
 
-        // FIXME: have a sliding scale where autosaving after:
-        //   30 seconds requires a health of 60
-        //   45 seconds requires a health of 50
-        //   60 seconds requires a health of 45
-        // etc.. or something along those lines
-
-        // FIXME: don't autosave if the player's health dropped vs. 3 seconds ago
-
+                // Only autosave when health is picked up
 		if ((sv.time - lastautosave) > 30.0
-            && (sv_player->v.health >= 40 || sv_player->v.health > oldhealth))
+            && (sv_player->v.health > oldhealth))
 		{
             char command[MAX_QPATH + 10];
 		    sprintf(command, "save auto_%s", sv.name);
