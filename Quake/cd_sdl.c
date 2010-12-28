@@ -24,7 +24,7 @@
 		Boston, MA  02110-1301  USA
 */
 
-
+#if 0
 #include "SDL.h"
 
 #ifndef	SDL_INIT_CDROM
@@ -295,9 +295,9 @@ static void CD_f (void)
 	if (Q_strcasecmp(command, "play") == 0)
 	{
 		arg2 = Cmd_Argv (2);
-                if (*arg2) 
+                if (*arg2)
 			CDAudio_Play((byte)atoi(Cmd_Argv (2)), false);
-		else 
+		else
 			CDAudio_Play((byte)1, false);
 		return;
 	}
@@ -305,9 +305,9 @@ static void CD_f (void)
 	if (Q_strcasecmp(command, "loop") == 0)
 	{
 		arg2 = Cmd_Argv (2);
-                if (*arg2) 
+                if (*arg2)
 			CDAudio_Play((byte)atoi(Cmd_Argv (2)), true);
-		else 
+		else
 			CDAudio_Play((byte)1, true);
 		return;
 	}
@@ -603,3 +603,4 @@ void CDAudio_Shutdown(void)
 
 #endif	/* SDL_INIT_CDROM */
 
+#endif
