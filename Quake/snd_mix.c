@@ -167,7 +167,7 @@ void S_PaintChannels (int endtime)
 	// clear the paint buffer
 		memset(paintbuffer, 0, (end - paintedtime) * sizeof(portable_samplepair_t));
 
-	// paint in the channels.
+	// paint in the sfx channels.
 		ch = snd_channels;
 		for (i = 0; i < total_channels; i++, ch++)
 		{
@@ -213,6 +213,30 @@ void S_PaintChannels (int endtime)
 					}
 				}
 			}
+		}
+
+	// paint the OGG music
+
+		{
+			ltime = paintedtime;
+
+            int volume = 255 * bgmvolume.value;
+
+			count = end - ltime;
+
+            int		i;
+
+            int		*lscale, *rscale;
+            lscale = snd_scaletable[volume >> 3];
+            rscale = snd_scaletable[volume >> 3];
+
+            for (i = 0; i < count; i++)
+            {
+                unsigned char data = rand() % 256;
+                paintbuffer[i].left += lscale[data];
+                paintbuffer[i].right += rscale[data];
+            }
+
 		}
 
 	// transfer out according to DMA format

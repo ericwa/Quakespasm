@@ -50,7 +50,13 @@
 		<Unit filename="..\..\Quake\anorms.h" />
 		<Unit filename="..\..\Quake\arch_def.h" />
 		<Unit filename="..\..\Quake\bspfile.h" />
+		<Unit filename="..\..\Quake\cd_ogg.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="..\..\Quake\cd_sdl.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\Quake\cd_shared.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="..\..\Quake\cdaudio.h" />
@@ -184,10 +190,10 @@
 		<Unit filename="..\..\Quake\net_main.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="..\..\Quake\net_sys.h" />
 		<Unit filename="..\..\Quake\net_win.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="..\..\Quake\net_sys.h" />
 		<Unit filename="..\..\Quake\net_wins.c">
 			<Option compilerVar="CC" />
 		</Unit>
