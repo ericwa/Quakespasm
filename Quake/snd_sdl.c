@@ -71,6 +71,23 @@ static void paint_audio (void *unused, Uint8 *stream, int len)
 		shm->samplepos = 0;
 }
 
+static struct
+{
+	Uint16	enumFormat;
+	char		*stringFormat;
+} formatToStringTable[ ] =
+{
+	{ AUDIO_U8,     "AUDIO_U8" },
+	{ AUDIO_S8,     "AUDIO_S8" },
+	{ AUDIO_U16LSB, "AUDIO_U16LSB" },
+	{ AUDIO_S16LSB, "AUDIO_S16LSB" },
+	{ AUDIO_U16MSB, "AUDIO_U16MSB" },
+	{ AUDIO_S16MSB, "AUDIO_S16MSB" }
+};
+
+static int formatToStringTableSize =
+sizeof( formatToStringTable ) / sizeof( formatToStringTable[ 0 ] );
+
 qboolean SNDDMA_Init (void)
 {
 	SDL_AudioSpec desired, obtained;
@@ -142,8 +159,19 @@ qboolean SNDDMA_Init (void)
 	shm->samplepos = 0;
 	shm->submission_chunk = 1;
 
-	Con_Printf ("SDL audio spec  : %d Hz, %d samples, %d channels\n",
-			obtained.freq, obtained.samples, obtained.channels);
+	{
+		int i;
+		char *fmt = NULL;
+		for( i = 0; i < formatToStringTableSize; i++ ) {
+			if( obtained.format == formatToStringTable[ i ].enumFormat ) {
+				fmt = formatToStringTable[ i ].stringFormat;
+			}
+		}
+		
+		Con_Printf ("SDL audio spec  : %s, %d Hz, %d samples, %d channels\n",
+				fmt, obtained.freq, obtained.samples, obtained.channels);
+	}
+	
 	if (SDL_AudioDriverName(drivername, sizeof(drivername)) == NULL)
 		strcpy(drivername, "(UNKNOWN)");
 	buffersize = shm->samples * (shm->samplebits / 8);
