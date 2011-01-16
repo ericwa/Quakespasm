@@ -78,7 +78,9 @@ int main (int argc, char **argv)
         gFinderLaunch = NO;
     }
 
-    [SDLApplication poseAsClass:[NSApplication class]];
-    NSApplicationMain (argc, argv);
+	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	[[SDLApplication sharedApplication] run];
+	
+    [pool release];
     return 0;
 }
