@@ -289,7 +289,12 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 	int	leftvol, rightvol;
 	signed short	*sfx;
 	int	i;
-
+	
+	if (ch->leftvol > 255)
+		ch->leftvol = 255;
+	if (ch->rightvol > 255)
+		ch->rightvol = 255;
+	
 	leftvol = ch->leftvol * snd_vol;
 	rightvol = ch->rightvol * snd_vol;
 	sfx = (signed short *)sc->data + ch->pos;
