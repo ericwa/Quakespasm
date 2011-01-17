@@ -24,33 +24,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #define	PAINTBUFFER_SIZE	512
+
+/**
+ * The paintbuffer is an array of struct { int left, int right } 's.
+ * The int's are signed 24-bit samples which will be truncated to
+ * signed 16-bit before output.
+ */
 portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE];
 int		snd_scaletable[32][256];
 int		*snd_p, snd_linear_count, snd_vol;
 short		*snd_out;
 
-void Snd_WriteLinearBlastStereo16 (void);
-
 void Snd_WriteLinearBlastStereo16 (void)
 {
 	int		i;
 	int		val;
-
-	for (i = 0; i < snd_linear_count; i += 2)
+	
+	for (i=0 ; i<snd_linear_count ; i+=2)
 	{
-		val = (snd_p[i]*snd_vol) >> 8;
-		if (val > 0x7fff)
-			snd_out[i] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i] = (short)0x8000;
+		val = snd_p[i]>>8;
+		if (val > 32767)
+			snd_out[i] = 32767;
+		else if (val < -32768)
+			snd_out[i] = -32768;
 		else
 			snd_out[i] = val;
-
-		val = (snd_p[i+1]*snd_vol) >> 8;
-		if (val > 0x7fff)
-			snd_out[i+1] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+1] = (short)0x8000;
+		
+		val = snd_p[i+1]>>8;
+		if (val > 32767)
+			snd_out[i+1] = 32767;
+		else if (val < -32768)
+			snd_out[i+1] = -32768;
 		else
 			snd_out[i+1] = val;
 	}
@@ -60,8 +64,6 @@ void S_TransferStereo16 (int endtime)
 {
 	int		lpos;
 	int		lpaintedtime;
-
-	snd_vol = sfxvolume.value * 256;
 
 	snd_p = (int *) paintbuffer;
 	lpaintedtime = paintedtime;
@@ -98,20 +100,19 @@ void S_TransferPaintBuffer(int endtime)
 		S_TransferStereo16 (endtime);
 		return;
 	}
-
+	
 	p = (int *) paintbuffer;
 	count = (endtime - paintedtime) * shm->channels;
 	out_mask = shm->samples - 1;
 	out_idx = paintedtime * shm->channels & out_mask;
 	step = 3 - shm->channels;
-	snd_vol = sfxvolume.value * 256;
 
 	if (shm->samplebits == 16)
 	{
 		short *out = (short *)shm->buffer;
 		while (count--)
 		{
-			val = (*p * snd_vol) >> 8;
+			val = *p >> 8;
 			p+= step;
 			if (val > 0x7fff)
 				val = 0x7fff;
@@ -126,7 +127,7 @@ void S_TransferPaintBuffer(int endtime)
 		unsigned char *out = shm->buffer;
 		while (count--)
 		{
-			val = (*p * snd_vol) >> 8;
+			val = *p >> 8;
 			p+= step;
 			if (val > 0x7fff)
 				val = 0x7fff;
@@ -157,6 +158,8 @@ void S_PaintChannels (int endtime)
 	channel_t	*ch;
 	sfxcache_t	*sc;
 
+	snd_vol = sfxvolume.value * 255;
+	
 	while (paintedtime < endtime)
 	{
 	// if paintbuffer is smaller than DMA buffer
@@ -165,8 +168,28 @@ void S_PaintChannels (int endtime)
 			end = paintedtime + PAINTBUFFER_SIZE;
 
 	// clear the paint buffer
-		memset(paintbuffer, 0, (end - paintedtime) * sizeof(portable_samplepair_t));
+		memset(paintbuffer, 0, sizeof(paintbuffer));
 
+	// paint the OGG music
+		
+		{
+			ltime = paintedtime;
+			
+            int volume = 255 * bgmvolume.value;
+			
+			count = end - ltime;
+			
+            int		i;
+			
+            for (i = 0; i < count; i++)
+            {
+                int data = 32767 - (rand() % 65535);
+                paintbuffer[i].left += data * volume;
+                paintbuffer[i].right += data * volume;
+            }
+			
+		}		
+		
 	// paint in the sfx channels.
 		ch = snd_channels;
 		for (i = 0; i < total_channels; i++, ch++)
@@ -215,30 +238,6 @@ void S_PaintChannels (int endtime)
 			}
 		}
 
-	// paint the OGG music
-
-		{
-			ltime = paintedtime;
-
-            int volume = 255 * bgmvolume.value;
-
-			count = end - ltime;
-
-            int		i;
-
-            int		*lscale, *rscale;
-            lscale = snd_scaletable[volume >> 3];
-            rscale = snd_scaletable[volume >> 3];
-
-            for (i = 0; i < count; i++)
-            {
-                unsigned char data = rand() % 256;
-                paintbuffer[i].left += lscale[data];
-                paintbuffer[i].right += rscale[data];
-            }
-
-		}
-
 	// transfer out according to DMA format
 		S_TransferPaintBuffer(end);
 		paintedtime = end;
@@ -283,8 +282,8 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 	for (i = 0; i < count; i++)
 	{
 		data = sfx[i];
-		paintbuffer[i].left += lscale[data];
-		paintbuffer[i].right += rscale[data];
+		paintbuffer[i].left += lscale[data] * snd_vol;
+		paintbuffer[i].right += rscale[data] * snd_vol;
 	}
 
 	ch->pos += count;
@@ -298,8 +297,8 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 	signed short	*sfx;
 	int	i;
 
-	leftvol = ch->leftvol;
-	rightvol = ch->rightvol;
+	leftvol = ch->leftvol * snd_vol;
+	rightvol = ch->rightvol * snd_vol;
 	sfx = (signed short *)sc->data + ch->pos;
 
 	for (i = 0; i < count; i++)
