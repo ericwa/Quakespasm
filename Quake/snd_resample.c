@@ -1,37 +1,65 @@
 #include "quakedef.h"
 #include "sound.h"
+#include "speex_resampler.h"
 
 // FIXME: call a real resampler :-)
 
 void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, const void *indata,
 				   int outrate, int outwidth, int *outnumsamples)
 {
-	char *outdata;
-	int		i;
-	int		sample, samplefrac, fracstep;
-	
-	float stepscale = ((float)inrate) / ((float)outrate);	
-	*outnumsamples = innumsamples / stepscale;	
+	const float frac = ((float)inrate) / ((float)outrate);	
+	const int maxsamples = (innumsamples / frac) + 10;
+	short *outdata = malloc(maxsamples * channels * outwidth);
 
-	outdata = malloc((*outnumsamples) * channels * outwidth);
-	
-	// resample / decimate to the current source rate
-
-	samplefrac = 0;
-	fracstep = stepscale*256;
-	for (i=0 ; i<(*outnumsamples) ; i++)
+	// Convert input to 16-bit if necessary
+	short *in16bit;
+	if (inwidth == 2)
 	{
-		int srcsample = samplefrac >> 8;
-		samplefrac += fracstep;
-		if (inwidth == 2)
-			sample = LittleShort ( ((short *)indata)[srcsample] );
-		else
-			sample = (int)( (((unsigned char *)indata)[srcsample]) - 128) << 8;
-		if (outwidth == 2)
-			((short *)outdata)[i] = sample;
-		else
-			((signed char *)outdata)[i] = sample >> 8;
+		in16bit = (short*)indata;
 	}
+	else if (inwidth == 1)
+	{
+		in16bit = malloc(innumsamples * 2 * channels);
+		int i;
+		for (i=0; i<innumsamples; i++)
+		{
+			in16bit[i] = (((unsigned char *)indata)[i] - 128) << 8;
+		}
+	}
+	else
+	{
+		exit(5);
+	}
+
+	// Call the resampler
+	SpeexResamplerState *resampler = speex_resampler_init(channels, inrate, outrate, 10, NULL);
+	
+	*outnumsamples = 0;
+	unsigned int consumedtotal = 0;
+	unsigned int loops = 0;
+	unsigned int consumed, output;
+	while (consumedtotal < innumsamples)
+	{
+		consumed = innumsamples - consumedtotal;
+		output = maxsamples - (*outnumsamples);
+		speex_resampler_process_interleaved_int(resampler, in16bit, &consumed, outdata, &output);
+		consumedtotal += consumed;
+		(*outnumsamples) += output;
+		loops++;
+		if (loops > 100)
+		{
+			Con_Printf("Infinite loop\n");
+		}
+	}
+	
+	speex_resampler_destroy(resampler);
+	
+	if (in16bit != indata)
+	{
+		free(in16bit);
+	}
+	
+	if(outwidth != 2) exit(5);
 	
 	return outdata;
 }
