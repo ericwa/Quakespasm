@@ -21,7 +21,7 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 		int i;
 		for (i=0; i<innumsamples; i++)
 		{
-			in16bit[i] = (((unsigned char *)indata)[i] - 128) << 8;
+			in16bit[i] = (((unsigned char *)indata)[i] - 128) << 6; // FIXME: should be << 8, but causes clipping
 		}
 	}
 	else

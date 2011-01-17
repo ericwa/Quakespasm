@@ -306,6 +306,11 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 		right = (data * rightvol) >> 8;
 		paintbuffer[i].left += left;
 		paintbuffer[i].right += right;
+		
+		if (paintbuffer[i].left > (1 << 24))
+		{
+			Con_Printf("Clipping!\n");
+		}
 	}
 
 	ch->pos += count;
