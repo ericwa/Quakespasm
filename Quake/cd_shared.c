@@ -33,6 +33,8 @@ static byte	remap[100];
 static char	playTrackName[MAX_QPATH];
 static double old_cdvolume;
 
+static void CDAudio_Next(void);
+
 static void CDAudio_Eject(void)
 {
 	// FIXME: call backend
@@ -41,9 +43,23 @@ static void CDAudio_Eject(void)
 
 static qboolean CDAudio_IsNumberedTrack(const char *trackName)
 {
-    char numberAsString[10];
-    sprintf(numberAsString, "%d", (int)atoi(trackName));
-    return 0 == strcmp(trackName, numberAsString);
+	int len = strlen(trackName);
+	int i;
+	for ( i = 0; i < len; i++ )
+	{
+		if (!isdigit(trackName[i]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+static void CDAudio_FinishedCallback(void *userdata)
+{
+	// Hack to go to next track
+	Con_Printf("Advancing because we hit the end of a track...\n");
+	CDAudio_Next();
 }
 
 void CDAudio_PlayNamed(const char *name, qboolean looping)
@@ -65,7 +81,7 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
         {
             track = remap[track];
         }
-        sprintf(playTrackName, "%d", track);
+        sprintf(playTrackName, "%02d", track);
     }
     else
     {
@@ -87,7 +103,11 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 	playing = true;
 
     // FIXME: make backend play
-	S_Base_StartBackgroundTrack(playTrackName, NULL);
+	qboolean success = S_Base_StartBackgroundTrack(playTrackName, playLooping, CDAudio_FinishedCallback, NULL);
+	if (!success)
+	{
+		Con_Printf("WARNING: Couldn't open music file %s\n", playTrackName);
+	}
 }
 
 void CDAudio_Play(byte track, qboolean looping)
@@ -123,7 +143,10 @@ static void CDAudio_Next(void)
 		return;
 
     if (!CDAudio_IsNumberedTrack(playTrackName))
+	{
+		playing = false;
         return;
+	}
 
 	track = atoi(playTrackName) + 1;
 
@@ -355,6 +378,7 @@ void CDAudio_Update(void)
 		CDAudio_SetVolume (&bgmvolume);
 
 	// FIXME: update backend
+
 }
 
 

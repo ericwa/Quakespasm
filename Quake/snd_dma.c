@@ -34,7 +34,8 @@ void S_StopAllSoundsC(void);
 snd_stream_t	*s_backgroundStream = NULL;
 static qboolean	s_backgroundPaused = false;
 static char		s_backgroundLoop[MAX_QPATH];
-
+static S_BackgroundTrackFinishedCallback s_backgroundFinishedCallback;
+static void		*s_backgroundFinishedCallbackUserData;
 
 // =======================================================================
 // Internal sound data & structures
@@ -995,25 +996,19 @@ void S_Base_StopBackgroundTrack( void ) {
  S_StartBackgroundTrack
  ======================
  */
-void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
-	if ( !intro ) {
-		intro = "";
-	}
-	if ( !loop || !loop[0] ) {
-		loop = intro;
-	}
-	Con_DPrintf( "S_StartBackgroundTrack( %s, %s )\n", intro, loop );
+qboolean S_Base_StartBackgroundTrack( const char *trackname, qboolean loop, S_BackgroundTrackFinishedCallback callback, void *userdata ) {
+	Con_DPrintf( "S_StartBackgroundTrack( %s, %s )\n", trackname, (loop ? "looped" : "not looped") );
 	
-	if(!*intro)
+	if(!*trackname)
 	{
 		S_Base_StopBackgroundTrack();
-		return;
+		return false;
 	}
 	
 	if( !loop ) {
 		s_backgroundLoop[0] = 0;
 	} else {
-		strncpy( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
+		strncpy( s_backgroundLoop, trackname, MAX_QPATH );
 		s_backgroundLoop[MAX_QPATH-1] = '\0';
 	}
 	
@@ -1028,15 +1023,17 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 	}
 	
 	// Open stream
-	s_backgroundStream = S_CodecOpenStream(intro);
+	s_backgroundStream = S_CodecOpenStream(trackname);
 	if(!s_backgroundStream) {
-		Con_Printf( "WARNING: couldn't open music file %s\n", intro );
-		return;
+		return false;
 	}
-	
-	//if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
-	//	Con_Printf( "WARNING: music file %s is %d channels and %d Hz\n", intro, s_backgroundStream->info.channels, s_backgroundStream->info.rate );
-	//}
+
+	if (!loop) {
+		s_backgroundFinishedCallback = callback;
+		s_backgroundFinishedCallbackUserData = userdata;
+	}
+
+	return true;
 }
 
 /*
@@ -1107,18 +1104,33 @@ void S_UpdateBackgroundTrack( void ) {
 			{
 				S_CodecCloseStream(s_backgroundStream);
 				s_backgroundStream = NULL;
-				S_Base_StartBackgroundTrack( s_backgroundLoop, s_backgroundLoop );
+				S_Base_StartBackgroundTrack( s_backgroundLoop, true, NULL, NULL );
 				if(!s_backgroundStream)
 					return;
 			}
 			else
 			{
 				S_Base_StopBackgroundTrack();
+				
+				if (s_backgroundFinishedCallback)
+				{
+					(*s_backgroundFinishedCallback)(s_backgroundFinishedCallbackUserData);
+				}
 				return;
 			}
 		}
 		
 	}
+}
+
+/*
+ ==========================
+ S_BackgroundTrackIsPlaying
+ ==========================
+ */
+qboolean S_BackgroundTrackIsPlaying( void )
+{
+	return (NULL != s_backgroundStream) && (!s_backgroundPaused); 
 }
 
 void S_BlockSound (void)
