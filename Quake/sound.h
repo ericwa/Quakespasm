@@ -171,6 +171,11 @@ extern vec3_t listener_up;
 extern volatile dma_t *shm;
 extern volatile dma_t sn;
 
+#define	MAX_RAW_SAMPLES	16384
+#define MAX_RAW_STREAMS 128
+extern	portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES];
+extern	int		s_rawend[MAX_RAW_STREAMS];
+
 extern	cvar_t loadas8bit;
 extern	cvar_t bgmvolume;
 extern	cvar_t sfxvolume;

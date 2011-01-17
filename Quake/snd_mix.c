@@ -155,6 +155,7 @@ void S_PaintChannels (int endtime)
 {
 	int		i;
 	int		end, ltime, count;
+	int stream;
 	channel_t	*ch;
 	sfxcache_t	*sc;
 
@@ -167,28 +168,20 @@ void S_PaintChannels (int endtime)
 		if (endtime - paintedtime > PAINTBUFFER_SIZE)
 			end = paintedtime + PAINTBUFFER_SIZE;
 
-	// clear the paint buffer
+	// clear the paint buffer and mix any raw samples... (e.g. OGG music)
 		memset(paintbuffer, 0, sizeof(paintbuffer));
-
-	// paint the OGG music
-		
-		{
-			ltime = paintedtime;
-			
-            int volume = 255 * bgmvolume.value;
-			
-			count = end - ltime;
-			
-            int		i;
-			
-            for (i = 0; i < count; i++)
-            {
-                int data = 32767 - (rand() % 65535);
-                paintbuffer[i].left += data * volume;
-                paintbuffer[i].right += data * volume;
-            }
-			
-		}		
+		for (stream = 0; stream < MAX_RAW_STREAMS; stream++) {
+			if ( s_rawend[stream] >= paintedtime ) {
+				// copy from the streaming sound source
+				const portable_samplepair_t *rawsamples = s_rawsamples[stream];
+				const int stop = (end < s_rawend[stream]) ? end : s_rawend[stream];
+				for ( i = paintedtime ; i < stop ; i++ ) {
+					const int s = i&(MAX_RAW_SAMPLES-1);
+					paintbuffer[i-paintedtime].left += rawsamples[s].left;
+					paintbuffer[i-paintedtime].right += rawsamples[s].right;
+				}
+			}
+		}
 		
 	// paint in the sfx channels.
 		ch = snd_channels;

@@ -103,6 +103,12 @@
 		48FE585B0D3A82C8006BB491 /* QuakeArguments.m in Sources */ = {isa = PBXBuildFile; fileRef = 48FE585A0D3A82C8006BB491 /* QuakeArguments.m */; };
 		66A5467212E3AF2300FFA7D5 /* cd_shared.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5467012E3AF2300FFA7D5 /* cd_shared.c */; };
 		66A5467312E3AF2300FFA7D5 /* cd_ogg.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5467112E3AF2300FFA7D5 /* cd_ogg.c */; };
+		66A5470D12E3CF8100FFA7D5 /* snd_codec.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5470A12E3CF8100FFA7D5 /* snd_codec.c */; };
+		66A5470E12E3CF8100FFA7D5 /* snd_codec_wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5470B12E3CF8100FFA7D5 /* snd_codec_wav.c */; };
+		66A5470F12E3CF8100FFA7D5 /* snd_codec_ogg.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5470C12E3CF8100FFA7D5 /* snd_codec_ogg.c */; };
+		66A5473512E3D14B00FFA7D5 /* libogg.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 66A5473412E3D14B00FFA7D5 /* libogg.dylib */; };
+		66A5473712E3D15F00FFA7D5 /* libvorbis.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 66A5473612E3D15F00FFA7D5 /* libvorbis.dylib */; };
+		66A5473912E3D17100FFA7D5 /* libvorbisfile.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 66A5473812E3D17100FFA7D5 /* libvorbisfile.dylib */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 /* End PBXBuildFile section */
@@ -277,6 +283,13 @@
 		48FE585A0D3A82C8006BB491 /* QuakeArguments.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = QuakeArguments.m; sourceTree = "<group>"; };
 		66A5467012E3AF2300FFA7D5 /* cd_shared.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cd_shared.c; path = ../Quake/cd_shared.c; sourceTree = SOURCE_ROOT; };
 		66A5467112E3AF2300FFA7D5 /* cd_ogg.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cd_ogg.c; path = ../Quake/cd_ogg.c; sourceTree = SOURCE_ROOT; };
+		66A5470912E3CF6B00FFA7D5 /* snd_codec.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = snd_codec.h; path = ../Quake/snd_codec.h; sourceTree = SOURCE_ROOT; };
+		66A5470A12E3CF8100FFA7D5 /* snd_codec.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snd_codec.c; path = ../Quake/snd_codec.c; sourceTree = SOURCE_ROOT; };
+		66A5470B12E3CF8100FFA7D5 /* snd_codec_wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snd_codec_wav.c; path = ../Quake/snd_codec_wav.c; sourceTree = SOURCE_ROOT; };
+		66A5470C12E3CF8100FFA7D5 /* snd_codec_ogg.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snd_codec_ogg.c; path = ../Quake/snd_codec_ogg.c; sourceTree = SOURCE_ROOT; };
+		66A5473412E3D14B00FFA7D5 /* libogg.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libogg.dylib; path = /usr/local/lib/libogg.dylib; sourceTree = "<absolute>"; };
+		66A5473612E3D15F00FFA7D5 /* libvorbis.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libvorbis.dylib; path = /usr/local/lib/libvorbis.dylib; sourceTree = "<absolute>"; };
+		66A5473812E3D17100FFA7D5 /* libvorbisfile.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libvorbisfile.dylib; path = /usr/local/lib/libvorbisfile.dylib; sourceTree = "<absolute>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* QuakeSpasm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuakeSpasm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -291,6 +304,9 @@
 				8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */,
 				002F3C0109D093BD00EBEB88 /* OpenGL.framework in Frameworks */,
 				48348943120595B1004184BC /* Sparkle.framework in Frameworks */,
+				66A5473512E3D14B00FFA7D5 /* libogg.dylib in Frameworks */,
+				66A5473712E3D15F00FFA7D5 /* libvorbis.dylib in Frameworks */,
+				66A5473912E3D17100FFA7D5 /* libvorbisfile.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -337,6 +353,9 @@
 				19C28FACFE9D520D11CA2CBB /* Products */,
 				4830B79D0D464CAE00EF4498 /* Changelog.txt */,
 				4830B79E0D464CAE00EF4498 /* Todo.txt */,
+				66A5473412E3D14B00FFA7D5 /* libogg.dylib */,
+				66A5473612E3D15F00FFA7D5 /* libvorbis.dylib */,
+				66A5473812E3D17100FFA7D5 /* libvorbisfile.dylib */,
 			);
 			name = QuakeSpasm;
 			sourceTree = "<group>";
@@ -477,6 +496,9 @@
 				486577C90D31A22A00E7920A /* snd_mem.c */,
 				486577CA0D31A22A00E7920A /* snd_mix.c */,
 				483A78540D2EEAC300CB2E4C /* snd_sdl.c */,
+				66A5470A12E3CF8100FFA7D5 /* snd_codec.c */,
+				66A5470B12E3CF8100FFA7D5 /* snd_codec_wav.c */,
+				66A5470C12E3CF8100FFA7D5 /* snd_codec_ogg.c */,
 			);
 			name = Sound;
 			sourceTree = "<group>";
@@ -556,6 +578,7 @@
 		483A77E10D2EE91000CB2E4C /* Headers */ = {
 			isa = PBXGroup;
 			children = (
+				66A5470912E3CF6B00FFA7D5 /* snd_codec.h */,
 				483A77FD0D2EE9BD00CB2E4C /* cdaudio.h */,
 				483A77FE0D2EE9BD00CB2E4C /* sound.h */,
 			);
@@ -748,6 +771,9 @@
 				48134A1912102F400015BF15 /* net_udp.c in Sources */,
 				66A5467212E3AF2300FFA7D5 /* cd_shared.c in Sources */,
 				66A5467312E3AF2300FFA7D5 /* cd_ogg.c in Sources */,
+				66A5470D12E3CF8100FFA7D5 /* snd_codec.c in Sources */,
+				66A5470E12E3CF8100FFA7D5 /* snd_codec_wav.c in Sources */,
+				66A5470F12E3CF8100FFA7D5 /* snd_codec_ogg.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -818,6 +844,7 @@
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				HEADER_SEARCH_PATHS = (
+					/usr/local/include,
 					/Library/Frameworks/SDL.framework/Headers,
 					/Library/Frameworks/SDL_net.framework/Headers,
 					"$(HEADER_SEARCH_PATHS)",

@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // snd_dma.c -- main control for any streaming sound output device
 
 #include "quakedef.h"
+#include "snd_codec.h"
 
 void S_Play(void);
 void S_PlayVol(void);
@@ -29,6 +30,10 @@ void S_SoundList(void);
 void S_Update_();
 void S_StopAllSounds(qboolean clear);
 void S_StopAllSoundsC(void);
+
+snd_stream_t	*s_backgroundStream = NULL;
+static char		s_backgroundLoop[MAX_QPATH];
+
 
 // =======================================================================
 // Internal sound data & structures
@@ -61,6 +66,10 @@ int		num_sfx;
 sfx_t		*ambient_sfx[NUM_AMBIENTS];
 
 qboolean	sound_started = false;
+
+int						s_rawend[MAX_RAW_STREAMS];
+portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES];
+
 
 cvar_t bgmvolume = {"bgmvolume", "1", true};
 cvar_t sfxvolume = {"volume", "0.7", true};
@@ -567,6 +576,142 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 //=============================================================================
 
 /*
+ =================
+ S_ByteSwapRawSamples
+ 
+ If raw data has been loaded in little endien binary form, this must be done.
+ If raw data was calculated, as with ADPCM, this should not be called.
+ =================
+ */
+void S_ByteSwapRawSamples( int samples, int width, int s_channels, const byte *data ) {
+	int		i;
+	
+	if ( width != 2 ) {
+		return;
+	}
+	if ( LittleShort( 256 ) == 256 ) {
+		return;
+	}
+	
+	if ( s_channels == 2 ) {
+		samples <<= 1;
+	}
+	for ( i = 0 ; i < samples ; i++ ) {
+		((short *)data)[i] = LittleShort( ((short *)data)[i] );
+	}
+}
+
+/*
+ ============
+ S_Base_RawSamples
+ 
+ Music streaming
+ ============
+ */
+void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_channels, const byte *data, float volume ) {
+	int		i;
+	int		src, dst;
+	float	scale;
+	int		intVolume;
+	portable_samplepair_t *rawsamples;
+	
+	if ( !sound_started ) {
+		return;
+	}
+	
+	if ( (stream < 0) || (stream >= MAX_RAW_STREAMS) ) {
+		return;
+	}
+	rawsamples = s_rawsamples[stream];
+	
+	intVolume = 256 * volume;
+	
+	if ( s_rawend[stream] < soundtime ) {
+		Com_DPrintf( "S_Base_RawSamples: resetting minimum: %i < %i\n", s_rawend[stream], soundtime );
+		s_rawend[stream] = soundtime;
+	}
+	
+	scale = (float)rate / shm->speed;
+	
+	//Com_Printf ("%i < %i < %i\n", soundtime, s_paintedtime, s_rawend[stream]);
+	if (s_channels == 2 && width == 2)
+	{
+		if (scale == 1.0)
+		{	// optimized case
+			for (i=0 ; i<samples ; i++)
+			{
+				dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
+				s_rawend[stream]++;
+				rawsamples[dst].left = ((short *)data)[i*2] * intVolume;
+				rawsamples[dst].right = ((short *)data)[i*2+1] * intVolume;
+			}
+		}
+		else
+		{
+			for (i=0 ; ; i++)
+			{
+				src = i*scale;
+				if (src >= samples)
+					break;
+				dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
+				s_rawend[stream]++;
+				rawsamples[dst].left = ((short *)data)[src*2] * intVolume;
+				rawsamples[dst].right = ((short *)data)[src*2+1] * intVolume;
+			}
+		}
+	}
+	else if (s_channels == 1 && width == 2)
+	{
+		for (i=0 ; ; i++)
+		{
+			src = i*scale;
+			if (src >= samples)
+				break;
+			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
+			s_rawend[stream]++;
+			rawsamples[dst].left = ((short *)data)[src] * intVolume;
+			rawsamples[dst].right = ((short *)data)[src] * intVolume;
+		}
+	}
+	else if (s_channels == 2 && width == 1)
+	{
+		intVolume *= 256;
+		
+		for (i=0 ; ; i++)
+		{
+			src = i*scale;
+			if (src >= samples)
+				break;
+			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
+			s_rawend[stream]++;
+			rawsamples[dst].left = ((char *)data)[src*2] * intVolume;
+			rawsamples[dst].right = ((char *)data)[src*2+1] * intVolume;
+		}
+	}
+	else if (s_channels == 1 && width == 1)
+	{
+		intVolume *= 256;
+		
+		for (i=0 ; ; i++)
+		{
+			src = i*scale;
+			if (src >= samples)
+				break;
+			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
+			s_rawend[stream]++;
+			rawsamples[dst].left = (((byte *)data)[src]-128) * intVolume;
+			rawsamples[dst].right = (((byte *)data)[src]-128) * intVolume;
+		}
+	}
+	
+	if ( s_rawend[stream] > soundtime + MAX_RAW_SAMPLES ) {
+		Com_DPrintf( "S_Base_RawSamples: overflowed %i > %i\n", s_rawend[stream], soundtime );
+	}
+}
+
+//=============================================================================
+
+/*
 ===================
 S_UpdateAmbientSounds
 ===================
@@ -716,6 +861,9 @@ void S_Update (vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 		Con_Printf ("----(%i)----\n", total);
 	}
 
+	// add raw data from streamed samples
+	S_UpdateBackgroundTrack();	
+	
 // mix some sound
 	S_Update_();
 }
@@ -794,6 +942,152 @@ void S_Update_(void)
 
 	SNDDMA_Submit ();
 #endif
+}
+
+
+
+/*
+ ===============================================================================
+ 
+ background music functions
+ 
+ ===============================================================================
+ */
+
+/*
+ ======================
+ S_StopBackgroundTrack
+ ======================
+ */
+void S_Base_StopBackgroundTrack( void ) {
+	if(!s_backgroundStream)
+		return;
+	S_CodecCloseStream(s_backgroundStream);
+	s_backgroundStream = NULL;
+	s_rawend[0] = 0;
+}
+
+/*
+ ======================
+ S_StartBackgroundTrack
+ ======================
+ */
+void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
+	if ( !intro ) {
+		intro = "";
+	}
+	if ( !loop || !loop[0] ) {
+		loop = intro;
+	}
+	Com_DPrintf( "S_StartBackgroundTrack( %s, %s )\n", intro, loop );
+	
+	if(!*intro)
+	{
+		S_Base_StopBackgroundTrack();
+		return;
+	}
+	
+	if( !loop ) {
+		s_backgroundLoop[0] = 0;
+	} else {
+		Q_strncpyz( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
+	}
+	
+	// close the background track, but DON'T reset s_rawend
+	// if restarting the same back ground track
+	if(s_backgroundStream)
+	{
+		S_CodecCloseStream(s_backgroundStream);
+		s_backgroundStream = NULL;
+	}
+	
+	// Open stream
+	s_backgroundStream = S_CodecOpenStream(intro);
+	if(!s_backgroundStream) {
+		Com_Printf( "WARNING: couldn't open music file %s\n", intro );
+		return;
+	}
+	
+	if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
+		Com_Printf( "WARNING: music file %s is not 22k stereo\n", intro );
+	}
+}
+
+/*
+ ======================
+ S_UpdateBackgroundTrack
+ ======================
+ */
+void S_UpdateBackgroundTrack( void ) {
+	int		bufferSamples;
+	int		fileSamples;
+	byte	raw[30000];		// just enough to fit in a mac stack frame
+	int		fileBytes;
+	int		r;
+	
+	if(!s_backgroundStream) {
+		return;
+	}
+	
+	// don't bother playing anything if musicvolume is 0
+	if ( bgmvolume.value <= 0 ) {
+		return;
+	}
+	
+	// see how many samples should be copied into the raw buffer
+	if ( s_rawend[0] < soundtime ) {
+		s_rawend[0] = soundtime;
+	}
+	
+	while ( s_rawend[0] < soundtime + MAX_RAW_SAMPLES ) {
+		bufferSamples = MAX_RAW_SAMPLES - (s_rawend[0] - soundtime);
+		
+		// decide how much data needs to be read from the file
+		fileSamples = bufferSamples * s_backgroundStream->info.rate / shm->speed;
+		
+		if (!fileSamples)
+			return;
+		
+		// our max buffer size
+		fileBytes = fileSamples * (s_backgroundStream->info.width * s_backgroundStream->info.channels);
+		if ( fileBytes > sizeof(raw) ) {
+			fileBytes = sizeof(raw);
+			fileSamples = fileBytes / (s_backgroundStream->info.width * s_backgroundStream->info.channels);
+		}
+		
+		// Read
+		r = S_CodecReadStream(s_backgroundStream, fileBytes, raw);
+		if(r < fileBytes)
+		{
+			fileBytes = r;
+			fileSamples = r / (s_backgroundStream->info.width * s_backgroundStream->info.channels);
+		}
+		
+		if(r > 0)
+		{
+			// add to raw buffer
+			S_Base_RawSamples( 0, fileSamples, s_backgroundStream->info.rate,
+							  s_backgroundStream->info.width, s_backgroundStream->info.channels, raw, bgmvolume.value );
+		}
+		else
+		{
+			// loop
+			if(s_backgroundLoop[0])
+			{
+				S_CodecCloseStream(s_backgroundStream);
+				s_backgroundStream = NULL;
+				S_Base_StartBackgroundTrack( s_backgroundLoop, s_backgroundLoop );
+				if(!s_backgroundStream)
+					return;
+			}
+			else
+			{
+				S_Base_StopBackgroundTrack();
+				return;
+			}
+		}
+		
+	}
 }
 
 void S_BlockSound (void)
