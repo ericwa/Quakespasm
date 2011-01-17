@@ -79,7 +79,7 @@ int main (int argc, char **argv)
     }
 
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	SDLApplication *app = [SDLApplication sharedApplication];
+	NSApplication *app = [SDLApplication sharedApplication];
 	SDLMain *delegate = [[SDLMain alloc] init];
 	
 	[app setDelegate: delegate];
