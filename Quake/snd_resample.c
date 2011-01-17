@@ -2,8 +2,6 @@
 #include "sound.h"
 #include "speex_resampler.h"
 
-// FIXME: call a real resampler :-)
-
 void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, const void *indata,
 				   int outrate, int outwidth, int *outnumsamples)
 {
@@ -32,19 +30,36 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 	}
 
 	// Call the resampler
-	SpeexResamplerState *resampler = speex_resampler_init(channels, inrate, outrate, 10, NULL);
-	
+	static SpeexResamplerState *st = NULL;
+	if (st == NULL)
+	{
+		st = speex_resampler_init(channels, inrate, outrate, 5, NULL);
+	}
+	else
+	{
+		speex_resampler_reset_mem(st);
+	}
+	speex_resampler_set_rate(st, inrate, outrate);
+
 	*outnumsamples = 0;
 	unsigned int consumedtotal = 0;
+	unsigned int outputtotal = 0;
 	unsigned int loops = 0;
 	unsigned int consumed, output;
 	while (consumedtotal < innumsamples)
 	{
+		int roomToConsume, roomToOutput;
+		
 		consumed = innumsamples - consumedtotal;
-		output = maxsamples - (*outnumsamples);
-		speex_resampler_process_interleaved_int(resampler, in16bit, &consumed, outdata, &output);
+		output = maxsamples - outputtotal;
+		
+		roomToConsume = consumed;
+		roomToOutput = output;
+		
+		speex_resampler_process_interleaved_int(st, in16bit + consumedtotal, &consumed, outdata + outputtotal, &output);
 		consumedtotal += consumed;
-		(*outnumsamples) += output;
+		outputtotal += output;
+		
 		loops++;
 		if (loops > 100)
 		{
@@ -52,7 +67,9 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 		}
 	}
 	
-	speex_resampler_destroy(resampler);
+	*outnumsamples = outputtotal;
+	
+	//speex_resampler_destroy(resampler);
 	
 	if (in16bit != indata)
 	{
