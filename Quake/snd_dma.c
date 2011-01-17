@@ -32,6 +32,7 @@ void S_StopAllSounds(qboolean clear);
 void S_StopAllSoundsC(void);
 
 snd_stream_t	*s_backgroundStream = NULL;
+static qboolean	s_backgroundPaused = false;
 static char		s_backgroundLoop[MAX_QPATH];
 
 
@@ -210,6 +211,8 @@ void S_Shutdown (void)
 	if (!sound_started)
 		return;
 
+	S_CodecShutdown();
+	
 	if (shm)
 		shm->gamealive = 0;
 	sound_started = 0;
@@ -958,6 +961,24 @@ void S_Update_(void)
 
 /*
  ======================
+ S_PauseBackgroundTrack
+ ======================
+ */
+void S_PauseBackgroundTrack( void ) {
+	s_backgroundPaused = true;
+}
+
+/*
+ ======================
+ S_ResumeBackgroundTrack
+ ======================
+ */
+void S_ResumeBackgroundTrack( void ) {
+	s_backgroundPaused = false;
+}
+
+/*
+ ======================
  S_StopBackgroundTrack
  ======================
  */
@@ -996,6 +1017,8 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 		s_backgroundLoop[MAX_QPATH-1] = '\0';
 	}
 	
+	s_backgroundPaused = false;
+	
 	// close the background track, but DON'T reset s_rawend
 	// if restarting the same back ground track
 	if(s_backgroundStream)
@@ -1011,9 +1034,9 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 		return;
 	}
 	
-	if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
-		Con_Printf( "WARNING: music file %s is %d channels and %d Hz\n", intro, s_backgroundStream->info.channels, s_backgroundStream->info.rate );
-	}
+	//if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
+	//	Con_Printf( "WARNING: music file %s is %d channels and %d Hz\n", intro, s_backgroundStream->info.channels, s_backgroundStream->info.rate );
+	//}
 }
 
 /*
@@ -1032,8 +1055,13 @@ void S_UpdateBackgroundTrack( void ) {
 		return;
 	}
 	
+	// FIXME: this means setting the music volume to 0 pauses it.. not sure if that's great
 	// don't bother playing anything if musicvolume is 0
 	if ( bgmvolume.value <= 0 ) {
+		return;
+	}
+	
+	if ( s_backgroundPaused ) {
 		return;
 	}
 	

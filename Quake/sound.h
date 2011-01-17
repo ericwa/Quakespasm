@@ -140,6 +140,8 @@ void SNDDMA_BlockSound(void);
 /* unblocks the output upon window focus gain */
 void SNDDMA_UnblockSound(void);
 
+void S_PauseBackgroundTrack( void );
+void S_ResumeBackgroundTrack( void );
 void S_Base_StopBackgroundTrack( void );
 void S_Base_StartBackgroundTrack( const char *intro, const char *loop );
 void S_UpdateBackgroundTrack( void );

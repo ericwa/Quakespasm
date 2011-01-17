@@ -159,7 +159,8 @@ void CDAudio_Pause(void)
 		return;
 
 	// FIXME: pause in backend
-
+	S_PauseBackgroundTrack();
+	
 	wasPlaying = playing;
 	playing = false;
 }
@@ -173,7 +174,8 @@ void CDAudio_Resume(void)
 		return;
 
     // FIXME: resume in backend
-
+	S_ResumeBackgroundTrack();
+	
 	playing = true;
 }
 
