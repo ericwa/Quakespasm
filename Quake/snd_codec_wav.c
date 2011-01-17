@@ -204,7 +204,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	void *buffer;
 
 	// Try to open the file
-	Sys_FileOpenRead(filename, &file);
+	COM_OpenFile(filename, &file);
 	if(file == -1)
 	{
 		Con_Printf( "ERROR: Could not open \"%s\"\n",

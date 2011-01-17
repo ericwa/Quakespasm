@@ -60,16 +60,7 @@ Select an appropriate codec for a file based on its extension
 */
 static snd_codec_t *S_FindCodecForFile(const char *filename)
 {
-	int i;
-	char filenameLowercase[MAX_QPATH];
-	strncpy(filenameLowercase, filename, MAX_QPATH);
-	filenameLowercase[MAX_QPATH-1] = '\0';
-	for (i=0; i<MAX_QPATH; i++)
-	{
-		filenameLowercase[i] = tolower(filenameLowercase[i]);
-	}
-	
-	char *ext = S_FileExtension(filenameLowercase);
+	char *ext = S_FileExtension(filename);
 	snd_codec_t *codec = codecs;
 
 	if(!ext)
@@ -80,13 +71,13 @@ static snd_codec_t *S_FindCodecForFile(const char *filename)
 			char fn[MAX_QPATH];
 			
 			// there is no extension so we do not need to subtract 4 chars
-			strncpy(fn, filenameLowercase, MAX_QPATH);
+			strncpy(fn, filename, MAX_QPATH);
 			fn[MAX_QPATH-1] = '\0';
 			COM_DefaultExtension(fn, codec->ext);
 
 			// Check it exists
 			int handle;
-			if (Sys_FileOpenRead(fn, &handle) > 0)
+			if (COM_OpenFile(fn, &handle) > 0)
 			{
 				COM_CloseFile(handle);
 				return codec;
@@ -102,7 +93,7 @@ static snd_codec_t *S_FindCodecForFile(const char *filename)
 
 	while(codec)
 	{
-		if(0 == strcmp(ext, codec->ext))
+		if(0 == Q_strcasecmp(ext, codec->ext))
 			return codec;
 		codec = codec->next;
 	}
