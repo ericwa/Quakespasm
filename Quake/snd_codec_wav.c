@@ -69,9 +69,10 @@ static int S_ReadChunkInfo(int handle, char *name)
 
 	len = FGetLittleLong(handle);
 	if( len < 0 ) {
-		Con_Printf( "WARNING: Negative chunk length\n" );
+		//Con_Printf( "WARNING: Negative chunk length\n" );
 		return -1;
 	}
+	
 
 	return len;
 }
@@ -130,16 +131,18 @@ static void S_ByteSwapRawSamples( int samples, int width, int s_channels, const 
 S_ReadRIFFHeader
 =================
 */
-static qboolean S_ReadRIFFHeader( int file, snd_info_t *info)
+static qboolean S_ReadRIFFHeader( int file, const char *filename, snd_info_t *info)
 {
 	char dump[16];
 	int wav_format;
 	int bits;
 	int fmtlen = 0;
-
+	
 	// skip the riff wav header
 	Sys_FileRead(file, dump, 12);
 
+	int wavstart = Sys_FileTell(file);	
+	
 	// Scan for the format chunk
 	if((fmtlen = S_FindRIFFChunk(file, "fmt ")) < 0)
 	{
@@ -163,47 +166,58 @@ static qboolean S_ReadRIFFHeader( int file, snd_info_t *info)
 
 	info->width = bits / 8;
 	info->dataofs = 0;
-
-	// Skip the rest of the format chunk if required
-	if(fmtlen > 16)
-	{
-		fmtlen -= 16;
-		Sys_FileSeekRelative( file, fmtlen );
-	}
-
+	info->samples = 0;
+	
 	// get cue chunk
-	// FIXME: port code
-	/*
-	FindChunk("cue ");
-	if (data_p)
+	Sys_FileSeek(file, wavstart);
+	if( S_FindRIFFChunk(file, "cue ") > 0)
 	{
-		data_p += 32;
-		info.loopstart = GetLittleLong();
+		Sys_FileSeekRelative(file, 24);
+		info->loopstart = FGetLittleLong(file);
 		
 		// if the next chunk is a LIST chunk, look for a cue length marker
-		FindNextChunk ("LIST");
-		if (data_p)
+		if ( S_FindRIFFChunk(file, "LIST") > 0)
 		{
-			if (!strncmp (data_p + 28, "mark", 4))
+			Sys_FileSeekRelative(file, 20);
+			char marker[4];
+			Sys_FileRead(file, marker, 4);
+			
+			if (!strncmp (marker, "mark", 4))
 			{	// this is not a proper parse, but it works with cooledit...
-				data_p += 24;
-				i = GetLittleLong ();	// samples in loop
-				info.samples = info.loopstart + i;
-				//				Con_Printf("looped length: %i\n", i);
+				Sys_FileSeekRelative(file, -8);
+				int i = FGetLittleLong(file);	// samples in loop
+				info->samples = info->loopstart + i;
 			}
 		}
 	}
-	else*/
+	else
+	{
 		info->loopstart = -1;
-	
+	}
+
 	// Scan for the data chunk
+	Sys_FileSeek(file, wavstart);
 	if( (info->size = S_FindRIFFChunk(file, "data")) < 0)
 	{
 		Con_Printf( "ERROR: Couldn't find \"data\" chunk\n");
 		return false;
 	}
-	info->samples = (info->size / info->width) / info->channels;
 
+	int samples = (info->size / info->width) / info->channels;
+	
+	if (info->samples)
+	{
+		if (samples < info->samples)
+		{
+			Con_Printf ("Sound has a bad loop length \"%s\"\n", filename);
+			info->samples = samples;
+		}
+	}
+	else
+		info->samples = samples;
+	
+	info->dataofs = Sys_FileTell(file) - (wavstart - 12);
+	
 	return true;
 }
 
@@ -227,7 +241,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 {
 	int file;
 	void *buffer;
-
+	
 	// Try to open the file
 	COM_OpenFile(filename, &file);
 	if(file == -1)
@@ -238,7 +252,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	}
 
 	// Read the RIFF header
-	if(!S_ReadRIFFHeader(file, info))
+	if(!S_ReadRIFFHeader(file, filename, info))
 	{
 		COM_CloseFile(file);
 		Con_Printf( "ERROR: Incorrect/unsupported format in \"%s\"\n",
