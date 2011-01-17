@@ -171,6 +171,31 @@ static qboolean S_ReadRIFFHeader( int file, snd_info_t *info)
 		Sys_FileSeekRelative( file, fmtlen );
 	}
 
+	// get cue chunk
+	// FIXME: port code
+	/*
+	FindChunk("cue ");
+	if (data_p)
+	{
+		data_p += 32;
+		info.loopstart = GetLittleLong();
+		
+		// if the next chunk is a LIST chunk, look for a cue length marker
+		FindNextChunk ("LIST");
+		if (data_p)
+		{
+			if (!strncmp (data_p + 28, "mark", 4))
+			{	// this is not a proper parse, but it works with cooledit...
+				data_p += 24;
+				i = GetLittleLong ();	// samples in loop
+				info.samples = info.loopstart + i;
+				//				Con_Printf("looped length: %i\n", i);
+			}
+		}
+	}
+	else*/
+		info->loopstart = -1;
+	
 	// Scan for the data chunk
 	if( (info->size = S_FindRIFFChunk(file, "data")) < 0)
 	{

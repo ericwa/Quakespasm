@@ -149,6 +149,24 @@ qboolean S_Base_StartBackgroundTrack( const char *intro, qboolean loop, S_Backgr
 void S_UpdateBackgroundTrack( void );
 qboolean S_BackgroundTrackIsPlaying( void );
 
+/* resamples a whole file. return value must be freed with free() */
+void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, const void *indata,
+				   int outrate, int outwidth, int *outnumsamples);
+
+/* creates a new stream resampler for the specified rates and number of channels. returns a handle */
+void *Snd_ResamplerInit(int inrate, int inwidth, int outrate, int outwidth, int channels);
+
+/* closes a resampler handle */
+void Snd_ResamplerClose(void *resampler);
+
+/* performs resampling on samples in the given channel. numinsamples takes
+   the number of samples to process, and returns the number actually processed.
+ */
+void Snd_ResampleStream(void *resampler,
+						 int *innumsamples, void *indata,
+						 int *outnumsamples, void *outdata);
+
+
 // ====================================================================
 // User-setable variables
 // ====================================================================
