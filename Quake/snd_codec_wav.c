@@ -215,7 +215,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	// Read the RIFF header
 	if(!S_ReadRIFFHeader(file, info))
 	{
-		Sys_FileClose(file);
+		COM_CloseFile(file);
 		Con_Printf( "ERROR: Incorrect/unsupported format in \"%s\"\n",
 				filename);
 		return NULL;
@@ -225,7 +225,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	buffer = Z_Malloc(info->size);
 	if(!buffer)
 	{
-		Sys_FileClose(file);
+		COM_CloseFile(file);
 		Con_Printf( "ERROR: Out of memory reading \"%s\"\n",
 				filename);
 		return NULL;
@@ -236,7 +236,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	S_ByteSwapRawSamples(info->samples, info->width, info->channels, (byte *)buffer);
 
 	// Close and return
-	Sys_FileClose(file);
+	COM_CloseFile(file);
 	return buffer;
 }
 

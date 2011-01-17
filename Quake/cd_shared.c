@@ -87,6 +87,7 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 	playing = true;
 
     // FIXME: make backend play
+	S_Base_StartBackgroundTrack(playTrackName, NULL);
 }
 
 void CDAudio_Play(byte track, qboolean looping)
@@ -105,7 +106,8 @@ void CDAudio_Stop(void)
 		return;
 
     // FIXME: stop backend
-
+	S_Base_StopBackgroundTrack();
+	
 	wasPlaying = false;
 	playing = false;
 }

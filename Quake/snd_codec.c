@@ -88,7 +88,7 @@ static snd_codec_t *S_FindCodecForFile(const char *filename)
 			int handle;
 			if (Sys_FileOpenRead(fn, &handle) > 0)
 			{
-				Sys_FileClose(handle);
+				COM_CloseFile(handle);
 				return codec;
 			}
 				
@@ -216,7 +216,7 @@ snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)
 	int length;
 
 	// Try to open the file
-	length = Sys_FileOpenRead(filename, &hnd);
+	length = COM_OpenFile(filename, &hnd);
 	if(hnd == -1)
 	{
 		Con_Printf("Can't read sound file %s\n", filename);
@@ -227,7 +227,7 @@ snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)
 	stream = Z_Malloc(sizeof(snd_stream_t));
 	if(!stream)
 	{
-		Sys_FileClose(hnd);
+		COM_CloseFile(hnd);
 		return NULL;
 	}
 
@@ -245,7 +245,7 @@ S_CodecUtilClose
 */
 void S_CodecUtilClose(snd_stream_t **stream)
 {
-	Sys_FileClose((*stream)->file);
+	COM_CloseFile((*stream)->file);
 	Z_Free(*stream);
 	*stream = NULL;
 }

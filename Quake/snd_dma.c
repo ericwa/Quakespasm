@@ -143,6 +143,8 @@ void S_Init (void)
 		return;
 	}
 
+	S_CodecInit();
+	
 	Cvar_RegisterVariable(&nosound, NULL);
 	Cvar_RegisterVariable(&sfxvolume, NULL);
 	Cvar_RegisterVariable(&precache, NULL);
@@ -1010,7 +1012,7 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 	}
 	
 	if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
-		Con_Printf( "WARNING: music file %s is not 22k stereo\n", intro );
+		Con_Printf( "WARNING: music file %s is %d channels and %d Hz\n", intro, s_backgroundStream->info.channels, s_backgroundStream->info.rate );
 	}
 }
 

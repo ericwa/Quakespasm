@@ -22,8 +22,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 
-// FIXME:
-#define USE_CODEC_VORBIS
 
 // OGG support is enabled by this define
 #ifdef USE_CODEC_VORBIS
