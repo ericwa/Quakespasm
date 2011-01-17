@@ -241,7 +241,7 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 {
 	int file;
 	void *buffer;
-	
+
 	// Try to open the file
 	COM_OpenFile(filename, &file);
 	if(file == -1)
@@ -294,7 +294,7 @@ snd_stream_t *S_WAV_CodecOpenStream(const char *filename)
 		return NULL;
 
 	// Read the RIFF header
-	if(!S_ReadRIFFHeader(rv->file, &rv->info))
+	if(!S_ReadRIFFHeader(rv->file, filename, &rv->info))
 	{
 		S_CodecUtilClose(&rv);
 		return NULL;

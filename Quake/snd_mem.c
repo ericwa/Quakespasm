@@ -71,7 +71,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	if (!sc)
 		return NULL;
 
-	float ratio = info.rate / shm->speed;
+	float ratio = (float)info.rate / (float)shm->speed;
 	
 	sc->length = resampledNumSamples;
 	sc->loopstart = (info.loopstart == -1 ? -1 : info.loopstart / ratio); // reposition loop marker to take resampling into account
