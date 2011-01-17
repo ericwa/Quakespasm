@@ -627,13 +627,13 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 	intVolume = 256 * volume;
 	
 	if ( s_rawend[stream] < soundtime ) {
-		Com_DPrintf( "S_Base_RawSamples: resetting minimum: %i < %i\n", s_rawend[stream], soundtime );
+		Con_DPrintf( "S_Base_RawSamples: resetting minimum: %i < %i\n", s_rawend[stream], soundtime );
 		s_rawend[stream] = soundtime;
 	}
 	
 	scale = (float)rate / shm->speed;
 	
-	//Com_Printf ("%i < %i < %i\n", soundtime, s_paintedtime, s_rawend[stream]);
+	//Con_Printf ("%i < %i < %i\n", soundtime, s_paintedtime, s_rawend[stream]);
 	if (s_channels == 2 && width == 2)
 	{
 		if (scale == 1.0)
@@ -705,7 +705,7 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 	}
 	
 	if ( s_rawend[stream] > soundtime + MAX_RAW_SAMPLES ) {
-		Com_DPrintf( "S_Base_RawSamples: overflowed %i > %i\n", s_rawend[stream], soundtime );
+		Con_DPrintf( "S_Base_RawSamples: overflowed %i > %i\n", s_rawend[stream], soundtime );
 	}
 }
 
@@ -979,7 +979,7 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 	if ( !loop || !loop[0] ) {
 		loop = intro;
 	}
-	Com_DPrintf( "S_StartBackgroundTrack( %s, %s )\n", intro, loop );
+	Con_DPrintf( "S_StartBackgroundTrack( %s, %s )\n", intro, loop );
 	
 	if(!*intro)
 	{
@@ -990,7 +990,8 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 	if( !loop ) {
 		s_backgroundLoop[0] = 0;
 	} else {
-		Q_strncpyz( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
+		strncpy( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
+		s_backgroundLoop[MAX_QPATH-1] = '\0';
 	}
 	
 	// close the background track, but DON'T reset s_rawend
@@ -1004,12 +1005,12 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 	// Open stream
 	s_backgroundStream = S_CodecOpenStream(intro);
 	if(!s_backgroundStream) {
-		Com_Printf( "WARNING: couldn't open music file %s\n", intro );
+		Con_Printf( "WARNING: couldn't open music file %s\n", intro );
 		return;
 	}
 	
 	if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
-		Com_Printf( "WARNING: music file %s is not 22k stereo\n", intro );
+		Con_Printf( "WARNING: music file %s is not 22k stereo\n", intro );
 	}
 }
 

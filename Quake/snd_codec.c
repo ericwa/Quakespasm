@@ -60,7 +60,16 @@ Select an appropriate codec for a file based on its extension
 */
 static snd_codec_t *S_FindCodecForFile(const char *filename)
 {
-	char *ext = S_FileExtension(filename);
+	int i;
+	char filenameLowercase[MAX_QPATH];
+	strncpy(filenameLowercase, filename, MAX_QPATH);
+	filenameLowercase[MAX_QPATH-1] = '\0';
+	for (i=0; i<MAX_QPATH; i++)
+	{
+		filenameLowercase[i] = tolower(filenameLowercase[i]);
+	}
+	
+	char *ext = S_FileExtension(filenameLowercase);
 	snd_codec_t *codec = codecs;
 
 	if(!ext)
@@ -71,13 +80,18 @@ static snd_codec_t *S_FindCodecForFile(const char *filename)
 			char fn[MAX_QPATH];
 			
 			// there is no extension so we do not need to subtract 4 chars
-			Q_strncpyz(fn, filename, MAX_QPATH);
-			COM_DefaultExtension(fn, MAX_QPATH, codec->ext);
+			strncpy(fn, filenameLowercase, MAX_QPATH);
+			fn[MAX_QPATH-1] = '\0';
+			COM_DefaultExtension(fn, codec->ext);
 
 			// Check it exists
-			if(FS_ReadFile(fn, NULL) != -1)
+			int handle;
+			if (Sys_FileOpenRead(fn, &handle) > 0)
+			{
+				Sys_FileClose(handle);
 				return codec;
-
+			}
+				
 			// Nope. Next!
 			codec = codec->next;
 		}
@@ -88,7 +102,7 @@ static snd_codec_t *S_FindCodecForFile(const char *filename)
 
 	while(codec)
 	{
-		if(!Q_stricmp(ext, codec->ext))
+		if(0 == strcmp(ext, codec->ext))
 			return codec;
 		codec = codec->next;
 	}
@@ -144,12 +158,12 @@ void *S_CodecLoad(const char *filename, snd_info_t *info)
 	codec = S_FindCodecForFile(filename);
 	if(!codec)
 	{
-		Com_Printf("Unknown extension for %s\n", filename);
+		Con_Printf("Unknown extension for %s\n", filename);
 		return NULL;
 	}
 
 	strncpy(fn, filename, sizeof(fn));
-	COM_DefaultExtension(fn, sizeof(fn), codec->ext);
+	COM_DefaultExtension(fn, codec->ext);
 
 	return codec->load(fn, info);
 }
@@ -167,12 +181,12 @@ snd_stream_t *S_CodecOpenStream(const char *filename)
 	codec = S_FindCodecForFile(filename);
 	if(!codec)
 	{
-		Com_Printf("Unknown extension for %s\n", filename);
+		Con_Printf("Unknown extension for %s\n", filename);
 		return NULL;
 	}
 
 	strncpy(fn, filename, sizeof(fn));
-	COM_DefaultExtension(fn, sizeof(fn), codec->ext);
+	COM_DefaultExtension(fn, codec->ext);
 
 	return codec->open(fn);
 }
@@ -198,14 +212,14 @@ S_CodecUtilOpen
 snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)
 {
 	snd_stream_t *stream;
-	fileHandle_t hnd;
+	int hnd;
 	int length;
 
 	// Try to open the file
-	length = FS_FOpenFileRead(filename, &hnd, qtrue);
-	if(!hnd)
+	length = Sys_FileOpenRead(filename, &hnd);
+	if(hnd == -1)
 	{
-		Com_Printf("Can't read sound file %s\n", filename);
+		Con_Printf("Can't read sound file %s\n", filename);
 		return NULL;
 	}
 
@@ -213,7 +227,7 @@ snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)
 	stream = Z_Malloc(sizeof(snd_stream_t));
 	if(!stream)
 	{
-		FS_FCloseFile(hnd);
+		Sys_FileClose(hnd);
 		return NULL;
 	}
 
@@ -231,7 +245,7 @@ S_CodecUtilClose
 */
 void S_CodecUtilClose(snd_stream_t **stream)
 {
-	FS_FCloseFile((*stream)->file);
+	Sys_FileClose((*stream)->file);
 	Z_Free(*stream);
 	*stream = NULL;
 }

@@ -88,7 +88,7 @@ size_t S_OGG_Callback_read(void *ptr, size_t size, size_t nmemb, void *datasourc
 	byteSize = nmemb * size;
 
 	// read it with the Q3 function FS_Read()
-	bytesRead = FS_Read(ptr, byteSize, stream->file);
+	bytesRead = Sys_FileRead(stream->file, ptr, byteSize);
 
 	// update the file position
 	stream->pos += bytesRead;
@@ -128,12 +128,13 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 		case SEEK_SET :
 		{
 			// set the file position in the actual file with the Q3 function
-			retVal = FS_Seek(stream->file, (long) offset, FS_SEEK_SET);
+			errno = 0;
+			Sys_FileSeek(stream->file, (long) offset);
 
 			// something has gone wrong, so we return here
-			if(retVal < 0)
+			if(errno != 0)
 			{
-			 return retVal;
+			 return errno;
 			}
 
 			// keep track of file position
@@ -144,12 +145,13 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 		case SEEK_CUR :
 		{
 			// set the file position in the actual file with the Q3 function
-			retVal = FS_Seek(stream->file, (long) offset, FS_SEEK_CUR);
+			errno = 0;
+			Sys_FileSeek(stream->file, (long) stream->pos + (long) offset);
 
 			// something has gone wrong, so we return here
-			if(retVal < 0)
+			if(errno != 0)
 			{
-			 return retVal;
+			 return errno;
 			}
 
 			// keep track of file position
@@ -163,12 +165,13 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 			// so we use the file length and FS_SEEK_SET
 
 			// set the file position in the actual file with the Q3 function
-			retVal = FS_Seek(stream->file, (long) stream->length + (long) offset, FS_SEEK_SET);
+			errno = 0;
+			Sys_FileSeek(stream->file, (long) stream->length + (long) offset);
 
 			// something has gone wrong, so we return here
-			if(retVal < 0)
+			if(errno != 0)
 			{
-			 return retVal;
+			 return errno;
 			}
 
 			// keep track of file position
@@ -213,7 +216,7 @@ long S_OGG_Callback_tell(void *datasource)
 	// snd_stream_t in the generic pointer
 	stream = (snd_stream_t *) datasource;
 
-	return (long) FS_FTell(stream->file);
+	return (long) Sys_FileTell(stream->file);
 }
 
 // the callback structure

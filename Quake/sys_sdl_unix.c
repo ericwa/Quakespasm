@@ -114,6 +114,11 @@ void Sys_FileSeek (int handle, int position)
 	fseek (sys_handles[handle], position, SEEK_SET);
 }
 
+void Sys_FileSeekRelative (int handle, int position)
+{
+	fseek (sys_handles[handle], position, SEEK_CUR);
+}
+
 int Sys_FileRead (int handle, void *dest, int count)
 {
 	return fread (dest, 1, count, sys_handles[handle]);
@@ -137,6 +142,11 @@ int Sys_FileTime (const char *path)
 	}
 
 	return -1;
+}
+
+int	Sys_FileTell (int handle)
+{
+	return ftell(sys_handles[handle]);
 }
 
 void Sys_Init (void)

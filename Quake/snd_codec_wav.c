@@ -24,15 +24,17 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "quakedef.h"
 #include "snd_codec.h"
 
+#define PAD(x,y) (((x)+(y)-1) & ~((y)-1))
+
 /*
 =================
 FGetLittleLong
 =================
 */
-static int FGetLittleLong( fileHandle_t f ) {
+static int FGetLittleLong( int handle ) {
 	int		v;
 
-	FS_Read( &v, sizeof(v), f );
+	Sys_FileRead( handle, &v, sizeof(v) );
 
 	return LittleLong( v);
 }
@@ -42,10 +44,10 @@ static int FGetLittleLong( fileHandle_t f ) {
 FGetLittleShort
 =================
 */
-static short FGetLittleShort( fileHandle_t f ) {
+static short FGetLittleShort( int handle ) {
 	short	v;
 
-	FS_Read( &v, sizeof(v), f );
+	Sys_FileRead( handle, &v, sizeof(v) );
 
 	return LittleShort( v);
 }
@@ -55,19 +57,19 @@ static short FGetLittleShort( fileHandle_t f ) {
 S_ReadChunkInfo
 =================
 */
-static int S_ReadChunkInfo(fileHandle_t f, char *name)
+static int S_ReadChunkInfo(int handle, char *name)
 {
 	int len, r;
 
 	name[4] = 0;
 
-	r = FS_Read(name, 4, f);
+	r = Sys_FileRead(handle, name, 4);
 	if(r != 4)
 		return -1;
 
-	len = FGetLittleLong(f);
+	len = FGetLittleLong(handle);
 	if( len < 0 ) {
-		Com_Printf( S_COLOR_YELLOW "WARNING: Negative chunk length\n" );
+		Con_Printf( "WARNING: Negative chunk length\n" );
 		return -1;
 	}
 
@@ -81,11 +83,11 @@ S_FindRIFFChunk
 Returns the length of the data in the chunk, or -1 if not found
 =================
 */
-static int S_FindRIFFChunk( fileHandle_t f, char *chunk ) {
+static int S_FindRIFFChunk( int handle, char *chunk ) {
 	char	name[5];
 	int		len;
 
-	while( ( len = S_ReadChunkInfo(f, name) ) >= 0 )
+	while( ( len = S_ReadChunkInfo(handle, name) ) >= 0 )
 	{
 		// If this is the right chunk, return
 		if( !Q_strncmp( name, chunk, 4 ) )
@@ -94,7 +96,7 @@ static int S_FindRIFFChunk( fileHandle_t f, char *chunk ) {
 		len = PAD( len, 2 );
 
 		// Not the right chunk - skip it
-		FS_Seek( f, len, FS_SEEK_CUR );
+		Sys_FileSeekRelative( handle, len );
 	}
 
 	return -1;
@@ -128,7 +130,7 @@ static void S_ByteSwapRawSamples( int samples, int width, int s_channels, const 
 S_ReadRIFFHeader
 =================
 */
-static qboolean S_ReadRIFFHeader(fileHandle_t file, snd_info_t *info)
+static qboolean S_ReadRIFFHeader( int file, snd_info_t *info)
 {
 	char dump[16];
 	int wav_format;
@@ -136,13 +138,13 @@ static qboolean S_ReadRIFFHeader(fileHandle_t file, snd_info_t *info)
 	int fmtlen = 0;
 
 	// skip the riff wav header
-	FS_Read(dump, 12, file);
+	Sys_FileRead(file, dump, 12);
 
 	// Scan for the format chunk
 	if((fmtlen = S_FindRIFFChunk(file, "fmt ")) < 0)
 	{
-		Com_Printf( S_COLOR_RED "ERROR: Couldn't find \"fmt\" chunk\n");
-		return qfalse;
+		Con_Printf( "ERROR: Couldn't find \"fmt\" chunk\n");
+		return false;
 	}
 
 	// Save the parameters
@@ -155,8 +157,8 @@ static qboolean S_ReadRIFFHeader(fileHandle_t file, snd_info_t *info)
 
 	if( bits < 8 )
 	{
-	  Com_Printf( S_COLOR_RED "ERROR: Less than 8 bit sound is not supported\n");
-	  return qfalse;
+	  Con_Printf( "ERROR: Less than 8 bit sound is not supported\n");
+	  return false;
 	}
 
 	info->width = bits / 8;
@@ -166,18 +168,18 @@ static qboolean S_ReadRIFFHeader(fileHandle_t file, snd_info_t *info)
 	if(fmtlen > 16)
 	{
 		fmtlen -= 16;
-		FS_Seek( file, fmtlen, FS_SEEK_CUR );
+		Sys_FileSeekRelative( file, fmtlen );
 	}
 
 	// Scan for the data chunk
 	if( (info->size = S_FindRIFFChunk(file, "data")) < 0)
 	{
-		Com_Printf( S_COLOR_RED "ERROR: Couldn't find \"data\" chunk\n");
-		return qfalse;
+		Con_Printf( "ERROR: Couldn't find \"data\" chunk\n");
+		return false;
 	}
 	info->samples = (info->size / info->width) / info->channels;
 
-	return qtrue;
+	return true;
 }
 
 // WAV codec
@@ -198,14 +200,14 @@ S_WAV_CodecLoad
 */
 void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 {
-	fileHandle_t file;
+	int file;
 	void *buffer;
 
 	// Try to open the file
-	FS_FOpenFileRead(filename, &file, qtrue);
-	if(!file)
+	Sys_FileOpenRead(filename, &file);
+	if(file == -1)
 	{
-		Com_Printf( S_COLOR_RED "ERROR: Could not open \"%s\"\n",
+		Con_Printf( "ERROR: Could not open \"%s\"\n",
 				filename);
 		return NULL;
 	}
@@ -213,8 +215,8 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	// Read the RIFF header
 	if(!S_ReadRIFFHeader(file, info))
 	{
-		FS_FCloseFile(file);
-		Com_Printf( S_COLOR_RED "ERROR: Incorrect/unsupported format in \"%s\"\n",
+		Sys_FileClose(file);
+		Con_Printf( "ERROR: Incorrect/unsupported format in \"%s\"\n",
 				filename);
 		return NULL;
 	}
@@ -223,18 +225,18 @@ void *S_WAV_CodecLoad(const char *filename, snd_info_t *info)
 	buffer = Z_Malloc(info->size);
 	if(!buffer)
 	{
-		FS_FCloseFile(file);
-		Com_Printf( S_COLOR_RED "ERROR: Out of memory reading \"%s\"\n",
+		Sys_FileClose(file);
+		Con_Printf( "ERROR: Out of memory reading \"%s\"\n",
 				filename);
 		return NULL;
 	}
 
 	// Read, byteswap
-	FS_Read(buffer, info->size, file);
+	Sys_FileRead(file, buffer, info->size);
 	S_ByteSwapRawSamples(info->samples, info->width, info->channels, (byte *)buffer);
 
 	// Close and return
-	FS_FCloseFile(file);
+	Sys_FileClose(file);
 	return buffer;
 }
 
@@ -288,7 +290,7 @@ int S_WAV_CodecReadStream(snd_stream_t *stream, int bytes, void *buffer)
 		bytes = remaining;
 	stream->pos += bytes;
 	samples = (bytes / stream->info.width) / stream->info.channels;
-	FS_Read(buffer, bytes, stream->file);
+	Sys_FileRead(stream->file, buffer, bytes);
 	S_ByteSwapRawSamples(samples, stream->info.width, stream->info.channels, buffer);
 	return bytes;
 }
