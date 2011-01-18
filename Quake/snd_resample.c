@@ -21,7 +21,14 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 		int i;
 		for (i=0; i<innumsamples; i++)
 		{
-			in16bit[i] = (((unsigned char *)indata)[i] - 128) << 6; // FIXME: should be << 8, but causes clipping
+			unsigned char sample = ((unsigned char *)indata)[i];
+			
+			if (sample == 255)
+			{
+				//Con_Printf("8-bit clipping\n");
+			}
+			
+			in16bit[i] = (((short)sample) - 128) << 8;
 		}
 	}
 	else
@@ -83,6 +90,20 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 			Con_Printf("Output %d, predicted %d\n", *outnumsamples, (innumsamples / frac));
 		}
 		//speex_resampler_destroy(resampler);
+	}
+	
+	// Check for clipping.
+	{
+		int i;
+		for (i=0; i<*outnumsamples; i++)
+		{
+			short sample = outdata[i];
+			
+			if (sample == 32767)
+			{
+				//Con_Printf("16-bit clipping\n");
+			}
+		}
 	}
 	
 	if (in16bit != indata)
