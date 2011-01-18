@@ -29,47 +29,61 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 		exit(5);
 	}
 
-	// Call the resampler
-	static SpeexResamplerState *st = NULL;
-	if (st == NULL)
+	// See if we need to resample
+	if (inrate == outrate)
 	{
-		st = speex_resampler_init(channels, inrate, outrate, 5, NULL);
+		memcpy(outdata, in16bit, innumsamples * channels * 2);
+		*outnumsamples = innumsamples;
 	}
 	else
 	{
-		speex_resampler_reset_mem(st);
-	}
-	speex_resampler_set_rate(st, inrate, outrate);
-
-	*outnumsamples = 0;
-	unsigned int consumedtotal = 0;
-	unsigned int outputtotal = 0;
-	unsigned int loops = 0;
-	unsigned int consumed, output;
-	while (consumedtotal < innumsamples)
-	{
-		int roomToConsume, roomToOutput;
 		
-		consumed = innumsamples - consumedtotal;
-		output = maxsamples - outputtotal;
-		
-		roomToConsume = consumed;
-		roomToOutput = output;
-		
-		speex_resampler_process_interleaved_int(st, in16bit + consumedtotal, &consumed, outdata + outputtotal, &output);
-		consumedtotal += consumed;
-		outputtotal += output;
-		
-		loops++;
-		if (loops > 100)
+		// Call the resampler
+		static SpeexResamplerState *st = NULL;
+		if (st == NULL)
 		{
-			Con_Printf("Infinite loop\n");
+			st = speex_resampler_init(channels, inrate, outrate, 0, NULL);
 		}
+		else
+		{
+			speex_resampler_reset_mem(st);
+		}
+		speex_resampler_set_rate(st, inrate, outrate);
+
+		*outnumsamples = 0;
+		unsigned int consumedtotal = 0;
+		unsigned int outputtotal = 0;
+		unsigned int loops = 0;
+		unsigned int consumed, output;
+		while (consumedtotal < innumsamples)
+		{
+			int roomToConsume, roomToOutput;
+			
+			consumed = innumsamples - consumedtotal;
+			output = maxsamples - outputtotal;
+			
+			roomToConsume = consumed;
+			roomToOutput = output;
+			
+			speex_resampler_process_interleaved_int(st, in16bit + consumedtotal, &consumed, outdata + outputtotal, &output);
+			consumedtotal += consumed;
+			outputtotal += output;
+			
+			loops++;
+			if (loops > 100)
+			{
+				Con_Printf("Infinite loop\n");
+			}
+		}
+		
+		*outnumsamples = outputtotal;
+		
+		if (*outnumsamples != (innumsamples / frac))
+		{
+			Con_Printf("Output %d, predicted %d\n", *outnumsamples, (innumsamples / frac));
+		}
+		//speex_resampler_destroy(resampler);
 	}
-	
-	*outnumsamples = outputtotal;
-	
-	//speex_resampler_destroy(resampler);
 	
 	if (in16bit != indata)
 	{
