@@ -148,6 +148,8 @@ void S_Base_StopBackgroundTrack( void );
 qboolean S_Base_StartBackgroundTrack( const char *intro, qboolean loop, S_BackgroundTrackFinishedCallback callback, void *userdata );
 void S_UpdateBackgroundTrack( void );
 qboolean S_BackgroundTrackIsPlaying( void );
+qboolean S_BackgroundTrackIsPaused( void );
+qboolean S_BackgroundTrackIsLooping( void );
 
 /* resamples a whole file. return value must be freed with free() */
 void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, const void *indata,

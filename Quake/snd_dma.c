@@ -1133,6 +1133,27 @@ qboolean S_BackgroundTrackIsPlaying( void )
 	return (NULL != s_backgroundStream) && (!s_backgroundPaused); 
 }
 
+/*
+ ==========================
+ S_BackgroundTrackIsPaused
+ ==========================
+ */
+qboolean S_BackgroundTrackIsPaused( void )
+{
+	return (NULL != s_backgroundStream) && (s_backgroundPaused); 
+}
+
+/*
+ ==========================
+ S_BackgroundTrackIsLooping
+ ==========================
+ */
+qboolean S_BackgroundTrackIsLooping( void )
+{
+	return s_backgroundLoop; 
+}
+
+
 void S_BlockSound (void)
 {
 /* FIXME: do we really need the blocking at the
