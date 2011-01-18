@@ -31,5 +31,19 @@ void CDAudio_Resume(void);
 void CDAudio_Shutdown(void);
 void CDAudio_Update(void);
 
+// Private
+
+void CDAudioBackend_Eject(void);
+void CDAudioBackend_Play(byte track, qboolean looping);
+void CDAudioBackend_Stop(void);
+void CDAudioBackend_Next(void);
+void CDAudioBackend_Prev(void);
+void CDAudioBackend_Pause(void);
+void CDAudioBackend_Resume(void);
+void CDAudioBackend_Info(void);
+void CDAudioBackend_Update(void);
+int CDAudioBackend_Init(void);
+void CDAudioBackend_Shutdown(void);
+
 #endif	/* __CDAUDIO_H */
 

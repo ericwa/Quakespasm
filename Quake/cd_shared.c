@@ -22,24 +22,15 @@
 		Boston, MA  02110-1301  USA
 */
 
-
 #include "quakedef.h"
 
-static qboolean	playing = false;
-static qboolean	wasPlaying = false;
-static qboolean	enabled = true;
-static qboolean playLooping = false;
+static qboolean enabled = false;
+static qboolean	usingBackend = false;
+
 static byte	remap[100];
 static char	playTrackName[MAX_QPATH];
-static double old_cdvolume;
 
 static void CDAudio_Next(void);
-
-static void CDAudio_Eject(void)
-{
-	// FIXME: call backend
-	;
-}
 
 static qboolean CDAudio_IsNumberedTrack(const char *trackName)
 {
@@ -57,9 +48,19 @@ static qboolean CDAudio_IsNumberedTrack(const char *trackName)
 
 static void CDAudio_FinishedCallback(void *userdata)
 {
-	// Hack to go to next track
-	Con_Printf("Advancing because we hit the end of a track...\n");
 	CDAudio_Next();
+}
+
+static qboolean CDAudio_TryPlayNamed(const char *name, qboolean looping)
+{
+	qboolean success = S_Base_StartBackgroundTrack(name, looping, CDAudio_FinishedCallback, NULL);
+	if (success)
+	{
+		playLooping = looping;
+		playing = true;
+		sprintf(playTrackName, "%s", name);
+	}
+	return success;
 }
 
 void CDAudio_PlayNamed(const char *name, qboolean looping)
@@ -89,7 +90,7 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
         {
             return;
         }
-        strcpy(playTrackName, name);
+        sprintf(playTrackName, "%s", name);
     }
 
 	if (playing)
@@ -97,17 +98,17 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 		CDAudio_Stop();
 	}
 
-    // FIXME: check for backend error
-
-	playLooping = looping;
-	playing = true;
 
     // FIXME: make backend play
-	qboolean success = S_Base_StartBackgroundTrack(playTrackName, playLooping, CDAudio_FinishedCallback, NULL);
+	char fullTrackName[MAX_QPATH];
+	sprintf(fullTrackName, "music/%s", playTrackName);
+	qboolean success = S_Base_StartBackgroundTrack(fullTrackName, playLooping, CDAudio_FinishedCallback, NULL);
 	if (!success)
 	{
-		Con_Printf("WARNING: Couldn't open music file %s\n", playTrackName);
+		Con_Printf("WARNING: Couldn't open music file %s\n", fullTrackName);
 	}
+	
+	CDAudio_TryPlayNamed
 }
 
 void CDAudio_Play(byte track, qboolean looping)
@@ -122,14 +123,15 @@ void CDAudio_Stop(void)
 	if (!enabled)
 		return;
 
-	if (!playing)
-		return;
-
-    // FIXME: stop backend
-	S_Base_StopBackgroundTrack();
-	
-	wasPlaying = false;
-	playing = false;
+	if (usingBackend)
+	{
+		CDAudioBackend_Stop();
+		usingBackend = false;
+	}
+	else
+	{
+		S_Base_StopBackgroundTrack();
+	}
 }
 
 static void CDAudio_Next(void)
@@ -138,19 +140,23 @@ static void CDAudio_Next(void)
 
 	if (!enabled)
 		return;
-
-	if (!playing)
-		return;
-
-    if (!CDAudio_IsNumberedTrack(playTrackName))
+	
+	if (usingBackend)
 	{
-		playing = false;
-        return;
+		CDAudio_BackendNext();
 	}
-
-	track = atoi(playTrackName) + 1;
-
-	CDAudio_Play (track, playLooping);
+	else
+	{
+		if (!CDAudio_IsNumberedTrack(playTrackName))
+		{
+			CDAudio_Stop();
+			return;
+		}
+		
+		track = atoi(playTrackName) + 1;
+		
+		CDAudio_Play (track, S_BackgroundTrackIsLooping());		
+	}
 }
 
 static void CDAudio_Prev(void)
@@ -160,17 +166,24 @@ static void CDAudio_Prev(void)
 	if (!enabled)
 		return;
 
-	if (!playing)
-		return;
+	if (usingBackend)
+	{
+		CDAudio_BackendPrev();
+	}
+	else
+	{
+		if (!CDAudio_IsNumberedTrack(playTrackName))
+		{
+			CDAudio_Stop();
+			return;
+		}
 
-    if (!CDAudio_IsNumberedTrack(playTrackName))
-        return;
+		track = atoi(playTrackName) - 1;
+		if (track < 1)
+			track = 1;
 
-	track = atoi(playTrackName) - 1;
-    if (track < 1)
-        track = 1;
-
-	CDAudio_Play (track, playLooping);
+		CDAudio_Play(track, S_BackgroundTrackIsLooping());
+	}
 }
 
 void CDAudio_Pause(void)
@@ -178,14 +191,14 @@ void CDAudio_Pause(void)
 	if (!enabled)
 		return;
 
-	if (!playing)
-		return;
-
-	// FIXME: pause in backend
-	S_PauseBackgroundTrack();
-	
-	wasPlaying = playing;
-	playing = false;
+	if (usingBackend)
+	{	
+		CDAudioBackend_Pause();
+	}
+	else
+	{
+		S_PauseBackgroundTrack();
+	}
 }
 
 void CDAudio_Resume(void)
@@ -193,13 +206,14 @@ void CDAudio_Resume(void)
 	if (!enabled)
 		return;
 
-	if (!wasPlaying)
-		return;
-
-    // FIXME: resume in backend
-	S_ResumeBackgroundTrack();
-	
-	playing = true;
+	if (usingBackend)
+	{
+		CDAudioBackend_Resume();
+	}
+	else
+	{
+		S_ResumeBackgroundTrack();
+	}
 }
 
 static void CD_f (void)
@@ -226,21 +240,19 @@ static void CD_f (void)
 
 	if (Q_strcasecmp(command, "off") == 0)
 	{
-		if (playing)
-			CDAudio_Stop();
+		CDAudio_Stop();
 		enabled = false;
 		return;
 	}
 
 	if (Q_strcasecmp(command, "reset") == 0)
 	{
-		enabled = true;
-		if (playing)
-			CDAudio_Stop();
+		CDAudio_Stop();
+		
 		for (n = 0; n < 100; n++)
 			remap[n] = n;
 
-		// FIXME: backend get disc info
+		// FIXME: backend get disc info?
 
 		return;
 	}
@@ -320,80 +332,48 @@ static void CD_f (void)
 
 	if (Q_strcasecmp(command, "eject") == 0)
 	{
-		if (playing)
-			CDAudio_Stop();
-		CDAudio_Eject();
+		CDAudioBackend_Eject();
 		return;
 	}
 
 	if (Q_strcasecmp(command, "info") == 0)
 	{
-		if (playing)
-			Con_Printf ("Currently %s track %s\n", playLooping ? "looping" : "playing", playTrackName);
-		else if (wasPlaying)
-			Con_Printf ("Paused %s track %s\n", playLooping ? "looping" : "playing", playTrackName);
-
-		Con_Printf ("Volume is %f\n", bgmvolume.value);
-
+		if (usingBackend)
+		{
+			CDAudioBackend_Info();
+		}
+		else
+		{
+			if (S_BackgroundTrackIsPlaying())
+				Con_Printf ("Currently %s track %s\n", S_BackgroundTrackIsLooping() ? "looping" : "playing", playTrackName);
+			else if (S_BackgroundTrackIsPaused())
+				Con_Printf ("Paused %s track %s\n", S_BackgroundTrackIsLooping() ? "looping" : "playing", playTrackName);
+			
+			Con_Printf ("Volume is %f\n", bgmvolume.value);			
+		}
 		return;
 	}
 	Con_Printf ("cd: no such command. Use \"cd\" for help.\n");
 }
 
-static qboolean CD_GetVolume (void *unused)
-{
-/* FIXME: write proper code in here when SDL
-   supports cdrom volume control some day. */
-	return false;
-}
-
-static qboolean CD_SetVolume (void *unused)
-{
-/* FIXME: write proper code in here when SDL
-   supports cdrom volume control some day. */
-	return false;
-}
-
-static qboolean CDAudio_SetVolume (cvar_t *var)
-{
-	if (!enabled)
-		return false;
-
-	if (var->value < 0.0)
-		Cvar_SetValue (var->name, 0.0);
-	else if (var->value > 1.0)
-		Cvar_SetValue (var->name, 1.0);
-	old_cdvolume = var->value;
-
-	//FIXME:
-	return true;
-}
 
 void CDAudio_Update(void)
 {
 	if (!enabled)
 		return;
-
-	if (old_cdvolume != bgmvolume.value)
-		CDAudio_SetVolume (&bgmvolume);
-
-	// FIXME: update backend
-
+	
+	CDAudioBackend_Update();
 }
-
 
 int CDAudio_Init(void)
 {
 	int	i;
 
-    // FIXME: try to init backend
+	enabled = true;
+	CDAudioBackend_Init();
 
 	for (i = 0; i < 100; i++)
 		remap[i] = i;
-
-	enabled = true;
-
-	// FIXME: check if cd in drive
 
 	Cmd_AddCommand ("cd", CD_f);
 
@@ -403,6 +383,6 @@ int CDAudio_Init(void)
 void CDAudio_Shutdown(void)
 {
 	CDAudio_Stop();
-
-	// FIXME: shutdown backend
+	
+	CDAudioBackend_Shutdown();
 }
