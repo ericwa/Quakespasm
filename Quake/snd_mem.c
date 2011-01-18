@@ -65,6 +65,12 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	int resampledNumSamples;
 	void *resampled = Snd_Resample(info.rate, info.width, info.samples, info.channels, data, shm->speed, shm->samplebits/8, &resampledNumSamples);
 	
+	if (info.rate == shm->speed && info.width == shm->samplebits/8)
+	{
+		if (resampledNumSamples != info.samples) exit(5);
+		if (0 != memcmp(data, resampled, (info.width * info.samples * info.channels))) exit(6);
+	}
+	
 	len = resampledNumSamples * (shm->samplebits/8) * info.channels;
 
 	sc = (sfxcache_t *) Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
