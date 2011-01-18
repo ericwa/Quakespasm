@@ -1150,7 +1150,7 @@ qboolean S_BackgroundTrackIsPaused( void )
  */
 qboolean S_BackgroundTrackIsLooping( void )
 {
-	return s_backgroundLoop; 
+	return s_backgroundLoop[0]; 
 }
 
 

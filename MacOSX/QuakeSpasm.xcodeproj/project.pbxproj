@@ -102,7 +102,6 @@
 		48FA25B712437EAB00667668 /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = 48FA25B612437EAB00667668 /* dsa_pub.pem */; };
 		48FE585B0D3A82C8006BB491 /* QuakeArguments.m in Sources */ = {isa = PBXBuildFile; fileRef = 48FE585A0D3A82C8006BB491 /* QuakeArguments.m */; };
 		66A5467212E3AF2300FFA7D5 /* cd_shared.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5467012E3AF2300FFA7D5 /* cd_shared.c */; };
-		66A5467312E3AF2300FFA7D5 /* cd_ogg.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5467112E3AF2300FFA7D5 /* cd_ogg.c */; };
 		66A5470D12E3CF8100FFA7D5 /* snd_codec.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5470A12E3CF8100FFA7D5 /* snd_codec.c */; };
 		66A5470E12E3CF8100FFA7D5 /* snd_codec_wav.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5470B12E3CF8100FFA7D5 /* snd_codec_wav.c */; };
 		66A5470F12E3CF8100FFA7D5 /* snd_codec_ogg.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A5470C12E3CF8100FFA7D5 /* snd_codec_ogg.c */; };
@@ -283,7 +282,6 @@
 		48FE58590D3A82C8006BB491 /* QuakeArguments.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = QuakeArguments.h; sourceTree = "<group>"; };
 		48FE585A0D3A82C8006BB491 /* QuakeArguments.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = QuakeArguments.m; sourceTree = "<group>"; };
 		66A5467012E3AF2300FFA7D5 /* cd_shared.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cd_shared.c; path = ../Quake/cd_shared.c; sourceTree = SOURCE_ROOT; };
-		66A5467112E3AF2300FFA7D5 /* cd_ogg.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cd_ogg.c; path = ../Quake/cd_ogg.c; sourceTree = SOURCE_ROOT; };
 		66A5470912E3CF6B00FFA7D5 /* snd_codec.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = snd_codec.h; path = ../Quake/snd_codec.h; sourceTree = SOURCE_ROOT; };
 		66A5470A12E3CF8100FFA7D5 /* snd_codec.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snd_codec.c; path = ../Quake/snd_codec.c; sourceTree = SOURCE_ROOT; };
 		66A5470B12E3CF8100FFA7D5 /* snd_codec_wav.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snd_codec_wav.c; path = ../Quake/snd_codec_wav.c; sourceTree = SOURCE_ROOT; };
@@ -492,7 +490,6 @@
 				483A77E10D2EE91000CB2E4C /* Headers */,
 				483A78500D2EEAC300CB2E4C /* cd_sdl.c */,
 				66A5467012E3AF2300FFA7D5 /* cd_shared.c */,
-				66A5467112E3AF2300FFA7D5 /* cd_ogg.c */,
 				486577C80D31A22A00E7920A /* snd_dma.c */,
 				486577C90D31A22A00E7920A /* snd_mem.c */,
 				486577CA0D31A22A00E7920A /* snd_mix.c */,
@@ -774,7 +771,6 @@
 				48134A1812102F400015BF15 /* net_bsd.c in Sources */,
 				48134A1912102F400015BF15 /* net_udp.c in Sources */,
 				66A5467212E3AF2300FFA7D5 /* cd_shared.c in Sources */,
-				66A5467312E3AF2300FFA7D5 /* cd_ogg.c in Sources */,
 				66A5470D12E3CF8100FFA7D5 /* snd_codec.c in Sources */,
 				66A5470E12E3CF8100FFA7D5 /* snd_codec_wav.c in Sources */,
 				66A5470F12E3CF8100FFA7D5 /* snd_codec_ogg.c in Sources */,

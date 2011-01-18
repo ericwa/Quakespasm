@@ -54,12 +54,6 @@ static void CDAudio_FinishedCallback(void *userdata)
 static qboolean CDAudio_TryPlayNamed(const char *name, qboolean looping)
 {
 	qboolean success = S_Base_StartBackgroundTrack(name, looping, CDAudio_FinishedCallback, NULL);
-	if (success)
-	{
-		playLooping = looping;
-		playing = true;
-		sprintf(playTrackName, "%s", name);
-	}
 	return success;
 }
 
@@ -69,11 +63,14 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 		return;
 
     // already playing the correct track?
-	if (playing && (0 == strcmp(name, playTrackName)))
+	if ((0 == strcmp(name, playTrackName)) &&
+		(S_BackgroundTrackIsPlaying() || (usingBackend && CDAudioBackend_IsPlaying())))
 	{
         return;
 	}
 
+	CDAudio_Stop();
+	
     // copy the track name to playTrackName
     if (CDAudio_IsNumberedTrack(name))
     {
@@ -93,22 +90,30 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
         sprintf(playTrackName, "%s", name);
     }
 
-	if (playing)
-	{
-		CDAudio_Stop();
-	}
-
-
-    // FIXME: make backend play
+	// First try to play a music file
+    
 	char fullTrackName[MAX_QPATH];
 	sprintf(fullTrackName, "music/%s", playTrackName);
-	qboolean success = S_Base_StartBackgroundTrack(fullTrackName, playLooping, CDAudio_FinishedCallback, NULL);
-	if (!success)
-	{
-		Con_Printf("WARNING: Couldn't open music file %s\n", fullTrackName);
-	}
 	
-	CDAudio_TryPlayNamed
+	q_snprintf(fullTrackName, sizeof(fullTrackName), "music/%s", playTrackName);
+	if (CDAudio_TryPlayNamed(fullTrackName, looping)) return;
+	
+	q_snprintf(fullTrackName, sizeof(fullTrackName), "music/track%s", playTrackName);
+	if (CDAudio_TryPlayNamed(fullTrackName, looping)) return;
+	
+	q_snprintf(fullTrackName, sizeof(fullTrackName), "music/t%s", playTrackName);
+	if (CDAudio_TryPlayNamed(fullTrackName, looping)) return;
+	
+	Con_Printf("WARNING: Couldn't open music file %s\n", playTrackName);
+		
+	if (CDAudio_IsNumberedTrack(playTrackName))
+	{
+		CDAudioBackend_Play(atoi(playTrackName), looping);
+		if (CDAudioBackend_IsPlaying())
+		{
+			usingBackend = true;
+		}
+	}
 }
 
 void CDAudio_Play(byte track, qboolean looping)
@@ -143,7 +148,7 @@ static void CDAudio_Next(void)
 	
 	if (usingBackend)
 	{
-		CDAudio_BackendNext();
+		CDAudioBackend_Next();
 	}
 	else
 	{
@@ -168,7 +173,7 @@ static void CDAudio_Prev(void)
 
 	if (usingBackend)
 	{
-		CDAudio_BackendPrev();
+		CDAudioBackend_Prev();
 	}
 	else
 	{

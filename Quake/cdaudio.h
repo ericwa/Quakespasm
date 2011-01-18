@@ -35,6 +35,7 @@ void CDAudio_Update(void);
 
 void CDAudioBackend_Eject(void);
 void CDAudioBackend_Play(byte track, qboolean looping);
+qboolean CDAudioBackend_IsPlaying();
 void CDAudioBackend_Stop(void);
 void CDAudioBackend_Next(void);
 void CDAudioBackend_Prev(void);
