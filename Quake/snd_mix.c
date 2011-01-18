@@ -220,7 +220,7 @@ void S_PaintChannels (int endtime)
 					if (sc->loopstart >= 0)
 					{
 						ch->pos = sc->loopstart;
-						ch->end = ltime + sc->length - ch->pos;
+						ch->end = ltime + (sc->length - ch->pos);
 					}
 					else
 					{	// channel just stopped
@@ -297,10 +297,15 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 	
 	leftvol = ch->leftvol * snd_vol;
 	rightvol = ch->rightvol * snd_vol;
-	sfx = (signed short *)sc->data + ch->pos;
-
+	sfx = (signed short *)sc->data + ch->pos; 
+	
 	for (i = 0; i < count; i++)
 	{
+		if ((ch->pos + i) >= sc->length)
+		{
+			Con_Printf("Overran Sample!\n");
+		}
+		
 		data = sfx[i];
 		left = (data * leftvol) >> 8;
 		right = (data * rightvol) >> 8;
