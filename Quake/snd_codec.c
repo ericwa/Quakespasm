@@ -149,7 +149,7 @@ void *S_CodecLoad(const char *filename, snd_info_t *info)
 	codec = S_FindCodecForFile(filename);
 	if(!codec)
 	{
-		Con_Printf("Unknown extension for %s\n", filename);
+		Con_DPrintf("Unknown extension for %s\n", filename);
 		return NULL;
 	}
 
@@ -172,7 +172,7 @@ snd_stream_t *S_CodecOpenStream(const char *filename)
 	codec = S_FindCodecForFile(filename);
 	if(!codec)
 	{
-		Con_Printf("Unknown extension for %s\n", filename);
+		Con_DPrintf("Unknown extension for %s\n", filename);
 		return NULL;
 	}
 
