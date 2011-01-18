@@ -50,9 +50,6 @@
 		<Unit filename="..\..\Quake\anorms.h" />
 		<Unit filename="..\..\Quake\arch_def.h" />
 		<Unit filename="..\..\Quake\bspfile.h" />
-		<Unit filename="..\..\Quake\cd_ogg.c">
-			<Option compilerVar="CC" />
-		</Unit>
 		<Unit filename="..\..\Quake\cd_sdl.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -238,6 +235,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="..\..\Quake\render.h" />
+		<Unit filename="..\..\Quake\resample.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="..\..\Quake\resource.h" />
 		<Unit filename="..\..\Quake\sbar.c">
 			<Option compilerVar="CC" />
@@ -245,6 +245,16 @@
 		<Unit filename="..\..\Quake\sbar.h" />
 		<Unit filename="..\..\Quake\screen.h" />
 		<Unit filename="..\..\Quake\server.h" />
+		<Unit filename="..\..\Quake\snd_codec.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\Quake\snd_codec.h" />
+		<Unit filename="..\..\Quake\snd_codec_ogg.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\Quake\snd_codec_wav.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="..\..\Quake\snd_dma.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -254,10 +264,14 @@
 		<Unit filename="..\..\Quake\snd_mix.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="..\..\Quake\snd_resample.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="..\..\Quake\snd_sdl.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="..\..\Quake\sound.h" />
+		<Unit filename="..\..\Quake\speex_resampler.h" />
 		<Unit filename="..\..\Quake\spritegn.h" />
 		<Unit filename="..\..\Quake\sv_main.c">
 			<Option compilerVar="CC" />
