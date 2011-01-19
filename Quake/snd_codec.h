@@ -44,6 +44,7 @@ typedef struct snd_stream_s
 	snd_info_t info;
 	int length;
 	int pos;
+	int startpos;
 	void *ptr;
 } snd_stream_t;
 
