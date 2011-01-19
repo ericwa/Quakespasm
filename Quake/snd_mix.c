@@ -259,7 +259,6 @@ void SND_InitScaletable (void)
 void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 {
 	int	data;
-	int		*lscale, *rscale;
 	unsigned char	*sfx;
 	int		i;
 
@@ -268,15 +267,13 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 	if (ch->rightvol > 255)
 		ch->rightvol = 255;
 
-	lscale = snd_scaletable[ch->leftvol >> 3];
-	rscale = snd_scaletable[ch->rightvol >> 3];
-	sfx = (unsigned char *) ((signed char *)sc->data + ch->pos);
+	sfx = (unsigned char *) ((unsigned char *)sc->data + ch->pos);
 
 	for (i = 0; i < count; i++)
 	{
-		data = sfx[i];
-		paintbuffer[i].left += lscale[data] * snd_vol;
-		paintbuffer[i].right += rscale[data] * snd_vol;
+		data = (sfx[i] - 128) * snd_vol;
+		paintbuffer[i].left += data * ch->leftvol;
+		paintbuffer[i].right += data * ch->rightvol;
 	}
 
 	ch->pos += count;

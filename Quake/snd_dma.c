@@ -598,8 +598,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
  */
 void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_channels, const byte *data, float volume ) {
 	int		i;
-	int		src, dst;
-	float	scale;
+	int		dst;
 	int		intVolume;
 	portable_samplepair_t *rawsamples;
 	void	*resampler;
@@ -642,8 +641,8 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 		{
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = ((short *)data)[i*2] * intVolume;
-			rawsamples[dst].right = ((short *)data)[i*2+1] * intVolume;
+			rawsamples[dst].left = ((short *)resampled)[i*2] * intVolume;
+			rawsamples[dst].right = ((short *)resampled)[i*2+1] * intVolume;
 		}
 	}
 	else if (s_channels == 1)
@@ -652,8 +651,8 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 		{
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = ((short *)data)[i] * intVolume;
-			rawsamples[dst].right = ((short *)data)[i] * intVolume;
+			rawsamples[dst].left = ((short *)resampled)[i] * intVolume;
+			rawsamples[dst].right = ((short *)resampled)[i] * intVolume;
 		}
 	}
 	else
