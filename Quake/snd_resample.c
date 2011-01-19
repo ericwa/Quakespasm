@@ -22,15 +22,51 @@
 #include "sound.h"
 #include "speex_resampler.h"
 
-void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, const void *indata,
-				   int outrate, int outwidth, int *outnumsamples)
+#define Snd_ResamplerQuality 0
+
+struct resampler {
+	int channels;
+	SpeexResamplerState *st;
+};
+
+void *Snd_ResamplerInit()
 {
+	struct resampler *data = malloc(sizeof(struct resampler *));
+	data->channels = 1;
+	data->st = speex_resampler_init(1, 44100, 44100, Snd_ResamplerQuality, NULL);
+	return data;
+}
+
+void Snd_ResamplerClose(void *handle)
+{
+	struct resampler *data = (struct resampler *)handle;
+	speex_resampler_destroy(data->st);
+	free(data);
+}
+
+void Snd_ResamplerReset(void *handle)
+{
+	struct resampler *data = (struct resampler *)handle;
+	speex_resampler_reset_mem(data->st);
+}
+
+void *Snd_Resample(void *handle,
+						 int inrate, int inwidth, int innumsamples, int channels, const void *indata,
+						 int outrate, int outwidth, int *outnumsamples)
+{
+	// check params
+	if ( !(inwidth == 1 || inwidth == 2) || !(outwidth == 1 || outwidth == 2) )
+	{
+		Sys_Error("Snd_ResampleStream only supports 1 or 2 bytes per sample");
+	}
+	
 	const float frac = ((float)inrate) / ((float)outrate);	
 	const int maxsamples = (innumsamples / frac) + 10;
-	short *outdata = malloc(maxsamples * channels * outwidth);
-
-	// Convert input to 16-bit if necessary
 	short *in16bit;
+	short *out16bit = malloc(maxsamples * channels * 2);
+	
+	// Convert input to 16-bit if necessary
+	
 	if (inwidth == 2)
 	{
 		in16bit = (short*)indata;
@@ -42,65 +78,44 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 		for (i=0; i<innumsamples; i++)
 		{
 			unsigned char sample = ((unsigned char *)indata)[i];
-			
-			if (sample == 255)
-			{
-				//Con_Printf("8-bit clipping\n");
-			}
-			
 			in16bit[i] = (((short)sample) - 128) << 8;
 		}
 	}
-	else
-	{
-		exit(5);
-	}
 
-	// See if we need to resample
+	// Call the resampler
+	
 	if (inrate == outrate)
 	{
-		memcpy(outdata, in16bit, innumsamples * channels * 2);
+		memcpy(out16bit, in16bit, innumsamples * channels * 2);
 		*outnumsamples = innumsamples;
 	}
 	else
 	{
+		struct resampler *data = (struct resampler *)handle;
 		
-		// Call the resampler
-		static SpeexResamplerState *st = NULL;
-		if (st == NULL)
+		int old_inrate, old_outrate;
+		speex_resampler_get_rate(data->st, &old_inrate, &old_outrate);
+		if (data->channels != channels)
 		{
-			st = speex_resampler_init(channels, inrate, outrate, 0, NULL);
+			speex_resampler_destroy(data->st);
+			data->st = speex_resampler_init(channels, inrate, outrate, Snd_ResamplerQuality, NULL);
+			data->channels = channels;
 		}
 		else
 		{
-			speex_resampler_reset_mem(st);
+			speex_resampler_set_rate(data->st, inrate, outrate);
 		}
-		speex_resampler_set_rate(st, inrate, outrate);
-
-		*outnumsamples = 0;
+		
 		unsigned int consumedtotal = 0;
 		unsigned int outputtotal = 0;
-		unsigned int loops = 0;
-		unsigned int consumed, output;
+		
 		while (consumedtotal < innumsamples)
 		{
-			int roomToConsume, roomToOutput;
-			
-			consumed = innumsamples - consumedtotal;
-			output = maxsamples - outputtotal;
-			
-			roomToConsume = consumed;
-			roomToOutput = output;
-			
-			speex_resampler_process_interleaved_int(st, in16bit + consumedtotal, &consumed, outdata + outputtotal, &output);
+			unsigned int consumed = innumsamples - consumedtotal;
+			unsigned int output = maxsamples - outputtotal;
+			speex_resampler_process_interleaved_int(data->st, in16bit + consumedtotal, &consumed, out16bit + outputtotal, &output);
 			consumedtotal += consumed;
 			outputtotal += output;
-			
-			loops++;
-			if (loops > 100)
-			{
-				Con_Printf("Infinite loop\n");
-			}
 		}
 		
 		*outnumsamples = outputtotal;
@@ -109,37 +124,34 @@ void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, cons
 		{
 			Con_Printf("Output %d, predicted %d\n", *outnumsamples, (innumsamples / frac));
 		}
-		//speex_resampler_destroy(resampler);
 	}
 	
-	// Check for clipping.
-	{
-		int i;
-		for (i=0; i<*outnumsamples; i++)
-		{
-			short sample = outdata[i];
-			
-			if (sample == 32767)
-			{
-				//Con_Printf("16-bit clipping\n");
-			}
-		}
-	}
+	
+	// Prepare to return
 	
 	if (in16bit != indata)
 	{
 		free(in16bit);
 	}
 	
-	if(outwidth != 2) exit(5);
-	
+	void *outdata;
+	if (outwidth == 2)
+	{
+		outdata = out16bit;
+	}
+	else // (outputwidth == 1)
+	{
+		int i;
+		int len = (*outnumsamples) * channels;
+		outdata = malloc(len);
+		for (i = 0; i<len; i++)
+		{
+			int s16sample = out16bit[i];
+			unsigned char u8sample = ((s16sample + 32768) >> 8);
+			((unsigned char *)outdata)[i] = u8sample;
+		}
+		free(out16bit);
+	}
+
 	return outdata;
 }
-
-void *Snd_ResamplerInit(int inrate, int inwidth, int outrate, int outwidth, int channels) { return NULL; }
-
-void Snd_ResamplerClose(void *resampler) {}
-
-void Snd_ResampleStream(void *resampler,
-						int *innumsamples, void *indata,
-						int *outnumsamples, void *outdata) {}

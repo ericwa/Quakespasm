@@ -151,23 +151,21 @@ qboolean S_BackgroundTrackIsPlaying( void );
 qboolean S_BackgroundTrackIsPaused( void );
 qboolean S_BackgroundTrackIsLooping( void );
 
-/* resamples a whole file. return value must be freed with free() */
-void *Snd_Resample(int inrate, int inwidth, int innumsamples, int channels, const void *indata,
-				   int outrate, int outwidth, int *outnumsamples);
-
-/* creates a new stream resampler for the specified rates and number of channels. returns a handle */
-void *Snd_ResamplerInit(int inrate, int inwidth, int outrate, int outwidth, int channels);
+/* creates a new stream resampler. returns a handle */
+void *Snd_ResamplerInit();
 
 /* closes a resampler handle */
 void Snd_ResamplerClose(void *resampler);
 
-/* performs resampling on samples in the given channel. numinsamples takes
-   the number of samples to process, and returns the number actually processed.
- */
-void Snd_ResampleStream(void *resampler,
-						 int *innumsamples, void *indata,
-						 int *outnumsamples, void *outdata);
+/* prepare resampler for processing an unrelated sound */
+void Snd_ResamplerReset(void *resampler);
 
+/* performs resampling on samples in the given channel.
+   return value must be freed with free()
+ */
+void *Snd_Resample(void *resampler,
+						 int inrate, int inwidth, int innumsamples, int channels, const void *indata,
+						 int outrate, int outwidth, int *outnumsamples);
 
 // ====================================================================
 // User-setable variables

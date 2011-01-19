@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "snd_codec.h"
 
+static void *resampler = NULL;
+
 /*
 ==============
 S_LoadSound
@@ -62,9 +64,22 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		return NULL;
 	}
 
+	// set up the resampler
+	if (resampler == NULL)
+	{
+		resampler = Snd_ResamplerInit();
+	}
+	else
+	{
+		Snd_ResamplerReset(resampler);
+	}
+
 	int resampledNumSamples;
-	void *resampled = Snd_Resample(info.rate, info.width, info.samples, info.channels, data, shm->speed, shm->samplebits/8, &resampledNumSamples);
+	void *resampled = Snd_Resample(resampler, 
+								   info.rate, info.width, info.samples, info.channels, data,
+								   shm->speed, shm->samplebits/8, &resampledNumSamples);
 	
+	// FIXME: remove
 	if (info.rate == shm->speed && info.width == shm->samplebits/8)
 	{
 		if (resampledNumSamples != info.samples) exit(5);
@@ -73,6 +88,8 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	
 	len = resampledNumSamples * (shm->samplebits/8) * info.channels;
 
+	// set up the sample struct
+	
 	sc = (sfxcache_t *) Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
 	if (!sc)
 		return NULL;
