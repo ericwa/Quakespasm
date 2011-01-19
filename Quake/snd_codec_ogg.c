@@ -446,7 +446,8 @@ void *S_OGG_CodecLoad(const char *filename, snd_info_t *info)
 	info->samples = stream->info.samples;
 	info->size = stream->info.size;
 	info->dataofs = stream->info.dataofs;
-
+	info->loopstart = -1;
+	
 	// allocate a buffer
 	// this buffer must be free-ed by the caller of this function
     	buffer = Z_Malloc(info->size);
