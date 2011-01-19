@@ -644,39 +644,6 @@ void Host_ServerFrame (void)
 
 // send all messages to the clients
 	SV_SendClientMessages ();
-
-    // autosave
-    qboolean autosaveAllowed = (!deathmatch.value &&
-                              !coop.value &&
-                              !sv.paused &&
-                              sv.active &&
-                              !cl.intermission &&
-                              svs.maxclients == 1 &&
-                              sv_player->v.deadflag == DEAD_NO);
-	if (autosaveAllowed)
-	{
-        static double oldhealth = 0;
-        static double lastautosave = 0;
-
-		// Reset the last autosave time if it is out of bounds (i.e. we changed maps)
-		if (lastautosave > sv.time)
-		{
-			lastautosave = 0;
-		}
-
-                // Only autosave when health is picked up
-		if ((sv.time - lastautosave) > 30.0
-            && (sv_player->v.health > oldhealth))
-		{
-            char command[MAX_QPATH + 10];
-		    sprintf(command, "save auto_%s", sv.name);
-
-			Cmd_ExecuteString (command, src_command);
-			lastautosave = sv.time;
-		}
-
-		oldhealth = sv_player->v.health;
-	}
 }
 
 /*
