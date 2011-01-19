@@ -78,7 +78,7 @@ cvar_t sfxvolume = {"volume", "0.7", true};
 
 cvar_t nosound = {"nosound", "0"};
 cvar_t precache = {"precache", "1"};
-cvar_t loadas8bit = {"loadas8bit", "0"};
+cvar_t loadas8bit = {"loadas8bit", "1"};
 cvar_t bgmbuffer = {"bgmbuffer", "4096"};
 cvar_t ambient_level = {"ambient_level", "0.3"};
 cvar_t ambient_fade = {"ambient_fade", "100"};
@@ -588,31 +588,6 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 
 //=============================================================================
 
-/*
- =================
- S_ByteSwapRawSamples
- 
- If raw data has been loaded in little endien binary form, this must be done.
- If raw data was calculated, as with ADPCM, this should not be called.
- =================
- */
-void S_ByteSwapRawSamples( int samples, int width, int s_channels, const byte *data ) {
-	int		i;
-	
-	if ( width != 2 ) {
-		return;
-	}
-	if ( LittleShort( 256 ) == 256 ) {
-		return;
-	}
-	
-	if ( s_channels == 2 ) {
-		samples <<= 1;
-	}
-	for ( i = 0 ; i < samples ; i++ ) {
-		((short *)data)[i] = LittleShort( ((short *)data)[i] );
-	}
-}
 
 /*
  ============
