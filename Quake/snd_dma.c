@@ -1148,13 +1148,7 @@ void S_Play (void)
 	i = 1;
 	while (i < Cmd_Argc())
 	{
-		if (!Q_strrchr(Cmd_Argv(i), '.'))
-		{
-			Q_strcpy(name, Cmd_Argv(i));
-			Q_strcat(name, ".wav");
-		}
-		else
-			Q_strcpy(name, Cmd_Argv(i));
+		Q_strcpy(name, Cmd_Argv(i));
 		sfx = S_PrecacheSound(name);
 		S_StartSound(hash++, 0, sfx, listener_origin, 1.0, 1.0);
 		i++;
