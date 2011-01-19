@@ -182,8 +182,6 @@ void S_Init (void)
 		Con_Printf ("loading all sounds as 8bit\n");
 	}
 
-	SND_InitScaletable ();
-
 	known_sfx = (sfx_t *) Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
 	num_sfx = 0;
 
