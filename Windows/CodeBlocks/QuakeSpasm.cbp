@@ -24,6 +24,7 @@
 				<Option parameters="-window -basedir C:\Programme\Quake" />
 				<Compiler>
 					<Add option="-O2" />
+					<Add option="-DUSE_CODEC_VORBIS" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
@@ -46,6 +47,122 @@
 			<Add library="ws2_32" />
 			<Add directory="C:\Programme\SDL\lib" />
 		</Linker>
+		<Unit filename="..\..\OggVorbis\analysis.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\backends.h" />
+		<Unit filename="..\..\OggVorbis\bitrate.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\bitrate.h" />
+		<Unit filename="..\..\OggVorbis\bitwise.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\block.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\books\coupled\res_books_51.h" />
+		<Unit filename="..\..\OggVorbis\books\coupled\res_books_stereo.h" />
+		<Unit filename="..\..\OggVorbis\books\floor\floor_books.h" />
+		<Unit filename="..\..\OggVorbis\books\uncoupled\res_books_uncoupled.h" />
+		<Unit filename="..\..\OggVorbis\codebook.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\codebook.h" />
+		<Unit filename="..\..\OggVorbis\codec_internal.h" />
+		<Unit filename="..\..\OggVorbis\envelope.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\envelope.h" />
+		<Unit filename="..\..\OggVorbis\floor0.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\floor1.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\framing.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\highlevel.h" />
+		<Unit filename="..\..\OggVorbis\info.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\lookup.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\lookup.h" />
+		<Unit filename="..\..\OggVorbis\lookup_data.h" />
+		<Unit filename="..\..\OggVorbis\lpc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\lpc.h" />
+		<Unit filename="..\..\OggVorbis\lsp.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\lsp.h" />
+		<Unit filename="..\..\OggVorbis\mapping0.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\masking.h" />
+		<Unit filename="..\..\OggVorbis\mdct.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\mdct.h" />
+		<Unit filename="..\..\OggVorbis\misc.h" />
+		<Unit filename="..\..\OggVorbis\modes\floor_all.h" />
+		<Unit filename="..\..\OggVorbis\modes\psych_11.h" />
+		<Unit filename="..\..\OggVorbis\modes\psych_16.h" />
+		<Unit filename="..\..\OggVorbis\modes\psych_44.h" />
+		<Unit filename="..\..\OggVorbis\modes\psych_8.h" />
+		<Unit filename="..\..\OggVorbis\modes\residue_16.h" />
+		<Unit filename="..\..\OggVorbis\modes\residue_44.h" />
+		<Unit filename="..\..\OggVorbis\modes\residue_44p51.h" />
+		<Unit filename="..\..\OggVorbis\modes\residue_44u.h" />
+		<Unit filename="..\..\OggVorbis\modes\residue_8.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_11.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_16.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_22.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_32.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_44.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_44p51.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_44u.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_8.h" />
+		<Unit filename="..\..\OggVorbis\modes\setup_X.h" />
+		<Unit filename="..\..\OggVorbis\ogg\ogg.h" />
+		<Unit filename="..\..\OggVorbis\ogg\os_types.h" />
+		<Unit filename="..\..\OggVorbis\os.h" />
+		<Unit filename="..\..\OggVorbis\psy.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\psy.h" />
+		<Unit filename="..\..\OggVorbis\registry.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\registry.h" />
+		<Unit filename="..\..\OggVorbis\res0.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\scales.h" />
+		<Unit filename="..\..\OggVorbis\sharedbook.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\smallft.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\smallft.h" />
+		<Unit filename="..\..\OggVorbis\synthesis.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\vorbis\codec.h" />
+		<Unit filename="..\..\OggVorbis\vorbis\vorbisenc.h" />
+		<Unit filename="..\..\OggVorbis\vorbis\vorbisfile.h" />
+		<Unit filename="..\..\OggVorbis\vorbisfile.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\window.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\OggVorbis\window.h" />
 		<Unit filename="..\..\Quake\anorm_dots.h" />
 		<Unit filename="..\..\Quake\anorms.h" />
 		<Unit filename="..\..\Quake\arch_def.h" />

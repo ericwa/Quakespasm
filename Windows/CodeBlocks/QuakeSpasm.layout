@@ -4,16 +4,13 @@
 	<File name="..\..\Quake\bspfile.h" open="0" top="0" tabpos="0">
 		<Cursor position="4528" topLine="170" />
 	</File>
-	<File name="..\..\Quake\cd_ogg.c" open="1" top="0" tabpos="31">
-		<Cursor position="0" topLine="0" />
-	</File>
 	<File name="..\..\Quake\cd_sdl.c" open="1" top="0" tabpos="2">
 		<Cursor position="3339" topLine="118" />
 	</File>
 	<File name="..\..\Quake\cd_shared.c" open="1" top="0" tabpos="21">
-		<Cursor position="18" topLine="0" />
+		<Cursor position="772" topLine="18" />
 	</File>
-	<File name="..\..\Quake\cdaudio.h" open="1" top="1" tabpos="27">
+	<File name="..\..\Quake\cdaudio.h" open="1" top="0" tabpos="27">
 		<Cursor position="842" topLine="0" />
 	</File>
 	<File name="..\..\Quake\cl_demo.c" open="0" top="0" tabpos="2">
@@ -118,11 +115,14 @@
 	<File name="..\..\Quake\server.h" open="1" top="0" tabpos="15">
 		<Cursor position="6556" topLine="169" />
 	</File>
+	<File name="..\..\Quake\snd_codec_ogg.c" open="1" top="1" tabpos="31">
+		<Cursor position="1852" topLine="38" />
+	</File>
 	<File name="..\..\Quake\snd_dma.c" open="1" top="0" tabpos="3">
 		<Cursor position="9192" topLine="486" />
 	</File>
 	<File name="..\..\Quake\snd_mem.c" open="1" top="0" tabpos="29">
-		<Cursor position="2707" topLine="76" />
+		<Cursor position="2588" topLine="51" />
 	</File>
 	<File name="..\..\Quake\snd_mix.c" open="1" top="0" tabpos="7">
 		<Cursor position="2140" topLine="42" />
@@ -143,7 +143,7 @@
 		<Cursor position="1796" topLine="5" />
 	</File>
 	<File name="..\..\Quake\sys_sdl_win.c" open="1" top="0" tabpos="14">
-		<Cursor position="4358" topLine="287" />
+		<Cursor position="2722" topLine="109" />
 	</File>
 	<File name="..\..\Quake\wad.c" open="0" top="0" tabpos="5">
 		<Cursor position="1942" topLine="55" />
