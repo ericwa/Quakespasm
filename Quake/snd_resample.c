@@ -93,7 +93,7 @@ void *Snd_Resample(void *handle,
 	{
 		struct resampler *data = (struct resampler *)handle;
 		
-		int old_inrate, old_outrate;
+		unsigned int old_inrate, old_outrate;
 		speex_resampler_get_rate(data->st, &old_inrate, &old_outrate);
 		if (data->channels != channels)
 		{
@@ -119,11 +119,6 @@ void *Snd_Resample(void *handle,
 		}
 		
 		*outnumsamples = outputtotal;
-		
-		if (*outnumsamples != (innumsamples / frac))
-		{
-			Con_Printf("Output %d, predicted %d\n", *outnumsamples, (innumsamples / frac));
-		}
 	}
 	
 	

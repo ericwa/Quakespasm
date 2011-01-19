@@ -78,7 +78,7 @@ cvar_t sfxvolume = {"volume", "0.7", true};
 
 cvar_t nosound = {"nosound", "0"};
 cvar_t precache = {"precache", "1"};
-cvar_t loadas8bit = {"loadas8bit", "1"};
+cvar_t loadas8bit = {"loadas8bit", "0"};
 cvar_t bgmbuffer = {"bgmbuffer", "4096"};
 cvar_t ambient_level = {"ambient_level", "0.3"};
 cvar_t ambient_fade = {"ambient_fade", "100"};
