@@ -118,6 +118,10 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 		{
 			usingBackend = true;
 		}
+		else
+		{
+			Con_Printf( "WARNING: Unable to play music track %d\n", track );
+		}
 		return;
 	}
 	
