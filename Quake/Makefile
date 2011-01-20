@@ -132,7 +132,8 @@ DEFAULT_TARGET := quakespasm
 # objects
 # ----------------------------------------------------------------------------
 
-COMOBJ_SND := snd_dma.o snd_mix.o snd_mem.o
+OBJ_OGGVORBIS := $(patsubst %.c,%.o,$(wildcard ../OggVorbis/*.c))
+COMOBJ_SND := cd_shared.o snd_dma.o snd_mix.o snd_mem.o snd_resample.o resample.o snd_codec.o snd_codec_wav.o snd_codec_ogg.o
 SYSOBJ_SND := snd_sdl.o
 SYSOBJ_CDA := cd_sdl.o
 SYSOBJ_INPUT := in_sdl.o
@@ -168,6 +169,7 @@ GLOBJS = \
 	gl_model.o
 
 OBJS := \
+	$(OBJ_OGGVORBIS) \
 	$(GLOBJS) \
 	$(SYSOBJ_INPUT) \
 	$(COMOBJ_SND) \
