@@ -47,6 +47,45 @@ static qboolean CDAudio_IsNumberedTrack(const char *trackName)
 	return true;
 }
 
+void CDAudio_NewMap ()
+{
+	// hack copied from gl_fog.c:Fog_ParseWorldspawn()
+	char key[128], value[4096];
+	const char *data;
+	
+	data = COM_Parse(cl.worldmodel->entities);
+	if (!data)
+		return; // error
+	if (com_token[0] != '{')
+		return; // error
+	while (1)
+	{
+		data = COM_Parse(data);
+		if (!data)
+			return; // error
+		if (com_token[0] == '}')
+			break; // end of worldspawn
+		if (com_token[0] == '_')
+			strcpy(key, com_token + 1);
+		else
+			strcpy(key, com_token);
+		while (key[strlen(key)-1] == ' ') // remove trailing spaces
+			key[strlen(key)-1] = 0;
+		data = COM_Parse(data);
+		if (!data)
+			return; // error
+		strcpy(value, com_token);
+		
+		if (!strcmp("sounds", key))
+		{
+			if (!CDAudio_IsNumberedTrack(value))
+			{
+				CDAudio_PlayNamed(value, true);
+			}
+		}
+	}
+}
+
 static void CDAudio_FinishedCallback(void *userdata)
 {
 	CDAudio_Next();
