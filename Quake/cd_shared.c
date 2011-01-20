@@ -52,14 +52,10 @@ static void CDAudio_FinishedCallback(void *userdata)
 	CDAudio_Next();
 }
 
-static qboolean CDAudio_TryPlayNamed(const char *name, qboolean looping)
-{
-	qboolean success = S_Base_StartBackgroundTrack(name, looping, CDAudio_FinishedCallback, NULL);
-	return success;
-}
-
 void CDAudio_PlayNamed(const char *name, qboolean looping)
 {
+	char filename[MAX_QPATH];
+	
 	if (!enabled)
 		return;
 
@@ -80,37 +76,11 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
         {
             track = remap[track];
         }
-		q_snprintf(playTrackName, sizeof(playTrackName), "%03d", track);
-	}
-    else
-    {
-        q_snprintf(playTrackName, sizeof(playTrackName), "%s", name);
-    }
+		q_snprintf(playTrackName, sizeof(playTrackName), "%02d", track);
+		
+		q_snprintf(filename, sizeof(filename), "music/cdtracks/track%02u", track);
+		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
 
-	// First try to play a music file (path code from Darkplaces)
-
-	char filename[MAX_QPATH];
-	
-	if (track > 0) // We were given a numbered track
-	{
-		q_snprintf(filename, sizeof(filename), "sound/cdtracks/track%03u", track);
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "sound/cdtracks/track%02u", track);
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/cdtracks/track%03u", track);// added by motorsep
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/cdtracks/track%02u", track);// added by motorsep
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/track%03u", track);// added by motorsep
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/track%02u", track);// added by motorsep		
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
 		// No music file, so try using the hardware CD player
 		
 		CDAudioBackend_Play(track, looping);
@@ -124,25 +94,15 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 		}
 		return;
 	}
-	
-	// We were given a named track
-	
-	q_snprintf(filename, sizeof(filename), "%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "sound/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "sound/cdtracks/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "music/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "music/cdtracks/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	Con_Printf("WARNING: Couldn't find music track \"%s\"\n", playTrackName);
+    else
+    {
+        q_snprintf(playTrackName, sizeof(playTrackName), "%s", name);
+		
+		q_snprintf(filename, sizeof(filename), "music/cdtracks/%s", playTrackName);
+		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
+		
+		Con_Printf("WARNING: Couldn't find music track \"%s\"\n", playTrackName);
+    }
 }
 
 void CDAudio_Play(byte track, qboolean looping)
