@@ -101,7 +101,7 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 		q_snprintf(filename, sizeof(filename), "sound/cdtracks/%s", playTrackName);
 		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
 		
-		Con_Printf("WARNING: Couldn't find music track \"%s\"\n", playTrackName);
+		Con_Printf("WARNING: Unable to play music track \"%s\"\n", filename);
     }
 }
 
