@@ -76,9 +76,9 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
         {
             track = remap[track];
         }
-		q_snprintf(playTrackName, sizeof(playTrackName), "%02d", track);
+		q_snprintf(playTrackName, sizeof(playTrackName), "%03d", track);
 		
-		q_snprintf(filename, sizeof(filename), "music/cdtracks/track%02u", track);
+		q_snprintf(filename, sizeof(filename), "sound/cdtracks/track%03u", track);
 		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
 
 		// No music file, so try using the hardware CD player
@@ -98,7 +98,7 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
     {
         q_snprintf(playTrackName, sizeof(playTrackName), "%s", name);
 		
-		q_snprintf(filename, sizeof(filename), "music/cdtracks/%s", playTrackName);
+		q_snprintf(filename, sizeof(filename), "sound/cdtracks/%s", playTrackName);
 		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
 		
 		Con_Printf("WARNING: Couldn't find music track \"%s\"\n", playTrackName);
