@@ -31,7 +31,7 @@ struct resampler {
 
 void *Snd_ResamplerInit()
 {
-	struct resampler *data = malloc(sizeof(struct resampler *));
+	struct resampler *data = malloc(sizeof(struct resampler));
 	data->channels = 1;
 	data->st = speex_resampler_init(1, 44100, 44100, Snd_ResamplerQuality, NULL);
 	return data;
