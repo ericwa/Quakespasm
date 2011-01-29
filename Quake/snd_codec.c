@@ -110,9 +110,7 @@ void S_CodecInit()
 {
 	codecs = NULL;
 	S_CodecRegister(&wav_codec);
-#ifdef USE_CODEC_VORBIS
 	S_CodecRegister(&ogg_codec);
-#endif
 }
 
 /*
@@ -226,6 +224,8 @@ snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)
 	stream->codec = codec;
 	stream->file = hnd;
 	stream->length = length;
+	stream->startpos = Sys_FileTell(hnd);
+	
 	return stream;
 }
 

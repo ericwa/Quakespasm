@@ -237,29 +237,10 @@ void S_PaintChannels (int endtime)
 	}
 }
 
-void SND_InitScaletable (void)
-{
-	int		i, j;
-
-	for (i = 0; i < 32; i++)
-	{
-		for (j = 0; j < 256; j++)
-		/* When compiling with gcc-4.1.0 at optimisations O1 and
-		   higher, the tricky signed char type conversion is not
-		   guaranteed. Therefore we explicity calculate the signed
-		   value from the index as required. From Kevin Shanahan.
-		   See: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=26719
-		*/
-		//	snd_scaletable[i][j] = ((signed char)j) * i * 8;
-			snd_scaletable[i][j] = ((j < 128) ? j : j - 0xff) * i * 8;
-	}
-}
-
 
 void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 {
 	int	data;
-	int		*lscale, *rscale;
 	unsigned char	*sfx;
 	int		i;
 
@@ -268,15 +249,13 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 	if (ch->rightvol > 255)
 		ch->rightvol = 255;
 
-	lscale = snd_scaletable[ch->leftvol >> 3];
-	rscale = snd_scaletable[ch->rightvol >> 3];
-	sfx = (unsigned char *) ((signed char *)sc->data + ch->pos);
+	sfx = (unsigned char *) ((unsigned char *)sc->data + ch->pos);
 
 	for (i = 0; i < count; i++)
 	{
-		data = sfx[i];
-		paintbuffer[i].left += lscale[data] * snd_vol;
-		paintbuffer[i].right += rscale[data] * snd_vol;
+		data = (sfx[i] - 128) * snd_vol;
+		paintbuffer[i].left += data * ch->leftvol;
+		paintbuffer[i].right += data * ch->rightvol;
 	}
 
 	ch->pos += count;
@@ -301,21 +280,11 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 	
 	for (i = 0; i < count; i++)
 	{
-		if ((ch->pos + i) >= sc->length)
-		{
-			Con_Printf("Overran Sample!\n");
-		}
-		
 		data = sfx[i];
 		left = (data * leftvol) >> 8;
 		right = (data * rightvol) >> 8;
 		paintbuffer[i].left += left;
 		paintbuffer[i].right += right;
-		
-		if (paintbuffer[i].left > (1 << 24))
-		{
-			Con_Printf("Clipping!\n");
-		}
 	}
 
 	ch->pos += count;

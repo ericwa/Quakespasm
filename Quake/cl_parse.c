@@ -373,7 +373,8 @@ void CL_ParseServerInfo (void)
 	cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
 
 	R_NewMap ();
-
+	CDAudio_NewMap ();
+	
 	//johnfitz -- clear out string; we don't consider identical
 	//messages to be duplicates if the map has changed in between
 	con_lastcenterstring[0] = 0;

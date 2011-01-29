@@ -2,7 +2,8 @@
 	cd_shared.c
 
 	Copyright (C) 1996-1997  Id Software, Inc.
-
+	Copyright (C) 2011 Eric Wasylishen
+ 
 	This program is free software; you can redistribute it and/or
 	modify it under the terms of the GNU General Public License
 	as published by the Free Software Foundation; either version 2
@@ -46,19 +47,54 @@ static qboolean CDAudio_IsNumberedTrack(const char *trackName)
 	return true;
 }
 
+void CDAudio_NewMap ()
+{
+	// hack copied from gl_fog.c:Fog_ParseWorldspawn()
+	char key[128], value[4096];
+	const char *data;
+	
+	data = COM_Parse(cl.worldmodel->entities);
+	if (!data)
+		return; // error
+	if (com_token[0] != '{')
+		return; // error
+	while (1)
+	{
+		data = COM_Parse(data);
+		if (!data)
+			return; // error
+		if (com_token[0] == '}')
+			break; // end of worldspawn
+		if (com_token[0] == '_')
+			strcpy(key, com_token + 1);
+		else
+			strcpy(key, com_token);
+		while (key[strlen(key)-1] == ' ') // remove trailing spaces
+			key[strlen(key)-1] = 0;
+		data = COM_Parse(data);
+		if (!data)
+			return; // error
+		strcpy(value, com_token);
+		
+		if (!strcmp("sounds", key))
+		{
+			if (!CDAudio_IsNumberedTrack(value))
+			{
+				CDAudio_PlayNamed(value, true);
+			}
+		}
+	}
+}
+
 static void CDAudio_FinishedCallback(void *userdata)
 {
 	CDAudio_Next();
 }
 
-static qboolean CDAudio_TryPlayNamed(const char *name, qboolean looping)
-{
-	qboolean success = S_Base_StartBackgroundTrack(name, looping, CDAudio_FinishedCallback, NULL);
-	return success;
-}
-
 void CDAudio_PlayNamed(const char *name, qboolean looping)
 {
+	char filename[MAX_QPATH];
+	
 	if (!enabled)
 		return;
 
@@ -80,36 +116,10 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
             track = remap[track];
         }
 		q_snprintf(playTrackName, sizeof(playTrackName), "%03d", track);
-	}
-    else
-    {
-        q_snprintf(playTrackName, sizeof(playTrackName), "%s", name);
-    }
-
-	// First try to play a music file (path code from Darkplaces)
-
-	char filename[MAX_QPATH];
-	
-	if (track > 0) // We were given a numbered track
-	{
+		
 		q_snprintf(filename, sizeof(filename), "sound/cdtracks/track%03u", track);
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "sound/cdtracks/track%02u", track);
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/cdtracks/track%03u", track);// added by motorsep
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/cdtracks/track%02u", track);// added by motorsep
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/track%03u", track);// added by motorsep
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
-		q_snprintf(filename, sizeof(filename), "music/track%02u", track);// added by motorsep		
-		if (CDAudio_TryPlayNamed(filename, looping)) return;
-		
+		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
+
 		// No music file, so try using the hardware CD player
 		
 		CDAudioBackend_Play(track, looping);
@@ -117,27 +127,21 @@ void CDAudio_PlayNamed(const char *name, qboolean looping)
 		{
 			usingBackend = true;
 		}
+		else
+		{
+			Con_Printf( "WARNING: Unable to play music track %d\n", track );
+		}
 		return;
 	}
-	
-	// We were given a named track
-	
-	q_snprintf(filename, sizeof(filename), "%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "sound/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "sound/cdtracks/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "music/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	q_snprintf(filename, sizeof(filename), "music/cdtracks/%s", playTrackName);
-	if (CDAudio_TryPlayNamed(filename, looping)) return;		
-
-	Con_Printf("WARNING: Couldn't find music track \"%s\"\n", playTrackName);
+    else
+    {
+        q_snprintf(playTrackName, sizeof(playTrackName), "%s", name);
+		
+		q_snprintf(filename, sizeof(filename), "sound/cdtracks/%s", playTrackName);
+		if (S_Base_StartBackgroundTrack(filename, looping, CDAudio_FinishedCallback, NULL)) return;
+		
+		Con_Printf("WARNING: Unable to play music track \"%s\"\n", filename);
+    }
 }
 
 void CDAudio_Play(byte track, qboolean looping)

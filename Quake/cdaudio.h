@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __CDAUDIO_H
 #define __CDAUDIO_H
 
+void CDAudio_NewMap ();
 int CDAudio_Init(void);
 void CDAudio_PlayNamed(const char *name, qboolean looping);
 void CDAudio_Play(byte track, qboolean looping);

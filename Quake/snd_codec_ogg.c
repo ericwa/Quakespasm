@@ -23,9 +23,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 
-// OGG support is enabled by this define
-#ifdef USE_CODEC_VORBIS
-
 // includes for the Q3 sound system
 #include "quakedef.h"
 #include "snd_codec.h"
@@ -127,7 +124,7 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 		{
 			// set the file position in the actual file with the Q3 function
 			errno = 0;
-			Sys_FileSeek(stream->file, (long) offset);
+			Sys_FileSeek(stream->file, (long) stream->startpos + (long) offset);
 
 			// something has gone wrong, so we return here
 			if(errno != 0)
@@ -144,7 +141,7 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 		{
 			// set the file position in the actual file with the Q3 function
 			errno = 0;
-			Sys_FileSeek(stream->file, (long) stream->pos + (long) offset);
+			Sys_FileSeek(stream->file, (long) stream->startpos + (long) stream->pos + (long) offset);
 
 			// something has gone wrong, so we return here
 			if(errno != 0)
@@ -164,7 +161,7 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 
 			// set the file position in the actual file with the Q3 function
 			errno = 0;
-			Sys_FileSeek(stream->file, (long) stream->length + (long) offset);
+			Sys_FileSeek(stream->file, (long) stream->startpos + (long) stream->length + (long) offset);
 
 			// something has gone wrong, so we return here
 			if(errno != 0)
@@ -214,7 +211,7 @@ long S_OGG_Callback_tell(void *datasource)
 	// snd_stream_t in the generic pointer
 	stream = (snd_stream_t *) datasource;
 
-	return (long) Sys_FileTell(stream->file);
+	return (long) Sys_FileTell(stream->file) - (long) stream->startpos;
 }
 
 // the callback structure
@@ -446,7 +443,8 @@ void *S_OGG_CodecLoad(const char *filename, snd_info_t *info)
 	info->samples = stream->info.samples;
 	info->size = stream->info.size;
 	info->dataofs = stream->info.dataofs;
-
+	info->loopstart = -1;
+	
 	// allocate a buffer
 	// this buffer must be free-ed by the caller of this function
     	buffer = Z_Malloc(info->size);
@@ -473,5 +471,3 @@ void *S_OGG_CodecLoad(const char *filename, snd_info_t *info)
 
 	return buffer;
 }
-
-#endif // USE_CODEC_VORBIS

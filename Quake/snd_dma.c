@@ -71,7 +71,7 @@ qboolean	sound_started = false;
 
 int						s_rawend[MAX_RAW_STREAMS];
 portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES];
-
+static void				*s_rawresampler[MAX_RAW_STREAMS];
 
 cvar_t bgmvolume = {"bgmvolume", "1", true};
 cvar_t sfxvolume = {"volume", "0.7", true};
@@ -182,8 +182,6 @@ void S_Init (void)
 		Con_Printf ("loading all sounds as 8bit\n");
 	}
 
-	SND_InitScaletable ();
-
 	known_sfx = (sfx_t *) Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
 	num_sfx = 0;
 
@@ -221,6 +219,13 @@ void S_Shutdown (void)
 
 	SNDDMA_Shutdown();
 	shm = NULL;
+	
+	int i;
+	for (i = 0; i<MAX_RAW_STREAMS; i++)
+	{
+		if (s_rawresampler[i] != NULL)
+			Snd_ResamplerClose(s_rawresampler[i]);
+	}
 }
 
 
@@ -581,31 +586,6 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 
 //=============================================================================
 
-/*
- =================
- S_ByteSwapRawSamples
- 
- If raw data has been loaded in little endien binary form, this must be done.
- If raw data was calculated, as with ADPCM, this should not be called.
- =================
- */
-void S_ByteSwapRawSamples( int samples, int width, int s_channels, const byte *data ) {
-	int		i;
-	
-	if ( width != 2 ) {
-		return;
-	}
-	if ( LittleShort( 256 ) == 256 ) {
-		return;
-	}
-	
-	if ( s_channels == 2 ) {
-		samples <<= 1;
-	}
-	for ( i = 0 ; i < samples ; i++ ) {
-		((short *)data)[i] = LittleShort( ((short *)data)[i] );
-	}
-}
 
 /*
  ============
@@ -616,10 +596,11 @@ void S_ByteSwapRawSamples( int samples, int width, int s_channels, const byte *d
  */
 void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_channels, const byte *data, float volume ) {
 	int		i;
-	int		src, dst;
-	float	scale;
+	int		dst;
 	int		intVolume;
 	portable_samplepair_t *rawsamples;
+	void	*resampler;
+	int resampledNumSamples;
 	
 	if ( !sound_started ) {
 		return;
@@ -630,6 +611,13 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 	}
 	rawsamples = s_rawsamples[stream];
 	
+	// Set up resampler
+	if (s_rawresampler[stream] == NULL)
+	{
+		s_rawresampler[stream] = Snd_ResamplerInit();
+	}
+	resampler = s_rawresampler[stream];
+	
 	intVolume = 256 * volume;
 	
 	if ( s_rawend[stream] < soundtime ) {
@@ -637,78 +625,39 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 		s_rawend[stream] = soundtime;
 	}
 	
-	scale = (float)rate / shm->speed;
+	void *resampled = Snd_Resample(resampler, 
+								   rate, width, samples, s_channels, data,
+								   shm->speed, 2, &resampledNumSamples);
+	
+	// old:
 	
 	//Con_Printf ("%i < %i < %i\n", soundtime, s_paintedtime, s_rawend[stream]);
-	if (s_channels == 2 && width == 2)
+	
+	if (s_channels == 2)
 	{
-		if (scale == 1.0)
-		{	// optimized case
-			for (i=0 ; i<samples ; i++)
-			{
-				dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
-				s_rawend[stream]++;
-				rawsamples[dst].left = ((short *)data)[i*2] * intVolume;
-				rawsamples[dst].right = ((short *)data)[i*2+1] * intVolume;
-			}
-		}
-		else
+		for (i=0 ; i<resampledNumSamples ; i++)
 		{
-			for (i=0 ; ; i++)
-			{
-				src = i*scale;
-				if (src >= samples)
-					break;
-				dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
-				s_rawend[stream]++;
-				rawsamples[dst].left = ((short *)data)[src*2] * intVolume;
-				rawsamples[dst].right = ((short *)data)[src*2+1] * intVolume;
-			}
-		}
-	}
-	else if (s_channels == 1 && width == 2)
-	{
-		for (i=0 ; ; i++)
-		{
-			src = i*scale;
-			if (src >= samples)
-				break;
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = ((short *)data)[src] * intVolume;
-			rawsamples[dst].right = ((short *)data)[src] * intVolume;
+			rawsamples[dst].left = ((short *)resampled)[i*2] * intVolume;
+			rawsamples[dst].right = ((short *)resampled)[i*2+1] * intVolume;
 		}
 	}
-	else if (s_channels == 2 && width == 1)
+	else if (s_channels == 1)
 	{
-		intVolume *= 256;
-		
-		for (i=0 ; ; i++)
+		for (i=0 ; i<resampledNumSamples; i++)
 		{
-			src = i*scale;
-			if (src >= samples)
-				break;
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = ((char *)data)[src*2] * intVolume;
-			rawsamples[dst].right = ((char *)data)[src*2+1] * intVolume;
+			rawsamples[dst].left = ((short *)resampled)[i] * intVolume;
+			rawsamples[dst].right = ((short *)resampled)[i] * intVolume;
 		}
 	}
-	else if (s_channels == 1 && width == 1)
+	else
 	{
-		intVolume *= 256;
-		
-		for (i=0 ; ; i++)
-		{
-			src = i*scale;
-			if (src >= samples)
-				break;
-			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
-			s_rawend[stream]++;
-			rawsamples[dst].left = (((byte *)data)[src]-128) * intVolume;
-			rawsamples[dst].right = (((byte *)data)[src]-128) * intVolume;
-		}
+		Con_Printf( "S_Base_RawSamples: unsupported number of channels %d\n", s_channels );
 	}
+
 	
 	if ( s_rawend[stream] > soundtime + MAX_RAW_SAMPLES ) {
 		Con_DPrintf( "S_Base_RawSamples: overflowed %i > %i\n", s_rawend[stream], soundtime );
@@ -956,6 +905,7 @@ void S_Update_(void)
  ===============================================================================
  
  background music functions
+ from ioquake3
  
  ===============================================================================
  */
@@ -1198,13 +1148,7 @@ void S_Play (void)
 	i = 1;
 	while (i < Cmd_Argc())
 	{
-		if (!Q_strrchr(Cmd_Argv(i), '.'))
-		{
-			Q_strcpy(name, Cmd_Argv(i));
-			Q_strcat(name, ".wav");
-		}
-		else
-			Q_strcpy(name, Cmd_Argv(i));
+		Q_strcpy(name, Cmd_Argv(i));
 		sfx = S_PrecacheSound(name);
 		S_StartSound(hash++, 0, sfx, listener_origin, 1.0, 1.0);
 		i++;
