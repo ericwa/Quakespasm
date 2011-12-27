@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "net_sys.h"	/* FIXME */
 #include "quakedef.h"
 #include "net_defs.h"	/* FIXME */
+#include "bgmusic.h"
 
 void (*vid_menucmdfn)(void); //johnfitz
 void (*vid_menudrawfn)(void);
@@ -221,7 +222,7 @@ void M_ToggleMenu_f (void)
 		}
 
 		IN_Activate();
-		key_dest = key_game;
+		key_dest = (cls.state == ca_connected) ? key_game : key_console;
 		m_state = m_none;
 		return;
 	}
@@ -279,7 +280,7 @@ void M_Main_Key (int key)
 	{
 	case K_ESCAPE:
 		IN_Activate();
-		key_dest = key_game;
+		key_dest = (cls.state == ca_connected) ? key_game : key_console;
 		m_state = m_none;
 		cls.demonum = m_save_demonum;
 		if (!fitzmode)	/* QuakeSpasm customization: */
@@ -430,7 +431,7 @@ void M_ScanSaves (void)
 	{
 		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
 		loadable[i] = false;
-		sprintf (name, "%s/s%i.sav", com_gamedir, i);
+		q_snprintf (name, sizeof(name), "%s/s%i.sav", com_gamedir, i);
 		f = fopen (name, "r");
 		if (!f)
 			continue;
@@ -950,11 +951,13 @@ enum
 	OPT_CONSOLE,	// 1
 	OPT_DEFAULTS,	// 2
 	OPT_SCALE,
+	OPT_SCRSIZE,
 	OPT_GAMMA,
 	OPT_MOUSESPEED,
 	OPT_SBALPHA,
-	OPT_MUSICVOL,
 	OPT_SNDVOL,
+	OPT_MUSICVOL,
+	OPT_MUSICEXT,
 	OPT_ALWAYRUN,
 	OPT_INVMOUSE,
 	OPT_ALWAYSMLOOK,
@@ -1000,6 +1003,14 @@ void M_AdjustSliders (int dir)
 		Cvar_SetValue ("scr_conscale", scr_scale.value);
 		Cvar_SetValue ("scr_menuscale", scr_scale.value);
 		break;
+	case OPT_SCRSIZE:	// screen size
+		scr_viewsize.value += dir * 10;
+		if (scr_viewsize.value < 30)
+			scr_viewsize.value = 30;
+		if (scr_viewsize.value > 120)
+			scr_viewsize.value = 120;
+		Cvar_SetValue ("viewsize", scr_viewsize.value);
+		break;
 	case OPT_GAMMA:	// gamma
 		vid_gamma.value -= dir * 0.05;
 		if (vid_gamma.value < 0.5)
@@ -1031,6 +1042,9 @@ void M_AdjustSliders (int dir)
 		else if (bgmvolume.value > 1)
 			bgmvolume.value = 1;
 		Cvar_SetValue ("bgmvolume", bgmvolume.value);
+		break;
+	case OPT_MUSICEXT:	// enable external music vs cdaudio
+		Cvar_SetValue ("bgm_extmusic", !bgm_extmusic.value);
 		break;
 	case OPT_SNDVOL:	// sfx volume
 		sfxvolume.value += dir * 0.1;
@@ -1127,6 +1141,11 @@ void M_Options_Draw (void)
 	r = (scr_scale.value-1)/5 ; // r ranges from 0 to 1, scr_scale from 1 to 6
 	M_DrawSlider (220, 32 + 8*OPT_SCALE, r);
 
+	// OPT_SCRSIZE:
+	M_Print (16, 32 + 8*OPT_SCRSIZE,	"           Screen size");
+	r = (scr_viewsize.value - 30) / (120 - 30);
+	M_DrawSlider (220, 32 + 8*OPT_SCRSIZE, r);
+
 	// OPT_GAMMA:
 	M_Print (16, 32 + 8*OPT_GAMMA,		"            Brightness");
 	r = (1.0 - vid_gamma.value) / 0.5;
@@ -1142,15 +1161,19 @@ void M_Options_Draw (void)
 	r = (1.0 - scr_sbaralpha.value) ; // scr_sbaralpha range is 1.0 to 0.0
 	M_DrawSlider (220, 32 + 8*OPT_SBALPHA, r);
 
+	// OPT_SNDVOL:
+	M_Print (16, 32 + 8*OPT_SNDVOL,		"          Sound Volume");
+	r = sfxvolume.value;
+	M_DrawSlider (220, 32 + 8*OPT_SNDVOL, r);
+
 	// OPT_MUSICVOL:
 	M_Print (16, 32 + 8*OPT_MUSICVOL,	"          Music Volume");
 	r = bgmvolume.value;
 	M_DrawSlider (220, 32 + 8*OPT_MUSICVOL, r);
 
-	// OPT_SNDVOL:
-	M_Print (16, 32 + 8*OPT_SNDVOL,		"          Sound Volume");
-	r = sfxvolume.value;
-	M_DrawSlider (220, 32 + 8*OPT_SNDVOL, r);
+	// OPT_MUSICEXT:
+	M_Print (16, 32 + 8*OPT_MUSICEXT,	"        External Music");
+	M_DrawCheckbox (220, 32 + 8*OPT_MUSICEXT, bgm_extmusic.value);
 
 	// OPT_ALWAYRUN:
 	M_Print (16, 32 + 8*OPT_ALWAYRUN,	"            Always Run");
@@ -1332,10 +1355,9 @@ void M_UnbindCommand (const char *command)
 
 void M_Keys_Draw (void)
 {
-	int		i, l;
+	int		i, x, y;
 	int		keys[2];
 	const char	*name;
-	int		x, y;
 	qpic_t	*p;
 
 	p = Draw_CachePic ("gfx/ttl_cstm.lmp");
@@ -1352,8 +1374,6 @@ void M_Keys_Draw (void)
 		y = 48 + 8*i;
 
 		M_Print (16, y, bindnames[i][1]);
-
-		l = strlen (bindnames[i][0]);
 
 		M_FindKeysForCommand (bindnames[i][0], keys);
 
@@ -1565,7 +1585,7 @@ void M_Quit_Key (int key)
 void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 {
 	char	msg1[40];
-	char	msg2[] = "by John Fitzgibbons, OZ & SA."; /* msg2/msg3 are mostly [40] */
+	char	msg2[] = "by Ozkan Sezer & Stevenaaus"; /* msg2/msg3 are mostly [40] */
 	char	msg3[] = "Press y to quit";
 	int		boxlen;
 
@@ -1582,7 +1602,7 @@ void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 	//okay, this is kind of fucked up.  M_DrawTextBox will always act as if
 	//width is even. Also, the width and lines values are for the interior of the box,
 	//but the x and y values include the border.
-	boxlen = max(strlen(msg1),max((sizeof(msg2)-1),(sizeof(msg3)-1))) + 1;
+	boxlen = q_max(strlen(msg1), q_max((sizeof(msg2)-1),(sizeof(msg3)-1))) + 1;
 	if (boxlen & 1) boxlen++;
 	M_DrawTextBox	(160-4*(boxlen+2), 76, boxlen, 4);
 

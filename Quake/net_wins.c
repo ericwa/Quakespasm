@@ -50,7 +50,7 @@ static INT_PTR PASCAL FAR BlockingHook (void)
 	MSG	msg;
 	BOOL	ret;
 
-	if ((Sys_FloatTime() - blocktime) > 2.0)
+	if ((Sys_DoubleTime() - blocktime) > 2.0)
 	{
 		WSACancelBlockingCall();
 		return FALSE;
@@ -90,7 +90,7 @@ static void WINS_GetLocalAddress (void)
 	}
 
 	buff[MAXHOSTNAMELEN - 1] = 0;
-	blocktime = Sys_FloatTime();
+	blocktime = Sys_DoubleTime();
 	WSASetBlockingHook(BlockingHook);
 	local = gethostbyname(buff);
 	err = WSAGetLastError();
@@ -336,7 +336,7 @@ sys_socket_t WINS_CheckNewConnections (void)
 		return INVALID_SOCKET;
 
 	if (recvfrom (net_acceptsocket, buf, sizeof(buf), MSG_PEEK, NULL, NULL)
-							!= SOCKET_ERROR) /* >= 0 */
+								!= SOCKET_ERROR)
 	{
 		return net_acceptsocket;
 	}
@@ -354,7 +354,7 @@ int WINS_Read (sys_socket_t socketid, byte *buf, int len, struct qsockaddr *addr
 	if (ret == SOCKET_ERROR)
 	{
 		int err = SOCKETERRNO;
-		if (err == EWOULDBLOCK || err == ECONNREFUSED)
+		if (err == NET_EWOULDBLOCK || err == NET_ECONNREFUSED)
 			return 0;
 		Con_SafePrintf ("WINS_Read, recvfrom: %s\n", socketerror(err));
 	}
@@ -413,7 +413,7 @@ int WINS_Write (sys_socket_t socketid, byte *buf, int len, struct qsockaddr *add
 	if (ret == SOCKET_ERROR)
 	{
 		int err = SOCKETERRNO;
-		if (err == EWOULDBLOCK)
+		if (err == NET_EWOULDBLOCK)
 			return 0;
 		Con_SafePrintf ("WINS_Write, sendto: %s\n", socketerror(err));
 	}

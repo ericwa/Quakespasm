@@ -36,10 +36,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	/* 'var'	: conversion from 'size_t' to 'type',
 			  possible loss of data (/Wp64 warning) */
 /* MSC doesn't have fmin() / fmax(), use the min/max macros: */
-#define fmax max
-#define fmin min
+#define fmax q_max
+#define fmin q_min
 #endif	/* _MSC_VER */
 #endif	/* _WIN32 */
+
+#undef	min
+#undef	max
+#define	q_min(a, b)	(((a) < (b)) ? (a) : (b))
+#define	q_max(a, b)	(((a) > (b)) ? (a) : (b))
+#define	CLAMP(_minval, x, _maxval)		\
+	((x) < (_minval) ? (_minval) :		\
+	 (x) > (_maxval) ? (_maxval) : (x))
 
 typedef struct sizebuf_s
 {
@@ -73,11 +81,11 @@ void InsertLinkAfter (link_t *l, link_t *after);
 // (type *)STRUCT_FROM_LINK(link_t *link, type, member)
 // ent = STRUCT_FROM_LINK(link,entity_t,order)
 // FIXME: remove this mess!
-#define	STRUCT_FROM_LINK(l,t,m) ((t *)((byte *)l - (size_t)&(((t *)0)->m)))
+#define	STRUCT_FROM_LINK(l,t,m) ((t *)((byte *)l - (intptr_t)&(((t *)0)->m)))
 
 //============================================================================
 
-extern	qboolean		bigendien;
+extern	qboolean		host_bigendian;
 
 extern	short	(*BigShort) (short l);
 extern	short	(*LittleShort) (short l);
@@ -130,6 +138,9 @@ int Q_strncasecmp (const char *s1, const char *s2, int n);
 int	Q_atoi (const char *str);
 float Q_atof (const char *str);
 
+
+#include "strl_fn.h"
+
 /* snprintf, vsnprintf : always use our versions. */
 /* platform dependant (v)snprintf function names: */
 #if defined(_WIN32)
@@ -163,13 +174,15 @@ extern	int		safemode;
  */
 
 int COM_CheckParm (const char *parm);
-void COM_Init (const char *path);
+void COM_Init (void);
 void COM_InitArgv (int argc, char **argv);
 
 const char *COM_SkipPath (const char *pathname);
-void COM_StripExtension (const char *in, char *out);
-void COM_FileBase (const char *in, char *out);
-void COM_DefaultExtension (char *path, const char *extension);
+void COM_StripExtension (const char *in, char *out, size_t outsize);
+void COM_FileBase (const char *in, char *out, size_t outsize);
+void COM_DefaultExtension (char *path, const char *extension, size_t len);
+const char *COM_FileGetExtension (const char *in); /* doesn't return NULL */
+void COM_ExtractExtension (const char *in, char *out, size_t outsize);
 void COM_CreatePath (char *path);
 
 char *va (const char *format, ...) __attribute__((__format__(__printf__,1,2)));
@@ -183,16 +196,57 @@ struct cache_user_s;
 
 extern	char	com_basedir[MAX_OSPATH];
 extern	char	com_gamedir[MAX_OSPATH];
+extern	int	file_from_pak;	// global indicating that file came from a pak
 
 void COM_WriteFile (const char *filename, const void *data, int len);
-int COM_OpenFile (const char *filename, int *hndl);
-int COM_FOpenFile (const char *filename, FILE **file);
+int COM_OpenFile (const char *filename, int *handle, unsigned int *path_id);
+int COM_FOpenFile (const char *filename, FILE **file, unsigned int *path_id);
+qboolean COM_FileExists (const char *filename, unsigned int *path_id);
 void COM_CloseFile (int h);
 
-byte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
-byte *COM_LoadTempFile (const char *path);
-byte *COM_LoadHunkFile (const char *path);
-void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
+// these procedures open a file using COM_FindFile and loads it into a proper
+// buffer. the buffer is allocated with a total size of com_filesize + 1. the
+// procedures differ by their buffer allocation method.
+byte *COM_LoadStackFile (const char *path, void *buffer, int bufsize,
+						unsigned int *path_id);
+	// uses the specified stack stack buffer with the specified size
+	// of bufsize. if bufsize is too short, uses temp hunk. the bufsize
+	// must include the +1
+byte *COM_LoadTempFile (const char *path, unsigned int *path_id);
+	// allocates the buffer on the temp hunk.
+byte *COM_LoadHunkFile (const char *path, unsigned int *path_id);
+	// allocates the buffer on the hunk.
+byte *COM_LoadZoneFile (const char *path, unsigned int *path_id);
+	// allocates the buffer on the zone.
+void COM_LoadCacheFile (const char *path, struct cache_user_s *cu,
+						unsigned int *path_id);
+	// uses cache mem for allocating the buffer.
+byte *COM_LoadMallocFile (const char *path, unsigned int *path_id);
+	// allocates the buffer on the system mem (malloc).
+
+/* The following FS_*() stdio replacements are necessary if one is
+ * to perform non-sequential reads on files reopened on pak files
+ * because we need the bookkeeping about file start/end positions.
+ * Allocating and filling in the fshandle_t structure is the users'
+ * responsibility when the file is initially opened. */
+
+typedef struct _fshandle_t
+{
+	FILE *file;
+	qboolean pak;	/* is the file read from a pak */
+	long start;	/* file or data start position */
+	long length;	/* file or data size */
+	long pos;	/* current position relative to start */
+} fshandle_t;
+
+size_t FS_fread(void *ptr, size_t size, size_t nmemb, fshandle_t *fh);
+int FS_fseek(fshandle_t *fh, long offset, int whence);
+long FS_ftell(fshandle_t *fh);
+void FS_rewind(fshandle_t *fh);
+int FS_feof(fshandle_t *fh);
+int FS_ferror(fshandle_t *fh);
+int FS_fclose(fshandle_t *fh);
+char *FS_fgets(char *s, int size, fshandle_t *fh);
 
 
 extern	struct cvar_s	registered;
@@ -200,7 +254,7 @@ extern	struct cvar_s	registered;
 extern qboolean		standard_quake, rogue, hipnotic;
 
 extern qboolean		fitzmode;
-// if true, runs in fitzquake mode and disabling custom quakespasm hacks.
+/* if true, runs in fitzquake mode disabling custom quakespasm hacks. */
 
 #endif	/* _Q_COMMON_H */
 

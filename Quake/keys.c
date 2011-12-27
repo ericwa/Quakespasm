@@ -119,6 +119,8 @@ keyname_t keynames[] =
 	{"MOUSE1", K_MOUSE1},
 	{"MOUSE2", K_MOUSE2},
 	{"MOUSE3", K_MOUSE3},
+	{"MOUSE4", K_MOUSE4},
+	{"MOUSE5", K_MOUSE5},
 
 	{"JOY1", K_JOY1},
 	{"JOY2", K_JOY2},
@@ -647,9 +649,9 @@ void Key_Bind_f (void)
 	cmd[0] = 0;		// start out with a null string
 	for (i=2 ; i< c ; i++)
 	{
-		if (i > 2)
-			strcat (cmd, " ");
-		strcat (cmd, Cmd_Argv(i));
+		q_strlcat (cmd, Cmd_Argv(i), sizeof(cmd));
+		if (i != (c-1))
+			q_strlcat (cmd, " ", sizeof(cmd));
 	}
 
 	Key_SetBinding (b, cmd);
@@ -685,8 +687,8 @@ void History_Init (void)
 	}
 	key_linepos = 1;
 
-//	if (cl_savehistory.value)
-	if ((hf = fopen(HISTORY_FILE_NAME, "rt")) != NULL)
+	hf = fopen(va("%s/%s", host_parms->userdir, HISTORY_FILE_NAME), "rt");
+	if (hf != NULL)
 	{
 		do
 		{
@@ -695,9 +697,19 @@ void History_Init (void)
 			{
 				c = fgetc(hf);
 				key_lines[edit_line][i++] = c;
-			} while (c != '\n' && c != EOF && i < MAXCMDLINE);
+			} while (c != '\r' && c != '\n' && c != EOF && i < MAXCMDLINE);
 			key_lines[edit_line][i - 1] = 0;
 			edit_line = (edit_line + 1) & (CMDLINES - 1);
+			/* for people using a windows-generated history file on unix: */
+			if (c == '\r' || c == '\n')
+			{
+				do
+					c = fgetc(hf);
+				while (c == '\r' || c == '\n');
+				if (c != EOF)
+					ungetc(c, hf);
+				else	c = 0; /* loop once more, otherwise last line is lost */
+			}
 		} while (c != EOF && edit_line < CMDLINES);
 		fclose(hf);
 
@@ -712,8 +724,8 @@ void History_Shutdown (void)
 	int i;
 	FILE *hf;
 
-//	if (cl_savehistory.value)
-	if ((hf = fopen(HISTORY_FILE_NAME, "wt")) != NULL)
+	hf = fopen(va("%s/%s", host_parms->userdir, HISTORY_FILE_NAME), "wt");
+	if (hf != NULL)
 	{
 		i = edit_line;
 		do
@@ -739,10 +751,7 @@ void Key_Init (void)
 {
 	int		i;
 
-	BuildKeyMaps();
-
 	History_Init ();
-
 #if 0 /* This section of code is now done in History_Init */
 	for (i = 0; i < 32; i++)
 	{
@@ -859,12 +868,21 @@ void Key_Event (int key, qboolean down)
 	if (down)
 	{
 		key_repeats[key]++;
-		if (key_dest != key_console && key_repeats[key] > 1 && !repeatkeys[key]) //johnfitz -- use repeatkeys[]
-			return;	// ignore most autorepeats
+		if (key_repeats[key] > 1)
+		{
+			if (key_dest == key_console)
+				goto autorep0;
+			if (key_dest == key_message)
+				goto autorep0;
+			if (!repeatkeys[key]) //johnfitz -- use repeatkeys[]
+				return;	// ignore most autorepeats
+		}
 
 		if (key >= 200 && !keybindings[key])
 			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString (key) );
 	}
+
+autorep0:
 
 	if (key == K_SHIFT)
 		shift_down = down;

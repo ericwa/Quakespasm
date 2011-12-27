@@ -58,7 +58,7 @@ int R_ParticleTextureLookup (int x, int y, int sharpness)
 	r = x * x + y * y;
 	r = r > 255 ? 255 : r;
 	a = sharpness * (255 - r);
-	a = min(a,255);
+	a = q_min(a,255);
 	return a;
 }
 
@@ -122,7 +122,7 @@ void R_InitParticleTextures (void)
 R_SetParticleTexture_f -- johnfitz
 ===============
 */
-void R_SetParticleTexture_f (void)
+static void R_SetParticleTexture_f (cvar_t *var)
 {
 	switch ((int)(r_particles.value))
 	{
@@ -187,24 +187,25 @@ float	timescale = 0.01;
 
 void R_EntityParticles (entity_t *ent)
 {
-	int			count;
-	int			i;
+	int		i;
 	particle_t	*p;
 	float		angle;
-	float		sr, sp, sy, cr, cp, cy;
+	float		sp, sy, cp, cy;
+//	float		sr, cr;
+//	int		count;
 	vec3_t		forward;
 	float		dist;
 
 	dist = 64;
-	count = 50;
+//	count = 50;
 
 	if (!avelocities[0][0])
 	{
-	for (i=0 ; i<NUMVERTEXNORMALS*3 ; i++)
-	avelocities[0][i] = (rand()&255) * 0.01;
+		for (i = 0; i < NUMVERTEXNORMALS*3; i++)
+			avelocities[0][i] = (rand() & 255) * 0.01;
 	}
 
-	for (i=0 ; i<NUMVERTEXNORMALS ; i++)
+	for (i = 0; i < NUMVERTEXNORMALS; i++)
 	{
 		angle = cl.time * avelocities[i][0];
 		sy = sin(angle);
@@ -213,8 +214,8 @@ void R_EntityParticles (entity_t *ent)
 		sp = sin(angle);
 		cp = cos(angle);
 		angle = cl.time * avelocities[i][2];
-		sr = sin(angle);
-		cr = cos(angle);
+	//	sr = sin(angle);
+	//	cr = cos(angle);
 
 		forward[0] = cp*cy;
 		forward[1] = cp*sy;
@@ -268,9 +269,9 @@ void R_ReadPointFile_f (void)
 	particle_t	*p;
 	char	name[MAX_OSPATH];
 
-	sprintf (name,"maps/%s.pts", sv.name);
+	q_snprintf (name, sizeof(name), "maps/%s.pts", sv.name);
 
-	COM_FOpenFile (name, &f);
+	COM_FOpenFile (name, &f, NULL);
 	if (!f)
 	{
 		Con_Printf ("couldn't open %s\n", name);
@@ -820,7 +821,7 @@ void R_DrawParticles (void)
 	particle_t		*p;
 	float			scale;
 	vec3_t			up, right, p_up, p_right, p_upright; //johnfitz -- p_ vectors
-	byte			color[4]; //johnfitz -- particle transparency
+	GLubyte			color[4], *c; //johnfitz -- particle transparency
 	extern	cvar_t	r_particles; //johnfitz
 	//float			alpha; //johnfitz -- particle transparency
 
@@ -854,7 +855,10 @@ void R_DrawParticles (void)
 			scale *= texturescalefactor; //johnfitz -- compensate for apparent size of different particle textures
 
 			//johnfitz -- particle transparency and fade out
-			*(int *)color = d_8to24table[(int)p->color];
+			c = (GLubyte *) &d_8to24table[(int)p->color];
+			color[0] = c[0];
+			color[1] = c[1];
+			color[2] = c[2];
 			//alpha = CLAMP(0, p->die + 0.5 - cl.time, 1);
 			color[3] = 255; //(int)(alpha * 255);
 			glColor4ubv(color);
@@ -896,7 +900,10 @@ void R_DrawParticles (void)
 			scale *= texturescalefactor; //johnfitz -- compensate for apparent size of different particle textures
 
 			//johnfitz -- particle transparency and fade out
-			*(int *)color = d_8to24table[(int)p->color];
+			c = (GLubyte *) &d_8to24table[(int)p->color];
+			color[0] = c[0];
+			color[1] = c[1];
+			color[2] = c[2];
 			//alpha = CLAMP(0, p->die + 0.5 - cl.time, 1);
 			color[3] = 255; //(int)(alpha * 255);
 			glColor4ubv(color);

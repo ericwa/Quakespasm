@@ -259,7 +259,7 @@ void Cmd_Exec_f (void)
 	}
 
 	mark = Hunk_LowMark ();
-	f = (char *)COM_LoadHunkFile (Cmd_Argv(1));
+	f = (char *)COM_LoadHunkFile (Cmd_Argv(1), NULL);
 	if (!f)
 	{
 		Con_Printf ("couldn't exec %s\n",Cmd_Argv(1));
@@ -347,16 +347,20 @@ void Cmd_Alias_f (void)
 		// copy the rest of the command line
 		cmd[0] = 0;		// start out with a null string
 		c = Cmd_Argc();
-		for (i=2 ; i< c ; i++)
+		for (i = 2; i < c; i++)
 		{
-			strcat (cmd, Cmd_Argv(i));
-			if (i != c)
-				strcat (cmd, " ");
+			q_strlcat (cmd, Cmd_Argv(i), sizeof(cmd));
+			if (i != c - 1)
+				q_strlcat (cmd, " ", sizeof(cmd));
 		}
-		strcat (cmd, "\n");
+		if (q_strlcat(cmd, "\n", sizeof(cmd)) >= sizeof(cmd))
+		{
+			Con_Printf("alias value too long!\n");
+			cmd[0] = '\n';	// nullify the string
+			cmd[1] = 0;
+		}
 
-		a->value = (char *) Z_Malloc (strlen(cmd)+1);
-		strcpy (a->value, cmd);
+		a->value = Z_Strdup (cmd);
 		break;
 	}
 }
@@ -377,18 +381,23 @@ void Cmd_Unalias_f (void)
 		Con_Printf("unalias <name> : delete alias\n");
 		break;
 	case 2:
-		for (prev = a = cmd_alias; a; a = a->next)
+		prev = NULL;
+		for (a = cmd_alias; a; a = a->next)
 		{
 			if (!strcmp(Cmd_Argv(1), a->name))
 			{
-				prev->next = a->next;
+				if (prev)
+					prev->next = a->next;
+				else
+					cmd_alias  = a->next;
+
 				Z_Free (a->value);
 				Z_Free (a);
-				prev = a;
 				return;
 			}
 			prev = a;
 		}
+		Con_Printf ("No alias named %s\n", Cmd_Argv(1));
 		break;
 	}
 }
@@ -578,8 +587,7 @@ void Cmd_TokenizeString (const char *text)
 
 		if (cmd_argc < MAX_ARGS)
 		{
-			cmd_argv[cmd_argc] = (char *) Z_Malloc (Q_strlen(com_token)+1);
-			Q_strcpy (cmd_argv[cmd_argc], com_token);
+			cmd_argv[cmd_argc] = Z_Strdup (com_token);
 			cmd_argc++;
 		}
 	}

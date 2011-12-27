@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 qboolean		isDedicated;
+cvar_t		sys_throttle = {"sys_throttle", "0.02", true};
 
 #define	MAX_HANDLES		32	/* johnfitz -- was 10 */
 static FILE		*sys_handles[MAX_HANDLES];
@@ -52,10 +53,9 @@ static int findhandle (void)
 	return -1;
 }
 
-int Sys_filelength (FILE *f)
+long Sys_filelength (FILE *f)
 {
-	int pos;
-	int end;
+	long		pos, end;
 
 	pos = ftell (f);
 	fseek (f, 0, SEEK_END);
@@ -114,11 +114,6 @@ void Sys_FileSeek (int handle, int position)
 	fseek (sys_handles[handle], position, SEEK_SET);
 }
 
-void Sys_FileSeekRelative (int handle, int position)
-{
-	fseek (sys_handles[handle], position, SEEK_CUR);
-}
-
 int Sys_FileRead (int handle, void *dest, int count)
 {
 	return fread (dest, 1, count, sys_handles[handle]);
@@ -144,20 +139,21 @@ int Sys_FileTime (const char *path)
 	return -1;
 }
 
-int	Sys_FileTell (int handle)
-{
-	return ftell(sys_handles[handle]);
-}
-
 void Sys_Init (void)
 {
+	host_parms->userdir = host_parms->basedir; /* TODO: implement properly! */
 }
 
 void Sys_mkdir (const char *path)
 {
 	int rc = mkdir (path, 0777);
-	if (rc != 0 && errno != EEXIST)
-		Sys_Error("Unable to create directory %s", path);
+	if (rc != 0 && errno == EEXIST)
+		rc = 0;
+	if (rc != 0)
+	{
+		rc = errno;
+		Sys_Error("Unable to create directory %s: %s", path, strerror(rc));
+	}
 }
 
 static const char errortxt1[] = "\nERROR-OUT BEGIN\n\n";
@@ -201,21 +197,18 @@ void Sys_Quit (void)
 	exit (0);
 }
 
-double Sys_FloatTime (void)
+double Sys_DoubleTime (void)
 {
 	return SDL_GetTicks() / 1000.0;
 }
 
-char *Sys_ConsoleInput (void)
+const char *Sys_ConsoleInput (void)
 {
 	static char	con_text[256];
 	static int	textlen;
 	char		c;
 	fd_set		set;
 	struct timeval	timeout;
-
-	if (!isDedicated)
-		return NULL;	// no stdin necessary in graphical mode
 
 	FD_ZERO (&set);
 	FD_SET (0, &set);	// stdin
@@ -257,31 +250,15 @@ char *Sys_ConsoleInput (void)
 	return NULL;
 }
 
-void Sys_Sleep (void)
+void Sys_Sleep (unsigned long msecs)
 {
+/*	usleep (msecs * 1000);*/
+	SDL_Delay (msecs);
 }
 
 void Sys_SendKeyEvents (void)
 {
-	SDL_Event event;
-
-	SDL_PumpEvents();
-	while (SDL_PollEvent (&event))
-	{
-		switch (event.type)
-		{
-		case SDL_KEYDOWN:
-		case SDL_KEYUP:
-			Key_Event(Key_Map(&(event.key)), event.key.type == SDL_KEYDOWN);
-			return;
-		case SDL_QUIT:
-			Sys_Quit();
-			break;
-		default:
-			SDL_PumpEvents();
-			break;
-		}
-	}
+	IN_SendKeyEvents();
 }
 
 void Sys_LowFPPrecision (void)

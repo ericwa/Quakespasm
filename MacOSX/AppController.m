@@ -107,7 +107,17 @@ NSString *FQPrefScreenModeKey = @"ScreenMode";
 		[arguments removeArgument:@"-nolauncher"];
 		[self launchQuake:self];
 	} else {
+        [launcherWindow center];
 		[launcherWindow makeKeyAndOrderFront:self];
+
+        SUUpdater* updater = [SUUpdater sharedUpdater];
+        SUUpdaterDelegate* delegate = [[SUUpdaterDelegate alloc] initWithTabView:updateTabView 
+                                                                       indicator:updateProgressIndicator 
+                                                                          button:updateButton
+                                                                           label:versionLabel];
+        [updater setDelegate:delegate];
+        
+        [updater checkForUpdateInformation];
 	}
 }
 
@@ -126,18 +136,20 @@ NSString *FQPrefScreenModeKey = @"ScreenMode";
         int width = [info width];
         int height = [info height];
         int bpp = [info bpp];
-        BOOL fullscreen = [fullscreenCheckBox state] == NSOnState;
 
         [arguments addArgument:@"-width" withValue:[NSString stringWithFormat:@"%d", width]];
         [arguments addArgument:@"-height" withValue:[NSString stringWithFormat:@"%d", height]];
         [arguments addArgument:@"-bpp" withValue:[NSString stringWithFormat:@"%d", bpp]];
-        
-        if (fullscreen)
-			[arguments addArgument:@"-fullscreen"];
-		else
-            [arguments addArgument:@"-window"];
     }
     
+    [arguments removeArgument:@"-fullscreen"];
+    [arguments removeArgument:@"-window"];
+    BOOL fullscreen = [fullscreenCheckBox state] == NSOnState;
+    if (fullscreen)
+        [arguments addArgument:@"-fullscreen"];
+    else
+        [arguments addArgument:@"-window"];
+
     NSString *path = [NSString stringWithCString:gArgv[0] encoding:NSASCIIStringEncoding];
     
     int i;

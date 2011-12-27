@@ -36,6 +36,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 qboolean		isDedicated;
+qboolean	Win95, Win95old, WinNT, WinVista;
+cvar_t		sys_throttle = {"sys_throttle", "0.02", true};
 
 static HANDLE		hinput, houtput;
 
@@ -56,10 +58,9 @@ static int findhandle (void)
 	return -1;
 }
 
-int Sys_filelength (FILE *f)
+long Sys_filelength (FILE *f)
 {
-	int pos;
-	int end;
+	long		pos, end;
 
 	pos = ftell (f);
 	fseek (f, 0, SEEK_END);
@@ -118,11 +119,6 @@ void Sys_FileSeek (int handle, int position)
 	fseek (sys_handles[handle], position, SEEK_SET);
 }
 
-void Sys_FileSeekRelative (int handle, int position)
-{
-	fseek (sys_handles[handle], position, SEEK_CUR);
-}
-
 int Sys_FileRead (int handle, void *dest, int count)
 {
 	return fread (dest, 1, count, sys_handles[handle]);
@@ -148,13 +144,43 @@ int Sys_FileTime (const char *path)
 	return -1;
 }
 
-int Sys_FileTell (int handle)
-{
-    return ftell(sys_handles[handle]);
-}
-
 void Sys_Init (void)
 {
+	OSVERSIONINFO	vinfo;
+
+	host_parms->userdir = host_parms->basedir;
+		/* user directories not really necessary for windows guys.
+		 * can be done if necessary, though... */
+
+	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
+
+	if (!GetVersionEx (&vinfo))
+		Sys_Error ("Couldn't get OS info");
+
+	if ((vinfo.dwMajorVersion < 4) ||
+		(vinfo.dwPlatformId == VER_PLATFORM_WIN32s))
+	{
+		Sys_Error ("QuakeSpasm requires at least Win95 or NT 4.0");
+	}
+
+	if (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT)
+	{
+		WinNT = true;
+		if (vinfo.dwMajorVersion >= 6)
+			WinVista = true;
+	}
+	else
+	{
+		WinNT = false; /* Win9x or WinME */
+		if ((vinfo.dwMajorVersion == 4) && (vinfo.dwMinorVersion == 0))
+		{
+			Win95 = true;
+			/* Win95-gold or Win95A can't switch bpp automatically */
+			if (vinfo.szCSDVersion[1] != 'C' && vinfo.szCSDVersion[1] != 'B')
+				Win95old = true;
+		}
+	}
+
 	if (isDedicated)
 	{
 		if (!AllocConsole ())
@@ -170,8 +196,9 @@ void Sys_Init (void)
 
 void Sys_mkdir (const char *path)
 {
-	int rc = _mkdir (path);
-	if (rc != 0 && errno != EEXIST)
+	if (CreateDirectory(path, NULL) != 0)
+		return;
+	if (GetLastError() != ERROR_ALREADY_EXISTS)
 		Sys_Error("Unable to create directory %s", path);
 }
 
@@ -245,31 +272,28 @@ void Sys_Quit (void)
 	exit (0);
 }
 
-double Sys_FloatTime (void)
+double Sys_DoubleTime (void)
 {
 	return SDL_GetTicks() / 1000.0;
 }
 
-char *Sys_ConsoleInput (void)
+const char *Sys_ConsoleInput (void)
 {
 	static char	con_text[256];
-	static int		textlen;
+	static int	textlen;
 	INPUT_RECORD	recs[1024];
 	int		ch;
 	DWORD		dummy, numread, numevents;
 
-	if (!isDedicated)
-		return NULL;	// no stdin necessary in graphical mode
-
 	for ( ;; )
 	{
-		if (!GetNumberOfConsoleInputEvents (hinput, &numevents))
+		if (GetNumberOfConsoleInputEvents(hinput, &numevents) == 0)
 			Sys_Error ("Error getting # of console events");
 
 		if (numevents <= 0)
 			break;
 
-		if (!ReadConsoleInput(hinput, recs, 1, &numread))
+		if (ReadConsoleInput(hinput, recs, 1, &numread) == 0)
 			Sys_Error ("Error reading console input");
 
 		if (numread != 1)
@@ -277,74 +301,57 @@ char *Sys_ConsoleInput (void)
 
 		if (recs[0].EventType == KEY_EVENT)
 		{
-			if (!recs[0].Event.KeyEvent.bKeyDown)
+		    if (recs[0].Event.KeyEvent.bKeyDown == FALSE)
+		    {
+			ch = recs[0].Event.KeyEvent.uChar.AsciiChar;
+
+			switch (ch)
 			{
-				ch = recs[0].Event.KeyEvent.uChar.AsciiChar;
+			case '\r':
+				WriteFile(houtput, "\r\n", 2, &dummy, NULL);
 
-				switch (ch)
+				if (textlen != 0)
 				{
-				case '\r':
-					WriteFile(houtput, "\r\n", 2, &dummy, NULL);
-
-					if (textlen)
-					{
-						con_text[textlen] = 0;
-						textlen = 0;
-						return con_text;
-					}
-
-					break;
-
-				case '\b':
-					WriteFile(houtput, "\b \b", 3, &dummy, NULL);
-					if (textlen)
-					{
-						textlen--;
-					}
-					break;
-
-				default:
-					if (ch >= ' ')
-					{
-						WriteFile(houtput, &ch, 1, &dummy, NULL);
-						con_text[textlen] = ch;
-						textlen = (textlen + 1) & 0xff;
-					}
-
-					break;
+					con_text[textlen] = 0;
+					textlen = 0;
+					return con_text;
 				}
+
+				break;
+
+			case '\b':
+				WriteFile(houtput, "\b \b", 3, &dummy, NULL);
+				if (textlen != 0)
+					textlen--;
+
+				break;
+
+			default:
+				if (ch >= ' ')
+				{
+					WriteFile(houtput, &ch, 1, &dummy, NULL);
+					con_text[textlen] = ch;
+					textlen = (textlen + 1) & 0xff;
+				}
+
+				break;
 			}
+		    }
 		}
 	}
 
 	return NULL;
 }
 
-void Sys_Sleep (void)
+void Sys_Sleep (unsigned long msecs)
 {
+/*	Sleep (msecs);*/
+	SDL_Delay (msecs);
 }
 
 void Sys_SendKeyEvents (void)
 {
-	SDL_Event event;
-
-	SDL_PumpEvents();
-	while (SDL_PollEvent (&event))
-	{
-		switch (event.type)
-		{
-		case SDL_KEYDOWN:
-		case SDL_KEYUP:
-			Key_Event(Key_Map(&(event.key)), event.key.type == SDL_KEYDOWN);
-			return;
-		case SDL_QUIT:
-			Sys_Quit();
-			break;
-		default:
-			SDL_PumpEvents();
-			break;
-		}
-	}
+	IN_SendKeyEvents();
 }
 
 void Sys_LowFPPrecision (void)

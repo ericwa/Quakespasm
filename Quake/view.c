@@ -197,7 +197,8 @@ void V_DriftPitch (void)
 
 		if ( cl.driftmove > v_centermove.value)
 		{
-			V_StartPitchDrift ();
+			if (lookspring.value)
+				V_StartPitchDrift ();
 		}
 		return;
 	}
@@ -806,9 +807,9 @@ void V_CalcRefdef (void)
 				delta = (v_punchangles[0][i]-v_punchangles[1][i]) * host_frametime * 10;
 
 				if (delta > 0)
-					punch[i] = min(punch[i]+delta, v_punchangles[0][i]);
+					punch[i] = q_min(punch[i]+delta, v_punchangles[0][i]);
 				else if (delta < 0)
-					punch[i] = max(punch[i]+delta, v_punchangles[0][i]);
+					punch[i] = q_max(punch[i]+delta, v_punchangles[0][i]);
 			}
 
 		VectorAdd (r_refdef.viewangles, punch, r_refdef.viewangles);

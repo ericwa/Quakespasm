@@ -24,16 +24,41 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "SDL.h"
 #include <stdio.h>
 
+/* need at least SDL_1.2.10 */
+#define SDL_MIN_X	1
+#define SDL_MIN_Y	2
+#define SDL_MIN_Z	10
+#define SDL_REQUIREDVERSION	(SDL_VERSIONNUM(SDL_MIN_X,SDL_MIN_Y,SDL_MIN_Z))
+/* reject 1.3.0 and newer at runtime. */
+#define SDL_NEW_VERSION_REJECT	(SDL_VERSIONNUM(1,3,0))
+
+static void Sys_CheckSDL (void)
+{
+	const SDL_version *sdl_version = SDL_Linked_Version();
+
+	Sys_Printf("Found SDL version %i.%i.%i\n",sdl_version->major,sdl_version->minor,sdl_version->patch);
+	if (SDL_VERSIONNUM(sdl_version->major,sdl_version->minor,sdl_version->patch) < SDL_REQUIREDVERSION)
+	{	/*reject running under older SDL versions */
+		Sys_Error("You need at least v%d.%d.%d of SDL to run this game.", SDL_MIN_X,SDL_MIN_Y,SDL_MIN_Z);
+	}
+	if (SDL_VERSIONNUM(sdl_version->major,sdl_version->minor,sdl_version->patch) >= SDL_NEW_VERSION_REJECT)
+	{	/*reject running under newer (1.3.x) SDL */
+		Sys_Error("Your version of SDL library is incompatible with me.\n"
+			  "You need a library version in the line of %d.%d.%d\n", SDL_MIN_X,SDL_MIN_Y,SDL_MIN_Z);
+	}
+}
+
 #define DEFAULT_MEMORY 0x4000000
+
+static quakeparms_t	parms;
+static Uint8		appState;
 
 int main(int argc, char *argv[])
 {
-	SDL_Event	event;
-	quakeparms_t	parms;
 	int		t;
-	int		done = 0;
 	double		time, oldtime, newtime;
 
+	host_parms = &parms;
 	parms.basedir = ".";
 
 	parms.argc = argc;
@@ -42,6 +67,8 @@ int main(int argc, char *argv[])
 	COM_InitArgv(parms.argc, parms.argv);
 
 	isDedicated = (COM_CheckParm("-dedicated") != 0);
+
+	Sys_CheckSDL ();
 
 	Sys_Init();
 
@@ -61,25 +88,28 @@ int main(int argc, char *argv[])
 	if (!parms.membase)
 		Sys_Error ("Not enough memory free; check disk space\n");
 
-	Con_Printf("FitzQuake %1.2f (c) John Fitzgibbons\n", FITZQUAKE_VERSION);
-	Con_Printf("SDL port (c) SleepwalkR, Baker\n");
-	Con_Printf("QuakeSpasm %1.2f.%d (c) Ozkan Sezer, Stevenaaus\n", FITZQUAKE_VERSION, QUAKESPASM_VER_PATCH);
+	Sys_Printf("Quake %1.2f (c) id Software\n", VERSION);
+	Sys_Printf("GLQuake %1.2f (c) id Software\n", GLQUAKE_VERSION);
+	Sys_Printf("FitzQuake %1.2f (c) John Fitzgibbons\n", FITZQUAKE_VERSION);
+	Sys_Printf("FitzQuake SDL port (c) SleepwalkR, Baker\n");
+	Sys_Printf("QuakeSpasm %1.2f.%d (c) Ozkan Sezer, Stevenaaus\n",
+					FITZQUAKE_VERSION, QUAKESPASM_VER_PATCH);
 
-	Con_Printf("Host_Init\n");
-	Host_Init(&parms);
+	Sys_Printf("Host_Init\n");
+	Host_Init();
 
-	oldtime = Sys_FloatTime();
+	oldtime = Sys_DoubleTime();
 	if (isDedicated)
 	{
 		while (1)
 		{
-			newtime = Sys_FloatTime ();
+			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
 
 			while (time < sys_ticrate.value )
 			{
 				SDL_Delay(1);
-				newtime = Sys_FloatTime ();
+				newtime = Sys_DoubleTime ();
 				time = newtime - oldtime;
 			}
 
@@ -88,87 +118,35 @@ int main(int argc, char *argv[])
 		}
 	}
 	else
-	while (!done)
+	while (1)
 	{
-		while (!done && SDL_PollEvent (&event))
+		appState = SDL_GetAppState();
+		/* If we have no input focus at all, sleep a bit */
+		if ( !(appState & (SDL_APPMOUSEFOCUS | SDL_APPINPUTFOCUS)) || cl.paused)
 		{
-			switch (event.type)
-			{
-			case SDL_ACTIVEEVENT:
-				if (event.active.state & (SDL_APPACTIVE|SDL_APPINPUTFOCUS))
-				{
-					if (!COM_CheckParm("-bgsound")) {
-						if (event.active.gain)
-							S_UnblockSound();
-						else 
-							S_BlockSound();
-					}
-				}
-				break;
-			case SDL_MOUSEMOTION:
-				IN_MouseMove(event.motion.xrel, event.motion.yrel);
-				break;
-			case SDL_MOUSEBUTTONDOWN:
-			case SDL_MOUSEBUTTONUP:
-			  switch (event.button.button)
-			  {
-			  case SDL_BUTTON_LEFT:
-				Key_Event(K_MOUSE1, event.button.type == SDL_MOUSEBUTTONDOWN);
-				break;
-			  case SDL_BUTTON_RIGHT:
-				Key_Event(K_MOUSE2, event.button.type == SDL_MOUSEBUTTONDOWN);
-				break;
-			  case SDL_BUTTON_MIDDLE:
-				Key_Event(K_MOUSE3, event.button.type == SDL_MOUSEBUTTONDOWN);
-				break;
-			  case SDL_BUTTON_WHEELUP:
-				Key_Event(K_MWHEELUP, event.button.type == SDL_MOUSEBUTTONDOWN);
-				break;
-			  case SDL_BUTTON_WHEELDOWN:
-				Key_Event(K_MWHEELDOWN, event.button.type == SDL_MOUSEBUTTONDOWN);
-				break;
-			  }
-			  break;
-			case SDL_KEYDOWN:
-			case SDL_KEYUP:
-				// SHIFT + ESC and circomflex always opens the console no matter what
-				if ((event.key.keysym.sym == SDLK_ESCAPE && (event.key.keysym.mod & KMOD_SHIFT))
-				    || (event.key.keysym.sym == SDLK_CARET))
-				{
-					if (event.key.type == SDL_KEYDOWN)
-						Con_ToggleConsole_f();
-				}
-				else if ((event.key.keysym.sym == SDLK_RETURN) &&
-					 (event.key.keysym.mod & KMOD_ALT))
-				{
-					if (event.key.type == SDL_KEYDOWN)
-						VID_Toggle();
-				}
-				else
-				{
-					Key_Event(Key_Map(&(event.key)), event.key.type == SDL_KEYDOWN);
-				}
-				break;
-			case SDL_QUIT:
-				done = 1;
-				break;
-			default:
-				break;
-			}
+			SDL_Delay(16);
 		}
-
-		newtime = Sys_FloatTime();
+		/* If we're minimised, sleep a bit more */
+		if ( !(appState & SDL_APPACTIVE) )
+		{
+			scr_skipupdate = 1;
+			SDL_Delay(32);
+		}
+		else
+		{
+			scr_skipupdate = 0;
+		}
+		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
-		Host_Frame(time);
 
-		// throttle the game loop just a little bit - noone needs more than 1000fps, I think
-		if (newtime - oldtime < 1)
+		Host_Frame (time);
+
+		if (time < sys_throttle.value)
 			SDL_Delay(1);
 
 		oldtime = newtime;
 	}
 
-	Sys_Quit();
 	return 0;
 }
 

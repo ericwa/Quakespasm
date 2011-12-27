@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // host.c -- coordinates spawning and killing of local servers
 
 #include "quakedef.h"
+#include "bgmusic.h"
 #include <setjmp.h>
 
 /*
@@ -35,7 +36,7 @@ Memory is cleared / released when a server or client begins, not when they end.
 
 */
 
-quakeparms_t host_parms;
+quakeparms_t *host_parms;
 
 qboolean	host_initialized;		// true if into command execution
 
@@ -43,11 +44,12 @@ double		host_frametime;
 double		host_time;
 double		realtime;				// without any filtering or bounding
 double		oldrealtime;			// last frame run
-int			host_framecount;
 
-int			host_hunklevel;
+int		host_framecount;
 
-int			minimum_memory;
+int		host_hunklevel;
+
+int		minimum_memory;
 
 client_t	*host_client;			// current client
 
@@ -59,7 +61,7 @@ cvar_t	host_framerate = {"host_framerate","0"};	// set for slow motion
 cvar_t	host_speeds = {"host_speeds","0"};			// set for running times
 cvar_t	host_maxfps = {"host_maxfps", "72", true}; //johnfitz
 cvar_t	host_timescale = {"host_timescale", "0"}; //johnfitz
-cvar_t	max_edicts = {"max_edicts", "1024", true}; //johnfitz
+cvar_t	max_edicts = {"max_edicts", STR(DEF_EDICTS), true}; //johnfitz
 
 cvar_t	sys_ticrate = {"sys_ticrate","0.05"}; // dedicated server
 cvar_t	serverprofile = {"serverprofile","0"};
@@ -69,8 +71,8 @@ cvar_t	timelimit = {"timelimit","0",false,true};
 cvar_t	teamplay = {"teamplay","0",false,true};
 cvar_t	samelevel = {"samelevel","0"};
 cvar_t	noexit = {"noexit","0",false,true};
-cvar_t	skill = {"skill","1"};						// 0 - 3
-cvar_t	deathmatch = {"deathmatch","0"};			// 0, 1, or 2
+cvar_t	skill = {"skill","1"};			// 0 - 3
+cvar_t	deathmatch = {"deathmatch","0"};	// 0, 1, or 2
 cvar_t	coop = {"coop","0"};			// 0 or 1
 
 cvar_t	pausable = {"pausable","1"};
@@ -89,12 +91,11 @@ overflowtimes_t dev_overflows; //this stores the last time overflow messages wer
 Max_Edicts_f -- johnfitz
 ================
 */
-void Max_Edicts_f (void)
+static void Max_Edicts_f (cvar_t *var)
 {
-	static float oldval = 1024; //must match the default value for max_edicts
+	static float oldval = DEF_EDICTS; //must match the default value for max_edicts
 
 	//TODO: clamp it here?
-
 	if (max_edicts.value == oldval)
 		return;
 
@@ -223,6 +224,13 @@ void	Host_FindMaxClients (void)
 		Cvar_SetValue ("deathmatch", 0.0);
 }
 
+void Host_Version_f (void)
+{
+	Con_Printf ("Quake Version %1.2f\n", VERSION);
+	Con_Printf ("QuakeSpasm Version %1.2f.%d\n", FITZQUAKE_VERSION, QUAKESPASM_VER_PATCH);
+	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
+}
+
 /*
 =======================
 Host_InitLocal
@@ -230,6 +238,8 @@ Host_InitLocal
 */
 void Host_InitLocal (void)
 {
+	Cmd_AddCommand ("version", Host_Version_f);
+
 	Host_InitCommands ();
 
 	Cvar_RegisterVariable (&host_framerate, NULL);
@@ -241,6 +251,7 @@ void Host_InitLocal (void)
 	Cvar_RegisterVariable (&devstats, NULL); //johnfitz
 
 	Cvar_RegisterVariable (&sys_ticrate, NULL);
+	Cvar_RegisterVariable (&sys_throttle, NULL);
 	Cvar_RegisterVariable (&serverprofile, NULL);
 
 	Cvar_RegisterVariable (&fraglimit, NULL);
@@ -250,8 +261,8 @@ void Host_InitLocal (void)
 	Cvar_RegisterVariable (&noexit, NULL);
 	Cvar_RegisterVariable (&skill, NULL);
 	Cvar_RegisterVariable (&developer, NULL);
-	Cvar_RegisterVariable (&deathmatch, NULL);
 	Cvar_RegisterVariable (&coop, NULL);
+	Cvar_RegisterVariable (&deathmatch, NULL);
 
 	Cvar_RegisterVariable (&pausable, NULL);
 
@@ -471,7 +482,7 @@ void Host_ShutdownServer(qboolean crash)
 		CL_Disconnect ();
 
 // flush any pending messages - like the score!!!
-	start = Sys_FloatTime();
+	start = Sys_DoubleTime();
 	do
 	{
 		count = 0;
@@ -491,7 +502,7 @@ void Host_ShutdownServer(qboolean crash)
 				}
 			}
 		}
-		if ((Sys_FloatTime() - start) > 3.0)
+		if ((Sys_DoubleTime() - start) > 3.0)
 			break;
 	}
 	while (count);
@@ -530,9 +541,8 @@ void Host_ClearMemory (void)
 	Con_DPrintf ("Clearing memory\n");
 	D_FlushCaches ();
 	Mod_ClearAll ();
-	if (host_hunklevel)
-		Hunk_FreeToLowMark (host_hunklevel);
-
+/* host_hunklevel MUST be set at this point */
+	Hunk_FreeToLowMark (host_hunklevel);
 	cls.signon = 0;
 	memset (&sv, 0, sizeof(sv));
 	memset (&cl, 0, sizeof(cl));
@@ -588,7 +598,10 @@ Add them exactly as if they had been typed at the console
 */
 void Host_GetConsoleCommands (void)
 {
-	char	*cmd;
+	const char	*cmd;
+
+	if (!isDedicated)
+		return;	// no stdin necessary in graphical mode
 
 	while (1)
 	{
@@ -638,7 +651,7 @@ void Host_ServerFrame (void)
 		if (active > 600 && dev_peakstats.edicts <= 600)
 			Con_Warning ("%i edicts exceeds standard limit of 600.\n", active);
 		dev_stats.edicts = active;
-		dev_peakstats.edicts = max(active, dev_peakstats.edicts);
+		dev_peakstats.edicts = q_max(active, dev_peakstats.edicts);
 	}
 //johnfitz
 
@@ -671,7 +684,7 @@ void _Host_Frame (float time)
 		return;			// don't run too fast, or packets will flood out
 
 // get new key events
-	//Sys_SendKeyEvents (); not needed for SDL
+	Sys_SendKeyEvents ();
 
 // allow mice or other external controllers to add commands
 	IN_Commands ();
@@ -718,16 +731,17 @@ void _Host_Frame (float time)
 
 // update video
 	if (host_speeds.value)
-		time1 = Sys_FloatTime ();
+		time1 = Sys_DoubleTime ();
 
 	SCR_UpdateScreen ();
 
 	CL_RunParticles (); //johnfitz -- seperated from rendering
 
 	if (host_speeds.value)
-		time2 = Sys_FloatTime ();
+		time2 = Sys_DoubleTime ();
 
 // update audio
+	BGM_Update();	// adds music raw samples and/or advances midi driver
 	if (cls.signon == SIGNONS)
 	{
 		S_Update (r_origin, vpn, vright, vup);
@@ -741,7 +755,7 @@ void _Host_Frame (float time)
 	if (host_speeds.value)
 	{
 		pass1 = (time1 - time3)*1000;
-		time3 = Sys_FloatTime ();
+		time3 = Sys_DoubleTime ();
 		pass2 = (time2 - time1)*1000;
 		pass3 = (time3 - time2)*1000;
 		Con_Printf ("%3i tot %3i server %3i gfx %3i snd\n",
@@ -765,9 +779,9 @@ void Host_Frame (float time)
 		return;
 	}
 
-	time1 = Sys_FloatTime ();
+	time1 = Sys_DoubleTime ();
 	_Host_Frame (time);
-	time2 = Sys_FloatTime ();
+	time2 = Sys_DoubleTime ();
 
 	timetotal += time2 - time1;
 	timecount++;
@@ -793,7 +807,7 @@ void Host_Frame (float time)
 Host_Init
 ====================
 */
-void Host_Init (quakeparms_t *parms)
+void Host_Init (void)
 {
 	if (standard_quake)
 		minimum_memory = MINIMUM_MEMORY;
@@ -801,22 +815,20 @@ void Host_Init (quakeparms_t *parms)
 		minimum_memory = MINIMUM_MEMORY_LEVELPAK;
 
 	if (COM_CheckParm ("-minmemory"))
-		parms->memsize = minimum_memory;
+		host_parms->memsize = minimum_memory;
 
-	host_parms = *parms;
+	if (host_parms->memsize < minimum_memory)
+		Sys_Error ("Only %4.1f megs of memory available, can't execute game", host_parms->memsize / (float)0x100000);
 
-	if (parms->memsize < minimum_memory)
-		Sys_Error ("Only %4.1f megs of memory available, can't execute game", parms->memsize / (float)0x100000);
+	com_argc = host_parms->argc;
+	com_argv = host_parms->argv;
 
-	com_argc = parms->argc;
-	com_argv = parms->argv;
-
-	Memory_Init (parms->membase, parms->memsize);
+	Memory_Init (host_parms->membase, host_parms->memsize);
 	Cbuf_Init ();
 	Cmd_Init ();
-	LOG_Init (parms);
+	LOG_Init (host_parms);
 	Cvar_Init (); //johnfitz
-	COM_Init (parms->basedir);
+	COM_Init ();
 	Host_InitLocal ();
 	W_LoadWadFile (); //johnfitz -- filename is now hard-coded for honesty
 	if (cls.state != ca_dedicated)
@@ -830,11 +842,11 @@ void Host_Init (quakeparms_t *parms)
 	SV_Init ();
 
 	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
-	Con_Printf ("%4.1f megabyte heap\n",parms->memsize/ (1024*1024.0));
+	Con_Printf ("%4.1f megabyte heap\n", host_parms->memsize/ (1024*1024.0));
 
 	if (cls.state != ca_dedicated)
 	{
-		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp");
+		host_colormap = (byte *)COM_LoadHunkFile ("gfx/colormap.lmp", NULL);
 		if (!host_colormap)
 			Sys_Error ("Couldn't load gfx/colormap.lmp");
 
@@ -851,30 +863,24 @@ void Host_Init (quakeparms_t *parms)
 		R_Init ();
 		S_Init ();
 		CDAudio_Init ();
+		BGM_Init();
 		Sbar_Init ();
 		CL_Init ();
-
-		Cbuf_InsertText ("exec quake.rc\n");
-	//	Cbuf_InsertText ("exec fitzquake.rc\n"); //johnfitz (inserted second so it'll be executed first)
-
-	// johnfitz -- in case the vid mode was locked during vid_init, we can unlock it now.
-		// note: two leading newlines because the command buffer swallows one of them.
-		Cbuf_AddText ("\n\nvid_unlock\n");
-	}
-	else if (COM_CheckParm ("-cd"))
-	{
-		// Allow "qs -dedicated -cd" to work as a standalone cd player ;>
-		// Useful, because of ubiquitous nature of SDL
-		S_Init ();
-		CDAudio_Init ();
 	}
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
 
 	host_initialized = true;
+	Con_Printf ("\n========= Quake Initialized =========\n\n");
 
-	Con_Printf ("\n========= Quake Initialized =========\n\n"); //johnfitz - was Sys_Printf
+	if (cls.state != ca_dedicated)
+	{
+		Cbuf_InsertText ("exec quake.rc\n");
+	// johnfitz -- in case the vid mode was locked during vid_init, we can unlock it now.
+		// note: two leading newlines because the command buffer swallows one of them.
+		Cbuf_AddText ("\n\nvid_unlock\n");
+	}
 
 	if (cls.state == ca_dedicated)
 	{
@@ -917,15 +923,11 @@ void Host_Shutdown(void)
 	{
 		if (con_initialized)
 			History_Shutdown ();
+		BGM_Shutdown();
 		CDAudio_Shutdown ();
 		S_Shutdown ();
 		IN_Shutdown (); // input is only initialized in Host_Init if we're not dedicated -- kristian
 		VID_Shutdown();
-	}
-	else if (COM_CheckParm ("-cd"))
-	{
-		CDAudio_Shutdown ();
-		S_Shutdown ();
 	}
 
 	LOG_Close ();

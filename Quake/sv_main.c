@@ -26,14 +26,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "net_defs.h"	/* for struct qsocket_s details */
 
-server_t		sv;
+server_t	sv;
 server_static_t	svs;
 
-char	localmodels[MAX_MODELS][6];			// inline model names for precache
+static char	localmodels[MAX_MODELS][8];	// inline model names for precache
 
-int sv_protocol = PROTOCOL_FITZQUAKE; //johnfitz
+int		sv_protocol = PROTOCOL_FITZQUAKE; //johnfitz
 
-extern qboolean		pr_alpha_supported; //johnfitz
+extern qboolean	pr_alpha_supported; //johnfitz
 
 //============================================================================
 
@@ -67,6 +67,7 @@ void SV_Protocol_f (void)
 		break;
 	}
 }
+
 /*
 ===============
 SV_Init
@@ -78,6 +79,7 @@ void SV_Init (void)
 	extern	cvar_t	sv_maxvelocity;
 	extern	cvar_t	sv_gravity;
 	extern	cvar_t	sv_nostep;
+	extern	cvar_t	sv_freezenonclients;
 	extern	cvar_t	sv_friction;
 	extern	cvar_t	sv_edgefriction;
 	extern	cvar_t	sv_stopspeed;
@@ -97,6 +99,7 @@ void SV_Init (void)
 	Cvar_RegisterVariable (&sv_idealpitchscale, NULL);
 	Cvar_RegisterVariable (&sv_aim, NULL);
 	Cvar_RegisterVariable (&sv_nostep, NULL);
+	Cvar_RegisterVariable (&sv_freezenonclients, NULL);
 	Cvar_RegisterVariable (&sv_altnoclip, NULL); //johnfitz
 
 	Cmd_AddCommand ("sv_protocol", &SV_Protocol_f); //johnfitz
@@ -344,7 +347,6 @@ void SV_ConnectClient (int clientnum)
 	client->message.data = client->msgbuf;
 	client->message.maxsize = sizeof(client->msgbuf);
 	client->message.allowoverflow = true;		// we can catch it
-	client->privileged = false;
 
 	if (sv.loadgame)
 		memcpy (client->spawn_parms, spawn_parms, sizeof(spawn_parms));
@@ -538,7 +540,7 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 				continue;
 
 			//johnfitz -- don't send model>255 entities if protocol is 15
-			if (sv_protocol == PROTOCOL_NETQUAKE && (int)ent->v.modelindex & 0xFF00)
+			if (sv.protocol == PROTOCOL_NETQUAKE && (int)ent->v.modelindex & 0xFF00)
 				continue;
 
 			// ignore if not touching a PV leaf
@@ -694,7 +696,7 @@ stats:
 	if (msg->cursize > 1024 && dev_peakstats.packetsize <= 1024)
 		Con_Warning ("%i byte packet exceeds standard limit of 1024.\n", msg->cursize);
 	dev_stats.packetsize = msg->cursize;
-	dev_peakstats.packetsize = max(msg->cursize, dev_peakstats.packetsize);
+	dev_peakstats.packetsize = q_max(msg->cursize, dev_peakstats.packetsize);
 	//johnfitz
 }
 
@@ -1233,7 +1235,7 @@ void SV_SendReconnect (void)
 	MSG_WriteString (&msg, "reconnect\n");
 	NET_SendToAll (&msg, 5.0);
 
-	if (cls.state != ca_dedicated)
+	if (!isDedicated)
 		Cmd_ExecuteString ("reconnect\n", src_command);
 }
 
@@ -1312,11 +1314,10 @@ void SV_SpawnServer (const char *server)
 //
 // set up the new server
 //
+	//memset (&sv, 0, sizeof(sv));
 	Host_ClearMemory ();
 
-	memset (&sv, 0, sizeof(sv));
-
-	strcpy (sv.name, server);
+	q_strlcpy (sv.name, server, sizeof(sv.name));
 
 	sv.protocol = sv_protocol; // johnfitz
 
@@ -1324,6 +1325,7 @@ void SV_SpawnServer (const char *server)
 	PR_LoadProgs ();
 
 // allocate server memory
+	/* Host_ClearMemory() called above already cleared the whole sv structure */
 	sv.max_edicts = CLAMP (MIN_EDICTS,(int)max_edicts.value,MAX_EDICTS); //johnfitz -- max_edicts cvar
 	sv.edicts = (edict_t *) Hunk_AllocName (sv.max_edicts*pr_edict_size, "edicts");
 
@@ -1352,8 +1354,8 @@ void SV_SpawnServer (const char *server)
 
 	sv.time = 1.0;
 
-	strcpy (sv.name, server);
-	sprintf (sv.modelname,"maps/%s.bsp", server);
+	q_strlcpy (sv.name, server, sizeof(sv.name));
+	q_snprintf (sv.modelname, sizeof(sv.modelname), "maps/%s.bsp", server);
 	sv.worldmodel = Mod_ForName (sv.modelname, false);
 	if (!sv.worldmodel)
 	{

@@ -181,7 +181,7 @@ TexMgr_Anisotropy_f -- called when gl_texture_anisotropy changes
 FIXME: this is getting called twice (becuase of the recursive Cvar_SetValue call)
 ===============
 */
-void TexMgr_Anisotropy_f (void)
+void TexMgr_Anisotropy_f (cvar_t *var)
 {
 	extern float gl_max_anisotropy;
 	gltexture_t	*glt;
@@ -230,17 +230,17 @@ void TexMgr_Imagedump_f (void)
 	char *c;
 
 	//create directory
-	sprintf(dirname, "%s/imagedump", com_gamedir);
+	q_snprintf(dirname, sizeof(dirname), "%s/imagedump", com_gamedir);
 	Sys_mkdir (dirname);
 
 	//loop through textures
 	for (glt=active_gltextures; glt; glt=glt->next)
 	{
-		Q_strcpy(tempname, glt->name);
+		q_strlcpy (tempname, glt->name, sizeof(tempname));
 		while ( (c = strchr(tempname, ':')) ) *c = '_';
 		while ( (c = strchr(tempname, '/')) ) *c = '_';
 		while ( (c = strchr(tempname, '*')) ) *c = '_';
-		sprintf(tganame, "imagedump/%s.tga", tempname);
+		q_snprintf(tganame, sizeof(tganame), "imagedump/%s.tga", tempname);
 
 		GL_Bind (glt);
 		if (glt->flags & TEXPREF_ALPHA)
@@ -427,13 +427,11 @@ TexMgr_LoadPalette -- johnfitz -- was VID_SetPalette, moved here, renamed, rewri
 */
 void TexMgr_LoadPalette (void)
 {
-	byte mask[] = {255,255,255,0};
-	byte black[] = {0,0,0,255};
 	byte *pal, *src, *dst;
 	int i, mark;
 	FILE *f;
 
-	COM_FOpenFile ("gfx/palette.lmp", &f);
+	COM_FOpenFile ("gfx/palette.lmp", &f, NULL);
 	if (!f)
 		Sys_Error ("Couldn't load gfx/palette.lmp");
 
@@ -452,11 +450,11 @@ void TexMgr_LoadPalette (void)
 		*dst++ = *src++;
 		*dst++ = 255;
 	}
-	d_8to24table[255] &= *(int *)mask;
+	((byte *) &d_8to24table[255]) [3] = 0;
 
 	//fullbright palette, 0-223 are black (for additive blending)
 	src = pal + 224*3;
-	dst = (byte *)(d_8to24table_fbright) + 224*4;
+	dst = (byte *) &d_8to24table_fbright[224];
 	for (i=224; i<256; i++)
 	{
 		*dst++ = *src++;
@@ -465,7 +463,11 @@ void TexMgr_LoadPalette (void)
 		*dst++ = 255;
 	}
 	for (i=0; i<224; i++)
-		d_8to24table_fbright[i] = *(int *)black;
+	{
+		dst = (byte *) &d_8to24table_fbright[i];
+		dst[3] = 255;
+		dst[2] = dst[1] = dst[0] = 0;
+	}
 
 	//nobright palette, 224-255 are black (for additive blending)
 	dst = (byte *)d_8to24table_nobright;
@@ -478,11 +480,15 @@ void TexMgr_LoadPalette (void)
 		*dst++ = 255;
 	}
 	for (i=224; i<256; i++)
-		d_8to24table_nobright[i] = *(int *)black;
+	{
+		dst = (byte *) &d_8to24table_nobright[i];
+		dst[3] = 255;
+		dst[2] = dst[1] = dst[0] = 0;
+	}
 
 	//conchars palette, 0 and 255 are transparent
 	memcpy(d_8to24table_conchars, d_8to24table, 256*4);
-	d_8to24table_conchars[0] &= *(int *)mask;
+	((byte *) &d_8to24table_conchars[0]) [3] = 0;
 
 	Hunk_FreeToLowMark (mark);
 }
@@ -496,8 +502,10 @@ void TexMgr_NewGame (void)
 {
 	TexMgr_FreeTextures (0, TEXPREF_PERSIST); //deletes all textures where TEXPREF_PERSIST is unset
 	TexMgr_LoadPalette ();
+#if defined(USE_QS_CONBACK)
 	/* QuakeSpasm customization: */
 	Draw_CheckConback ();
+#endif	/* USE_QS_CONBACK */
 }
 
 /*
@@ -624,8 +632,8 @@ int TexMgr_SafeTextureSize (int s)
 {
 	s = TexMgr_Pad(s);
 	if ((int)gl_max_size.value > 0)
-		s = min(TexMgr_Pad((int)gl_max_size.value), s);
-	s = min(gl_hardware_maxsize, s);
+		s = q_min(TexMgr_Pad((int)gl_max_size.value), s);
+	s = q_min(gl_hardware_maxsize, s);
 	return s;
 }
 
@@ -966,7 +974,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	glt->height = TexMgr_Pad(glt->height);
 
 	// mipmap down
-	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : max ((int)gl_picmip.value, 0);
+	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : q_max((int)gl_picmip.value, 0);
 	mipwidth = TexMgr_SafeTextureSize (glt->width >> picmip);
 	mipheight = TexMgr_SafeTextureSize (glt->height >> picmip);
 	while (glt->width > mipwidth)
@@ -1149,6 +1157,8 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, const char *name, int width, int 
 		case SRC_RGBA:
 			crc = CRC_Block(data, width * height * 4);
 			break;
+		default: /* not reachable but avoids compiler warnings */
+			crc = 0;
 	}
 	if ((flags & TEXPREF_OVERWRITE) && (glt = TexMgr_FindTexture (owner, name)))
 	{
@@ -1160,13 +1170,13 @@ gltexture_t *TexMgr_LoadImage (model_t *owner, const char *name, int width, int 
 
 	// copy data
 	glt->owner = owner;
-	strncpy (glt->name, name, sizeof(glt->name));
+	q_strlcpy (glt->name, name, sizeof(glt->name));
 	glt->width = width;
 	glt->height = height;
 	glt->flags = flags;
 	glt->shirt = -1;
 	glt->pants = -1;
-	strncpy (glt->source_file, source_file, sizeof(glt->source_file));
+	q_strlcpy (glt->source_file, source_file, sizeof(glt->source_file));
 	glt->source_offset = source_offset;
 	glt->source_format = format;
 	glt->source_width = width;
@@ -1220,7 +1230,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 	if (glt->source_file[0] && glt->source_offset)
 	{
 		//lump inside file
-		data = COM_LoadHunkFile (glt->source_file);
+		data = COM_LoadHunkFile (glt->source_file, NULL);
 		if (!data)
 			goto invalid;
 		data += glt->source_offset;

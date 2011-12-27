@@ -103,6 +103,8 @@ cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs
 extern cvar_t	r_vfog;
 //johnfitz
 
+cvar_t	gl_zfix = {"gl_zfix", "1", true}; // QuakeSpasm z-fighting fix
+
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
 /*
@@ -784,10 +786,11 @@ void R_RenderView (void)
 	if (!cl.worldmodel)
 		Sys_Error ("R_RenderView: NULL worldmodel");
 
+	time1 = 0; /* avoid compiler warning */
 	if (r_speeds.value)
 	{
 		glFinish ();
-		time1 = Sys_FloatTime ();
+		time1 = Sys_DoubleTime ();
 
 		//johnfitz -- rendering statistics
 		rs_brushpolys = rs_aliaspolys = rs_skypolys = rs_particles = rs_fogpolys = rs_megatexels =
@@ -835,7 +838,7 @@ void R_RenderView (void)
 	//johnfitz
 
 	//johnfitz -- modified r_speeds output
-	time2 = Sys_FloatTime ();
+	time2 = Sys_DoubleTime ();
 	if (r_speeds.value == 2)
 		Con_Printf ("%3i ms  %4i/%4i wpoly %4i/%4i epoly %3i lmap %4i/%4i sky %1.1f mtex\n",
 					(int)((time2-time1)*1000),

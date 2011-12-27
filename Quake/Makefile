@@ -1,15 +1,23 @@
-# GNU Makefile for QuakeSpasm unix targets, Aug. 31, 2010
+### GNU Makefile for QuakeSpasm unix targets, Dec. 27, 2011
 #
 # You need the SDL library fully installed.
 # "make DEBUG=1" to build a debug client.
 # "make SDL_CONFIG=/path/to/sdl-config" for unusual SDL installations.
-# "make SDLNET=1" to use SDL_net (not recommended) instead of platform
+# "make SDLNET=1" to use SDL_net (NOT recommended) instead of platform
 # specific code.
-#
-# Build objects are separate from those of codeblocks for now
-# (we aren't using codeblocks).
 
-# ============================================================================
+### Embed custom Quakespasm console background picture
+USE_QS_CONBACK=1
+
+### Enable/Disable codecs for streaming music support
+USE_CODEC_WAVE=1
+USE_CODEC_MP3=1
+USE_CODEC_VORBIS=1
+
+# which library to use for mp3 decoding: mad or mpg123
+MP3LIB=mad
+# which library to use for ogg decoding: vorbis or tremor
+VORBISLIB=vorbis
 
 # ============================================================================
 # Helper functions
@@ -100,18 +108,62 @@ endif
 
 SDL_CONFIG ?= sdl-config
 SDL_CFLAGS := $(shell $(SDL_CONFIG) --cflags)
-SDL_LFLAGS := $(shell $(SDL_CONFIG) --libs)
+SDL_LIBS   := $(shell $(SDL_CONFIG) --libs)
 
 ifeq ($(SDLNET),1)
-NET_LIBS   := SDL_net
+NET_LIBS   :=-lSDL_net
 CFLAGS     +=-D_USE_SDLNET
 else
 NET_LIBS   :=
 endif
 
-COMMON_LIBS:= m GL
+ifeq ($(USE_QS_CONBACK),1)
+CFLAGS+= -DUSE_QS_CONBACK
+endif
 
-LIBS := $(patsubst %,-l%,$(COMMON_LIBS) $(NET_LIBS))
+ifneq ($(VORBISLIB),vorbis)
+ifneq ($(VORBISLIB),tremor)
+$(error Invalid VORBISLIB setting)
+endif
+endif
+ifneq ($(MP3LIB),mpg123)
+ifneq ($(MP3LIB),mad)
+$(error Invalid MP3LIB setting)
+endif
+endif
+ifeq ($(MP3LIB),mad)
+mp3_obj=snd_mp3.o
+lib_mp3dec=-lmad
+endif
+ifeq ($(MP3LIB),mpg123)
+mp3_obj=snd_mpg123.o
+lib_mp3dec=-lmpg123
+endif
+ifeq ($(VORBISLIB),vorbis)
+cpp_vorbisdec=
+lib_vorbisdec=-lvorbisfile -lvorbis -logg
+endif
+ifeq ($(VORBISLIB),tremor)
+cpp_vorbisdec=-DVORBIS_USE_TREMOR
+lib_vorbisdec=-lvorbisidec -logg
+endif
+
+CODECLIBS  :=
+ifeq ($(USE_CODEC_WAVE),1)
+CFLAGS+= -DUSE_CODEC_WAVE
+endif
+ifeq ($(USE_CODEC_VORBIS),1)
+CFLAGS+= -DUSE_CODEC_VORBIS $(cpp_vorbisdec)
+CODECLIBS+= $(lib_vorbisdec)
+endif
+ifeq ($(USE_CODEC_MP3),1)
+CFLAGS+= -DUSE_CODEC_MP3
+CODECLIBS+= $(lib_mp3dec)
+endif
+
+COMMON_LIBS:= -lm -lGL
+
+LIBS := $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
 
 # ---------------------------
 # targets
@@ -132,8 +184,12 @@ DEFAULT_TARGET := quakespasm
 # objects
 # ----------------------------------------------------------------------------
 
-OBJ_OGGVORBIS := $(patsubst %.c,%.o,$(wildcard ../OggVorbis/*.c))
-COMOBJ_SND := cd_shared.o snd_dma.o snd_mix.o snd_mem.o snd_resample.o resample.o snd_codec.o snd_codec_wav.o snd_codec_ogg.o
+MUSIC_OBJS:= bgmusic.o \
+	snd_codec.o \
+	snd_wave.o \
+	snd_vorbis.o \
+	$(mp3_obj)
+COMOBJ_SND := snd_dma.o snd_mix.o snd_mem.o $(MUSIC_OBJS)
 SYSOBJ_SND := snd_sdl.o
 SYSOBJ_CDA := cd_sdl.o
 SYSOBJ_INPUT := in_sdl.o
@@ -168,8 +224,8 @@ GLOBJS = \
 	r_brush.o \
 	gl_model.o
 
-OBJS := \
-	$(OBJ_OGGVORBIS) \
+OBJS := strlcat.o \
+	strlcpy.o \
 	$(GLOBJS) \
 	$(SYSOBJ_INPUT) \
 	$(COMOBJ_SND) \
@@ -195,6 +251,7 @@ OBJS := \
 	common.o \
 	crc.o \
 	cvar.o \
+	cfgfile.o \
 	host.o \
 	host_cmd.o \
 	mathlib.o \
@@ -215,7 +272,7 @@ OBJS := \
 # ------------------------
 
 quakespasm:	$(OBJS)
-	$(CC) $(CFLAGS) -o quakespasm $(OBJS) $(X11_LFLAGS) $(SDL_LFLAGS) $(LIBS)
+	$(CC) $(OBJS) $(X11_LFLAGS) $(LIBS) $(SDL_LIBS) -o $@
 	$(call do_strip,$@)
 
 release:	quakespasm

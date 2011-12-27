@@ -1,7 +1,6 @@
 /*
 Copyright (C) 1996-2001 Id Software, Inc.
-Copyright (C) 2002-2009 John Fitzgibbons and others
-Copyright (C) 2007-2008 Kristian Duske
+Copyright (C) 2010-2011 O. Sezer <sezero@users.sourceforge.net>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -23,44 +22,40 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#define	PAINTBUFFER_SIZE	512
-
-/**
- * The paintbuffer is an array of struct { int left, int right } 's.
- * The int's are signed 24-bit samples which will be truncated to
- * signed 16-bit before output.
- */
+#define	PAINTBUFFER_SIZE	2048
 portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE];
 int		snd_scaletable[32][256];
-int		*snd_p, snd_linear_count, snd_vol;
+int		*snd_p, snd_linear_count;
 short		*snd_out;
 
-void Snd_WriteLinearBlastStereo16 (void)
+static int	snd_vol;
+
+static void Snd_WriteLinearBlastStereo16 (void)
 {
 	int		i;
 	int		val;
-	
-	for (i=0 ; i<snd_linear_count ; i+=2)
+
+	for (i = 0; i < snd_linear_count; i += 2)
 	{
-		val = snd_p[i]>>8;
-		if (val > 32767)
-			snd_out[i] = 32767;
-		else if (val < -32768)
-			snd_out[i] = -32768;
+		val = snd_p[i] >> 8;
+		if (val > 0x7fff)
+			snd_out[i] = 0x7fff;
+		else if (val < (short)0x8000)
+			snd_out[i] = (short)0x8000;
 		else
 			snd_out[i] = val;
-		
-		val = snd_p[i+1]>>8;
-		if (val > 32767)
-			snd_out[i+1] = 32767;
-		else if (val < -32768)
-			snd_out[i+1] = -32768;
+
+		val = snd_p[i+1] >> 8;
+		if (val > 0x7fff)
+			snd_out[i+1] = 0x7fff;
+		else if (val < (short)0x8000)
+			snd_out[i+1] = (short)0x8000;
 		else
 			snd_out[i+1] = val;
 	}
 }
 
-void S_TransferStereo16 (int endtime)
+static void S_TransferStereo16 (int endtime)
 {
 	int		lpos;
 	int		lpaintedtime;
@@ -89,7 +84,7 @@ void S_TransferStereo16 (int endtime)
 	}
 }
 
-void S_TransferPaintBuffer(int endtime)
+static void S_TransferPaintBuffer (int endtime)
 {
 	int	out_idx, out_mask;
 	int	count, step, val;
@@ -100,7 +95,7 @@ void S_TransferPaintBuffer(int endtime)
 		S_TransferStereo16 (endtime);
 		return;
 	}
-	
+
 	p = (int *) paintbuffer;
 	count = (endtime - paintedtime) * shm->channels;
 	out_mask = shm->samples - 1;
@@ -148,19 +143,18 @@ CHANNEL MIXING
 ===============================================================================
 */
 
-void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int endtime);
-void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int endtime);
+static void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int endtime);
+static void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int endtime);
 
 void S_PaintChannels (int endtime)
 {
 	int		i;
 	int		end, ltime, count;
-	int stream;
 	channel_t	*ch;
 	sfxcache_t	*sc;
 
-	snd_vol = sfxvolume.value * 255;
-	
+	snd_vol = sfxvolume.value * 256;
+
 	while (paintedtime < endtime)
 	{
 	// if paintbuffer is smaller than DMA buffer
@@ -168,22 +162,35 @@ void S_PaintChannels (int endtime)
 		if (endtime - paintedtime > PAINTBUFFER_SIZE)
 			end = paintedtime + PAINTBUFFER_SIZE;
 
-	// clear the paint buffer and mix any raw samples... (e.g. OGG music)
-		memset(paintbuffer, 0, sizeof(paintbuffer));
-		for (stream = 0; stream < MAX_RAW_STREAMS; stream++) {
-			if ( s_rawend[stream] >= paintedtime ) {
-				// copy from the streaming sound source
-				const portable_samplepair_t *rawsamples = s_rawsamples[stream];
-				const int stop = (end < s_rawend[stream]) ? end : s_rawend[stream];
-				for ( i = paintedtime ; i < stop ; i++ ) {
-					const int s = i&(MAX_RAW_SAMPLES-1);
-					paintbuffer[i-paintedtime].left += rawsamples[s].left;
-					paintbuffer[i-paintedtime].right += rawsamples[s].right;
-				}
+	// clear the paint buffer
+		if (s_rawend < paintedtime)
+		{	// clear
+			memset(paintbuffer, 0, (end - paintedtime) * sizeof(portable_samplepair_t));
+		}
+		else
+		{	// copy from the streaming sound source
+			int		s;
+			int		stop;
+
+			stop = (end < s_rawend) ? end : s_rawend;
+
+			for (i = paintedtime; i < stop; i++)
+			{
+				s = i & (MAX_RAW_SAMPLES - 1);
+				paintbuffer[i - paintedtime] = s_rawsamples[s];
+			}
+		//	if (i != end)
+		//		Con_Printf ("partial stream\n");
+		//	else
+		//		Con_Printf ("full stream\n");
+			for ( ; i < end; i++)
+			{
+				paintbuffer[i - paintedtime].left =
+				paintbuffer[i - paintedtime].right = 0;
 			}
 		}
-		
-	// paint in the sfx channels.
+
+	// paint in the channels.
 		ch = snd_channels;
 		for (i = 0; i < total_channels; i++, ch++)
 		{
@@ -220,7 +227,7 @@ void S_PaintChannels (int endtime)
 					if (sc->loopstart >= 0)
 					{
 						ch->pos = sc->loopstart;
-						ch->end = ltime + (sc->length - ch->pos);
+						ch->end = ltime + sc->length - ch->pos;
 					}
 					else
 					{	// channel just stopped
@@ -237,10 +244,33 @@ void S_PaintChannels (int endtime)
 	}
 }
 
+void SND_InitScaletable (void)
+{
+	int		i, j;
+	int		scale;
 
-void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
+	for (i = 0; i < 32; i++)
+	{
+		scale = i * 8 * 256 * sfxvolume.value;
+		for (j = 0; j < 256; j++)
+		{
+		/* When compiling with gcc-4.1.0 at optimisations O1 and
+		   higher, the tricky signed char type conversion is not
+		   guaranteed. Therefore we explicity calculate the signed
+		   value from the index as required. From Kevin Shanahan.
+		   See: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=26719
+		*/
+		//	snd_scaletable[i][j] = ((signed char)j) * scale;
+			snd_scaletable[i][j] = ((j < 128) ? j : j - 0xff) * scale;
+		}
+	}
+}
+
+
+static void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 {
 	int	data;
+	int		*lscale, *rscale;
 	unsigned char	*sfx;
 	int		i;
 
@@ -249,40 +279,43 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 	if (ch->rightvol > 255)
 		ch->rightvol = 255;
 
-	sfx = (unsigned char *) ((unsigned char *)sc->data + ch->pos);
+	lscale = snd_scaletable[ch->leftvol >> 3];
+	rscale = snd_scaletable[ch->rightvol >> 3];
+	sfx = (unsigned char *)sc->data + ch->pos;
 
 	for (i = 0; i < count; i++)
 	{
-		data = (sfx[i] - 128) * snd_vol;
-		paintbuffer[i].left += data * ch->leftvol;
-		paintbuffer[i].right += data * ch->rightvol;
+		data = sfx[i];
+		paintbuffer[i].left += lscale[data];
+		paintbuffer[i].right += rscale[data];
 	}
 
 	ch->pos += count;
 }
 
-void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
+static void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 {
 	int	data;
 	int	left, right;
 	int	leftvol, rightvol;
 	signed short	*sfx;
 	int	i;
-	
-	if (ch->leftvol > 255)
-		ch->leftvol = 255;
-	if (ch->rightvol > 255)
-		ch->rightvol = 255;
-	
+
 	leftvol = ch->leftvol * snd_vol;
 	rightvol = ch->rightvol * snd_vol;
-	sfx = (signed short *)sc->data + ch->pos; 
-	
+	leftvol >>= 8;
+	rightvol >>= 8;
+	sfx = (signed short *)sc->data + ch->pos;
+
 	for (i = 0; i < count; i++)
 	{
 		data = sfx[i];
-		left = (data * leftvol) >> 8;
-		right = (data * rightvol) >> 8;
+	// this was causing integer overflow as observed in quakespasm
+	// with the warpspasm mod moved >>8 to left/right volume above.
+	//	left = (data * leftvol) >> 8;
+	//	right = (data * rightvol) >> 8;
+		left = data * leftvol;
+		right = data * rightvol;
 		paintbuffer[i].left += left;
 		paintbuffer[i].right += right;
 	}

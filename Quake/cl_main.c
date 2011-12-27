@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_main.c  -- client main loop
 
 #include "quakedef.h"
+#include "bgmusic.h"
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -111,6 +112,8 @@ void CL_Disconnect (void)
 {
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
+	BGM_Stop();
+	CDAudio_Stop();
 
 // if running a local server, shut it down
 	if (cls.demoplayback)
@@ -629,13 +632,13 @@ int CL_ReadFromServer (void)
 	if (cl_numvisedicts > 256 && dev_peakstats.visedicts <= 256)
 		Con_Warning ("%i visedicts exceeds standard limit of 256.\n", cl_numvisedicts);
 	dev_stats.visedicts = cl_numvisedicts;
-	dev_peakstats.visedicts = max(cl_numvisedicts, dev_peakstats.visedicts);
+	dev_peakstats.visedicts = q_max(cl_numvisedicts, dev_peakstats.visedicts);
 
 	//temp entities
 	if (num_temp_entities > 64 && dev_peakstats.tempents <= 64)
 		Con_Warning ("%i tempentities exceeds standard limit of 64.\n", num_temp_entities);
 	dev_stats.tempents = num_temp_entities;
-	dev_peakstats.tempents = max(num_temp_entities, dev_peakstats.tempents);
+	dev_peakstats.tempents = q_max(num_temp_entities, dev_peakstats.tempents);
 
 	//beams
 	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
@@ -644,7 +647,7 @@ int CL_ReadFromServer (void)
 	if (num_beams > 24 && dev_peakstats.beams <= 24)
 		Con_Warning ("%i beams exceeded standard limit of 24.\n", num_beams);
 	dev_stats.beams = num_beams;
-	dev_peakstats.beams = max(num_beams, dev_peakstats.beams);
+	dev_peakstats.beams = q_max(num_beams, dev_peakstats.beams);
 
 	//dlights
 	for (i=0, l=cl_dlights ; i<MAX_DLIGHTS ; i++, l++)
@@ -653,7 +656,7 @@ int CL_ReadFromServer (void)
 	if (num_dlights > 32 && dev_peakstats.dlights <= 32)
 		Con_Warning ("%i dlights exceeded standard limit of 32.\n", num_dlights);
 	dev_stats.dlights = num_dlights;
-	dev_peakstats.dlights = max(num_dlights, dev_peakstats.dlights);
+	dev_peakstats.dlights = q_max(num_dlights, dev_peakstats.dlights);
 
 //johnfitz
 
@@ -700,12 +703,12 @@ void CL_SendCmd (void)
 
 	if (!NET_CanSendMessage (cls.netcon))
 	{
-		Con_DPrintf ("CL_WriteToServer: can't send\n");
+		Con_DPrintf ("CL_SendCmd: can't send\n");
 		return;
 	}
 
 	if (NET_SendMessage (cls.netcon, &cls.message) == -1)
-		Host_Error ("CL_WriteToServer: lost server connection");
+		Host_Error ("CL_SendCmd: lost server connection");
 
 	SZ_Clear (&cls.message);
 }

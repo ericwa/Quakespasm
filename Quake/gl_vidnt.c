@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_vidnt.c -- NT GL vid component
 
 #include "quakedef.h"
+#include "bgmusic.h"
 #include "winquake.h"
 #include "resource.h"
 #include <commctrl.h>
@@ -74,7 +75,6 @@ qboolean		scr_skipupdate;
 
 static vmode_t	modelist[MAX_MODE_LIST];
 static int		nummodes;
-static vmode_t	*pcurrentmode;
 static vmode_t	badmode;
 
 static DEVMODE	gdevmode;
@@ -104,6 +104,7 @@ HDC		maindc;
 glvert_t glv;
 
 HWND WINAPI InitializeWindow (HINSTANCE hInstance, int nCmdShow);
+BOOL bSetupPixelFormat(HDC hDC);
 
 viddef_t	vid;				// global video state
 
@@ -123,11 +124,6 @@ const char *VID_GetModeDescription (int mode);
 void ClearAllStates (void);
 void VID_UpdateWindowStatus (void);
 void GL_Init (void);
-
-PROC glArrayElementEXT;
-PROC glColorPointerEXT;
-PROC glTexCoordPointerEXT;
-PROC glVertexPointerEXT;
 
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
 
@@ -241,7 +237,7 @@ void VID_Gamma_Shutdown (void)
 VID_Gamma_f -- callback when the cvar changes
 ================
 */
-void VID_Gamma_f (void)
+void VID_Gamma_f (cvar_t *var)
 {
 	static float oldgamma;
 	int i;
@@ -324,7 +320,6 @@ CenterWindow
 */
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify)
 {
-    RECT    rect;
     int     CenterX, CenterY;
 
 	CenterX = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
@@ -529,7 +524,6 @@ int VID_SetMode (int modenum)
 	int		original_mode, temp;
 	qboolean	stat = false;
 	MSG		msg;
-	HDC		hdc;
 
 	if ((windowed && (modenum != 0)) ||
 		(!windowed && (modenum < 1)) ||
@@ -543,6 +537,7 @@ int VID_SetMode (int modenum)
 	scr_disabled_for_loading = true;
 
 	CDAudio_Pause ();
+	BGM_Pause ();
 
 	if (vid_modenum == NO_MODE)
 		original_mode = windowed_default;
@@ -591,6 +586,7 @@ int VID_SetMode (int modenum)
 	VID_UpdateWindowStatus ();
 
 	CDAudio_Resume ();
+	BGM_Resume ();
 	scr_disabled_for_loading = temp;
 
 // now we try to make sure we get the focus on the mode switch, because
@@ -619,8 +615,7 @@ int VID_SetMode (int modenum)
 // fix the leftover Alt from any Alt-Tab or the like that switched us away
 	ClearAllStates ();
 
-	if (!msg_suppress_1)
-		Con_SafePrintf ("Video mode %s initialized\n", VID_GetModeDescription (vid_modenum));
+	Con_SafePrintf ("Video mode %s initialized\n", VID_GetModeDescription (vid_modenum));
 
 	vid.recalc_refdef = 1;
 
@@ -632,7 +627,7 @@ int VID_SetMode (int modenum)
 VID_Vsync_f -- johnfitz
 ===============
 */
-void VID_Vsync_f (void)
+void VID_Vsync_f (cvar_t *var)
 {
 	if (gl_swap_control)
 	{
@@ -660,7 +655,6 @@ void VID_Restart (void)
 	HGLRC		hrc;
 	int		i;
 	qboolean	mode_changed = false;
-	vmode_t		oldmode;
 
 	if (vid_locked)
 		return;
@@ -690,8 +684,6 @@ void VID_Restart (void)
 //
 // decide which mode to set
 //
-		oldmode = modelist[vid_default];
-
 		if (vid_fullscreen.value)
 		{
 			for (i=1; i<nummodes; i++)
@@ -788,7 +780,7 @@ void VID_Restart (void)
 				LPVOID lpMsgBuf;
 				DWORD dw = GetLastError();
 				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR) &lpMsgBuf, 0, NULL );
-				sprintf(szBuf, "VID_Restart: wglMakeCurrent failed with error %d: %s", dw, lpMsgBuf);
+				sprintf(szBuf, "VID_Restart: wglMakeCurrent failed with error %u: %s", (unsigned int)dw, (const char *)lpMsgBuf);
  				Sys_Error (szBuf);
 			}
 			TexMgr_ReloadImages ();
@@ -798,7 +790,7 @@ void VID_Restart (void)
 		vid_canalttab = true;
 
 		//swapcontrol settings were lost when previous window was destroyed
-		VID_Vsync_f ();
+		VID_Vsync_f (&vid_vsync);
 
 		//warpimages needs to be recalculated
 		TexMgr_RecalcWarpImageSize ();
@@ -967,37 +959,6 @@ void GL_Info_f (void)
 
 /*
 ===============
-CheckArrayExtensions
-===============
-*/
-#if 0 /* unused */
-void CheckArrayExtensions (void)
-{
-	const char	*tmp;
-
-	tmp = (const char *)glGetString(GL_EXTENSIONS);
-	while (*tmp)
-	{
-		if (strncmp(tmp, "GL_EXT_vertex_array", sizeof("GL_EXT_vertex_array") -1) == 0)
-		{
-			if (((glArrayElementEXT = wglGetProcAddress("glArrayElementEXT")) == NULL) ||
-			    ((glColorPointerEXT = wglGetProcAddress("glColorPointerEXT")) == NULL) ||
-			    ((glTexCoordPointerEXT = wglGetProcAddress("glTexCoordPointerEXT")) == NULL) ||
-			    ((glVertexPointerEXT = wglGetProcAddress("glVertexPointerEXT")) == NULL) )
-			{
-				Sys_Error ("GetProcAddress for vertex extension failed");
-			}
-			return;
-		}
-		tmp++;
-	}
-
-	Sys_Error ("Vertex array extension not present");
-}
-#endif /* #if 0 */
-
-/*
-===============
 GL_CheckExtensions -- johnfitz
 ===============
 */
@@ -1008,77 +969,82 @@ void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-nomtex"))
 		Con_Warning ("Mutitexture disabled at command line\n");
-	else
-		if (strstr(gl_extensions, "GL_ARB_multitexture"))
+	else if (strstr(gl_extensions, "GL_ARB_multitexture"))
+	{
+		GL_MTexCoord2fFunc = (void *) wglGetProcAddress("glMultiTexCoord2fARB");
+		GL_SelectTextureFunc = (void *) wglGetProcAddress("glActiveTextureARB");
+		if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
 		{
-			GL_MTexCoord2fFunc = (void *) wglGetProcAddress("glMultiTexCoord2fARB");
-			GL_SelectTextureFunc = (void *) wglGetProcAddress("glActiveTextureARB");
-			if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
-			{
-				Con_Printf("FOUND: ARB_multitexture\n");
-				TEXTURE0 = GL_TEXTURE0_ARB;
-				TEXTURE1 = GL_TEXTURE1_ARB;
-				gl_mtexable = true;
-			}
-			else
-				Con_Warning ("multitexture not supported (wglGetProcAddress failed)\n");
+			Con_Printf("FOUND: ARB_multitexture\n");
+			TEXTURE0 = GL_TEXTURE0_ARB;
+			TEXTURE1 = GL_TEXTURE1_ARB;
+			gl_mtexable = true;
 		}
 		else
-			if (strstr(gl_extensions, "GL_SGIS_multitexture"))
-			{
-				GL_MTexCoord2fFunc = (void *) wglGetProcAddress("glMTexCoord2fSGIS");
-				GL_SelectTextureFunc = (void *) wglGetProcAddress("glSelectTextureSGIS");
-				if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
-				{
-					Con_Printf("FOUND: SGIS_multitexture\n");
-					TEXTURE0 = TEXTURE0_SGIS;
-					TEXTURE1 = TEXTURE1_SGIS;
-					gl_mtexable = true;
-				}
-				else
-					Con_Warning ("multitexture not supported (wglGetProcAddress failed)\n");
+		{
+			Con_Warning ("Couldn't link to multitexture functions\n");
+		}
+	}
+	else if (strstr(gl_extensions, "GL_SGIS_multitexture"))
+	{
+		GL_MTexCoord2fFunc = (void *) wglGetProcAddress("glMTexCoord2fSGIS");
+		GL_SelectTextureFunc = (void *) wglGetProcAddress("glSelectTextureSGIS");
+		if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
+		{
+			Con_Printf("FOUND: SGIS_multitexture\n");
+			TEXTURE0 = TEXTURE0_SGIS;
+			TEXTURE1 = TEXTURE1_SGIS;
+			gl_mtexable = true;
+		}
+		else
+		{
+			Con_Warning ("Couldn't link to multitexture functions\n");
+		}
+	}
+	else
+	{
+		Con_Warning ("multitexture not supported (extension not found)\n");
+	}
 
-			}
-			else
-				Con_Warning ("multitexture not supported (extension not found)\n");
 	//
 	// texture_env_combine
 	//
 	if (COM_CheckParm("-nocombine"))
 		Con_Warning ("texture_env_combine disabled at command line\n");
+	else if (strstr(gl_extensions, "GL_ARB_texture_env_combine"))
+	{
+		Con_Printf("FOUND: ARB_texture_env_combine\n");
+		gl_texture_env_combine = true;
+	}
+	else if (strstr(gl_extensions, "GL_EXT_texture_env_combine"))
+	{
+		Con_Printf("FOUND: EXT_texture_env_combine\n");
+		gl_texture_env_combine = true;
+	}
 	else
-		if (strstr(gl_extensions, "GL_ARB_texture_env_combine"))
-		{
-			Con_Printf("FOUND: ARB_texture_env_combine\n");
-			gl_texture_env_combine = true;
-		}
-		else
-			if (strstr(gl_extensions, "GL_EXT_texture_env_combine"))
-			{
-				Con_Printf("FOUND: EXT_texture_env_combine\n");
-				gl_texture_env_combine = true;
-			}
-			else
-				Con_Warning ("texture_env_combine not supported\n");
+	{
+		Con_Warning ("texture_env_combine not supported\n");
+	}
+
 	//
 	// texture_env_add
 	//
 	if (COM_CheckParm("-noadd"))
 		Con_Warning ("texture_env_add disabled at command line\n");
+	else if (strstr(gl_extensions, "GL_ARB_texture_env_add"))
+	{
+		Con_Printf("FOUND: ARB_texture_env_add\n");
+		gl_texture_env_add = true;
+	}
+	else if (strstr(gl_extensions, "GL_EXT_texture_env_add"))
+	{
+		Con_Printf("FOUND: EXT_texture_env_add\n");
+		gl_texture_env_add = true;
+	}
 	else
-		if (strstr(gl_extensions, "GL_ARB_texture_env_add"))
-		{
-			Con_Printf("FOUND: ARB_texture_env_add\n");
-			gl_texture_env_add = true;
-		}
-		else
-			if (strstr(gl_extensions, "GL_EXT_texture_env_add"))
-			{
-				Con_Printf("FOUND: EXT_texture_env_add\n");
-				gl_texture_env_add = true;
-			}
-			else
-				Con_Warning ("texture_env_add not supported\n");
+	{
+		Con_Warning ("texture_env_add not supported\n");
+	}
 
 	//
 	// swap control
@@ -1101,10 +1067,14 @@ void GL_CheckExtensions (void)
 			}
 		}
 		else
-			Con_Warning ("vertical sync not supported (wglGetProcAddress failed)\n");
+		{
+			Con_Warning ("Couldn't link to vertical sync functions\n");
+		}
 	}
 	else
+	{
 		Con_Warning ("vertical sync not supported (extension not found)\n");
+	}
 
 	//
 	// anisotropic filtering
@@ -1130,13 +1100,17 @@ void GL_CheckExtensions (void)
 			gl_anisotropy_able = true;
 		}
 		else
+		{
 			Con_Warning ("anisotropic filtering locked by driver. Current driver setting is %f\n", test1);
+		}
 
 		//get max value either way, so the menu and stuff know it
 		glGetFloatv (GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_max_anisotropy);
 	}
 	else
+	{
 		Con_Warning ("texture_filter_anisotropic not supported\n");
+	}
 }
 
 /*
@@ -1149,9 +1123,9 @@ void GetWGLExtensions (void)
 	const char *(*wglGetExtensionsStringARB) (HDC hdc);
 	const char *(*wglGetExtensionsStringEXT) ();
 
-	if (wglGetExtensionsStringARB = (void *) wglGetProcAddress ("wglGetExtensionsStringARB"))
+	if ((wglGetExtensionsStringARB = (void *) wglGetProcAddress ("wglGetExtensionsStringARB")) != NULL)
 		wgl_extensions = wglGetExtensionsStringARB (maindc);
-	else if (wglGetExtensionsStringEXT = (void *) wglGetProcAddress ("wglGetExtensionsStringEXT"))
+	else if ((wglGetExtensionsStringEXT = (void *) wglGetProcAddress ("wglGetExtensionsStringEXT")) != NULL)
 		wgl_extensions = wglGetExtensionsStringEXT ();
 	else
 		wgl_extensions = "";
@@ -1501,9 +1475,6 @@ void AppActivate(BOOL fActive, BOOL minimize)
 *
 ****************************************************************************/
 {
-	MSG msg;
-    HDC			hdc;
-    int			i, t;
 	static BOOL	sound_active;
 
 	ActiveApp = fActive;
@@ -1571,7 +1542,7 @@ LONG WINAPI MainWndProc (
     LPARAM  lParam)
 {
 	LONG    lRet = 1;
-	int		fwKeys, xPos, yPos, fActive, fMinimized, temp;
+	int		fActive, fMinimized, temp;
 	extern unsigned int uiWheelMessage;
 
 	if ( uMsg == uiWheelMessage )
@@ -1854,10 +1825,10 @@ VID_InitDIB
 */
 void VID_InitDIB (HINSTANCE hInstance)
 {
+	int				i;
 	DEVMODE			devmode; //johnfitz
 	WNDCLASS		wc;
 	HDC				hdc;
-	int				i;
 
 	/* Register the frame class */
 	wc.style         = 0;
@@ -1876,16 +1847,18 @@ void VID_InitDIB (HINSTANCE hInstance)
 
 	modelist[0].type = MS_WINDOWED;
 
-	if (COM_CheckParm("-width"))
-		modelist[0].width = Q_atoi(com_argv[COM_CheckParm("-width")+1]);
+	i = COM_CheckParm("-width");
+	if (i && i < com_argc-1)
+		modelist[0].width = Q_atoi(com_argv[i+1]);
 	else
 		modelist[0].width = 640;
 
 	if (modelist[0].width < 320)
 		modelist[0].width = 320;
 
-	if (COM_CheckParm("-height"))
-		modelist[0].height= Q_atoi(com_argv[COM_CheckParm("-height")+1]);
+	i = COM_CheckParm("-height");
+	if (i && i < com_argc-1)
+		modelist[0].height= Q_atoi(com_argv[i+1]);
 	else
 		modelist[0].height = modelist[0].width * 240/320;
 
@@ -1925,7 +1898,7 @@ VID_InitFullDIB
 void VID_InitFullDIB (HINSTANCE hInstance)
 {
 	DEVMODE	devmode;
-	int		i, modenum, cmodes, originalnummodes, existingmode, numlowresmodes;
+	int		i, modenum, originalnummodes, existingmode, numlowresmodes;
 	int		j, bpp, done;
 	BOOL	stat;
 
@@ -1960,10 +1933,10 @@ void VID_InitFullDIB (HINSTANCE hInstance)
 				modelist[nummodes].bpp = devmode.dmBitsPerPel;
 				modelist[nummodes].refreshrate = devmode.dmDisplayFrequency; //johnfitz -- refreshrate
 				sprintf (modelist[nummodes].modedesc, "%dx%dx%d %dHz", //johnfitz -- refreshrate
-						 devmode.dmPelsWidth,
-						 devmode.dmPelsHeight,
-						 devmode.dmBitsPerPel,
-						 devmode.dmDisplayFrequency); //johnfitz -- refreshrate
+						(int) devmode.dmPelsWidth,
+						(int) devmode.dmPelsHeight,
+						(int) devmode.dmBitsPerPel,
+						(int) devmode.dmDisplayFrequency); //johnfitz -- refreshrate
 
 			// if the width is more than twice the height, reduce it by half because this
 			// is probably a dual-screen monitor
@@ -2033,10 +2006,10 @@ void VID_InitFullDIB (HINSTANCE hInstance)
 				modelist[nummodes].bpp = devmode.dmBitsPerPel;
 				modelist[nummodes].refreshrate = devmode.dmDisplayFrequency; //johnfitz -- refreshrate
 				sprintf (modelist[nummodes].modedesc, "%dx%dx%d %dHz", //johnfitz -- refreshrate
-						 devmode.dmPelsWidth,
-						 devmode.dmPelsHeight,
-						 devmode.dmBitsPerPel,
-						 devmode.dmDisplayFrequency); //johnfitz -- refreshrate
+						(int) devmode.dmPelsWidth,
+						(int) devmode.dmPelsHeight,
+						(int) devmode.dmBitsPerPel,
+						(int) devmode.dmDisplayFrequency); //johnfitz -- refreshrate
 
 				for (i=originalnummodes, existingmode = 0 ; i<nummodes ; i++)
 				{
@@ -2084,9 +2057,8 @@ VID_Init
 void	VID_Init (void)
 {
 	int		i, existingmode;
-	int		basenummodes, width, height, bpp, findbpp, done;
-	byte	*ptmp;
-	char	gldir[MAX_OSPATH];
+	int		width, height, bpp, findbpp, done;
+	int		p;
 	HGLRC	baseRC; //johnfitz -- moved here from global scope, since it was only used in this
 	HDC		hdc;
 	DEVMODE	devmode;
@@ -2116,7 +2088,7 @@ void	VID_Init (void)
 	InitCommonControls();
 
 	VID_InitDIB (global_hInstance);
-	basenummodes = nummodes = 1;
+	nummodes = 1;
 
 	VID_InitFullDIB (global_hInstance);
 
@@ -2142,9 +2114,10 @@ void	VID_Init (void)
 
 		windowed = false;
 
-		if (COM_CheckParm("-mode"))
+		p = COM_CheckParm("-mode");
+		if (p && p < com_argc-1)
 		{
-			vid_default = Q_atoi(com_argv[COM_CheckParm("-mode")+1]);
+			vid_default = Q_atoi(com_argv[p+1]);
 		}
 		else
 		{
@@ -2157,18 +2130,20 @@ void	VID_Init (void)
 			}
 			else
 			{
-				if (COM_CheckParm("-width"))
+				p = COM_CheckParm("-width");
+				if (p && p < com_argc-1)
 				{
-					width = Q_atoi(com_argv[COM_CheckParm("-width")+1]);
+					width = Q_atoi(com_argv[p+1]);
 				}
 				else
 				{
 					width = 640;
 				}
 
-				if (COM_CheckParm("-bpp"))
+				p = COM_CheckParm("-bpp");
+				if (p && p < com_argc-1)
 				{
-					bpp = Q_atoi(com_argv[COM_CheckParm("-bpp")+1]);
+					bpp = Q_atoi(com_argv[p+1]);
 					findbpp = 0;
 				}
 				else
@@ -2177,8 +2152,9 @@ void	VID_Init (void)
 					findbpp = 1;
 				}
 
-				if (COM_CheckParm("-height"))
-					height = Q_atoi(com_argv[COM_CheckParm("-height")+1]);
+				p = COM_CheckParm("-height");
+				if (p && p < com_argc-1)
+					height = Q_atoi(com_argv[p+1]);
 				else
 					height = width * 3 / 4; // assume 4:3 aspect ratio
 
@@ -2194,10 +2170,10 @@ void	VID_Init (void)
 					modelist[nummodes].fullscreen = 1;
 					modelist[nummodes].bpp = bpp;
 					sprintf (modelist[nummodes].modedesc, "%dx%dx%d %dHz", //johnfitz -- refreshrate
-							 devmode.dmPelsWidth,
-							 devmode.dmPelsHeight,
-							 devmode.dmBitsPerPel,
-							 devmode.dmDisplayFrequency); //johnfitz -- refreshrate
+							(int) devmode.dmPelsWidth,
+							(int) devmode.dmPelsHeight,
+							(int) devmode.dmBitsPerPel,
+							(int) devmode.dmDisplayFrequency); //johnfitz -- refreshrate
 
 					for (i=nummodes, existingmode = 0 ; i<nummodes ; i++)
 					{
@@ -2221,9 +2197,10 @@ void	VID_Init (void)
 
 				do
 				{
-					if (COM_CheckParm("-height"))
+					p = COM_CheckParm("-height");
+					if (p && p < com_argc-1)
 					{
-						height = Q_atoi(com_argv[COM_CheckParm("-height")+1]);
+						height = Q_atoi(com_argv[p+1]);
 
 						for (i=1, vid_default=0 ; i<nummodes ; i++)
 						{

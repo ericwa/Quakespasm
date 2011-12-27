@@ -1,10 +1,23 @@
 # GNU Makefile for cross-compiling quakespasm.exe (Win64 : MinGW-w64)
-# using cross-toolchains on a linux host	/ Aug. 31, 2010.
+# using cross-toolchains on a linux host	/ Dec. 27, 2011.
 # "make DEBUG=1" to build a debug client.
 # "make SDL_CONFIG=/path/to/sdl-config" for unusual SDL installations.
-# "make WINSOCK2=0" to use the old WinSock 1.1 api (not recommended).
-# "make SDLNET=1" to use SDL_net (not recommended) instead of platform
+# "make WINSOCK2=0" to use the old WinSock 1.1 api (NOT recommended).
+# "make SDLNET=1" to use SDL_net (NOT recommended) instead of platform
 # specific code.
+
+### Embed custom Quakespasm console background picture
+USE_QS_CONBACK=1
+
+### Enable/disable codecs for streaming music support
+USE_CODEC_WAVE=1
+USE_CODEC_MP3=1
+USE_CODEC_VORBIS=1
+
+# which library to use for mp3 decoding: mad or mpg123
+MP3LIB=mad
+# which library to use for ogg decoding: vorbis or tremor
+VORBISLIB=vorbis
 
 # ============================================================================
 # Helper functions
@@ -63,27 +76,78 @@ endif
 
 SDL_CONFIG ?= sdl-config
 SDL_CFLAGS := $(shell $(SDL_CONFIG) --cflags)
-SDL_LFLAGS := $(shell $(SDL_CONFIG) --libs)
+SDL_LIBS   := $(shell $(SDL_CONFIG) --libs)
 
 ifeq ($(WINSOCK2),1)
 DEFWINSOCK :=-D_USE_WINSOCK2
-LIBWINSOCK := ws2_32
+LIBWINSOCK := -lws2_32
 else
 DEFWINSOCK :=
-LIBWINSOCK := wsock32
+LIBWINSOCK := -lwsock32
 endif
 
 ifeq ($(SDLNET),1)
-NET_LIBS   := SDL_net
+NET_LIBS   := -lSDL_net
 CFLAGS     +=-D_USE_SDLNET
 else
 CFLAGS     += $(DEFWINSOCK)
 NET_LIBS   := $(LIBWINSOCK)
 endif
 
-COMMON_LIBS:= m opengl32
+ifeq ($(USE_QS_CONBACK),1)
+CFLAGS+= -DUSE_QS_CONBACK
+endif
 
-LIBS := $(patsubst %,-l%,$(COMMON_LIBS) $(NET_LIBS))
+ifneq ($(VORBISLIB),vorbis)
+ifneq ($(VORBISLIB),tremor)
+$(error Invalid VORBISLIB setting)
+endif
+endif
+ifneq ($(MP3LIB),mpg123)
+ifneq ($(MP3LIB),mad)
+$(error Invalid MP3LIB setting)
+endif
+endif
+ifeq ($(MP3LIB),mad)
+mp3_obj=snd_mp3.o
+lib_mp3dec=-lmad
+endif
+ifeq ($(MP3LIB),mpg123)
+mp3_obj=snd_mpg123.o
+lib_mp3dec=-lmpg123
+endif
+ifeq ($(VORBISLIB),vorbis)
+cpp_vorbisdec=
+lib_vorbisdec=-lvorbisfile -lvorbis -logg
+endif
+ifeq ($(VORBISLIB),tremor)
+cpp_vorbisdec=-DVORBIS_USE_TREMOR
+lib_vorbisdec=-lvorbisidec -logg
+endif
+
+CODECLIBS  :=
+ifeq ($(USE_CODEC_WAVE),1)
+CFLAGS+= -DUSE_CODEC_WAVE
+CODEC_INC = -I../Windows/codecs/include
+CODEC_LINK= -L../Windows/codecs/x64
+endif
+ifeq ($(USE_CODEC_VORBIS),1)
+CFLAGS+= -DUSE_CODEC_VORBIS $(cpp_vorbisdec)
+CODEC_INC = -I../Windows/codecs/include
+CODEC_LINK= -L../Windows/codecs/x64
+CODECLIBS+= $(lib_vorbisdec)
+endif
+ifeq ($(USE_CODEC_MP3),1)
+CFLAGS+= -DUSE_CODEC_MP3
+CODEC_INC = -I../Windows/codecs/include
+CODEC_LINK= -L../Windows/codecs/x64
+CODECLIBS+= $(lib_mp3dec)
+endif
+CFLAGS+= $(CODEC_INC)
+
+COMMON_LIBS:= -lm -lopengl32
+
+LIBS := $(COMMON_LIBS) $(NET_LIBS) $(CODEC_LINK) $(CODECLIBS)
 
 # ---------------------------
 # targets
@@ -106,7 +170,12 @@ DEFAULT_TARGET := quakespasm.exe
 # objects
 # ----------------------------------------------------------------------------
 
-COMOBJ_SND := snd_dma.o snd_mix.o snd_mem.o
+MUSIC_OBJS:= bgmusic.o \
+	snd_codec.o \
+	snd_wave.o \
+	snd_vorbis.o \
+	$(mp3_obj)
+COMOBJ_SND := snd_dma.o snd_mix.o snd_mem.o $(MUSIC_OBJS)
 SYSOBJ_SND := snd_sdl.o
 SYSOBJ_CDA := cd_sdl.o
 SYSOBJ_INPUT := in_sdl.o
@@ -141,7 +210,8 @@ GLOBJS = \
 	r_brush.o \
 	gl_model.o
 
-OBJS := \
+OBJS := strlcat.o \
+	strlcpy.o \
 	$(GLOBJS) \
 	$(SYSOBJ_INPUT) \
 	$(COMOBJ_SND) \
@@ -167,6 +237,7 @@ OBJS := \
 	common.o \
 	crc.o \
 	cvar.o \
+	cfgfile.o \
 	host.o \
 	host_cmd.o \
 	mathlib.o \
@@ -187,7 +258,7 @@ OBJS := \
 # ------------------------
 
 quakespasm.exe:	$(OBJS)
-	$(CC) $(CFLAGS) -o quakespasm.exe $(OBJS) $(SDL_LFLAGS) $(LIBS)
+	$(CC) $(CFLAGS) $(OBJS) $(LIBS) $(SDL_LIBS) -o $@
 	$(call do_strip,$@)
 
 release:	quakespasm.exe

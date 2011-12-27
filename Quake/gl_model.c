@@ -1,7 +1,7 @@
 /*
 Copyright (C) 1996-2001 Id Software, Inc.
 Copyright (C) 2002-2009 John Fitzgibbons and others
-Copyright (C) 2007-2008 Kristian Duske
+Copyright (C) 2011 O.Sezer
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -34,6 +34,8 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer);
 void Mod_LoadAliasModel (model_t *mod, void *buffer);
 model_t *Mod_LoadModel (model_t *mod, qboolean crash);
 
+cvar_t	external_ents = {"external_ents", "1", true};
+
 byte	mod_novis[MAX_MAP_LEAFS/8];
 
 #define	MAX_MOD_KNOWN	2048 //johnfitz -- was 512
@@ -50,6 +52,8 @@ Mod_Init
 */
 void Mod_Init (void)
 {
+	Cvar_RegisterVariable (&external_ents, NULL);
+
 	memset (mod_novis, 0xff, sizeof(mod_novis));
 
 	//johnfitz -- create notexture miptex
@@ -215,7 +219,7 @@ model_t *Mod_FindName (const char *name)
 	{
 		if (mod_numknown == MAX_MOD_KNOWN)
 			Sys_Error ("mod_numknown == MAX_MOD_KNOWN");
-		strcpy (mod->name, name);
+		q_strlcpy (mod->name, name, MAX_QPATH);
 		mod->needload = true;
 		mod_numknown++;
 	}
@@ -277,7 +281,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 //
 // load the file
 //
-	buf = COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
+	buf = COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf), & mod->path_id);
 	if (!buf)
 	{
 		if (crash)
@@ -288,7 +292,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 //
 // allocate a new model
 //
-	COM_FileBase (mod->name, loadname);
+	COM_FileBase (mod->name, loadname, sizeof(loadname));
 
 	loadmodel = mod;
 
@@ -438,25 +442,25 @@ void Mod_LoadTextures (lump_t *l)
 			{
 				//external textures -- first look in "textures/mapname/" then look in "textures/"
 				mark = Hunk_LowMark();
-				COM_StripExtension (loadmodel->name + 5, mapname);
-				sprintf (filename, "textures/%s/#%s", mapname, tx->name+1); //this also replaces the '*' with a '#'
+				COM_StripExtension (loadmodel->name + 5, mapname, sizeof(mapname));
+				q_snprintf (filename, sizeof(filename), "textures/%s/#%s", mapname, tx->name+1); //this also replaces the '*' with a '#'
 				data = Image_LoadImage (filename, &fwidth, &fheight);
 				if (!data)
 				{
-					sprintf (filename, "textures/#%s", tx->name+1);
+					q_snprintf (filename, sizeof(filename), "textures/#%s", tx->name+1);
 					data = Image_LoadImage (filename, &fwidth, &fheight);
 				}
 
 				//now load whatever we found
 				if (data) //load external image
 				{
-					strcpy (texturename, filename);
+					q_strlcpy (texturename, filename, sizeof(texturename));
 					tx->gltexture = TexMgr_LoadImage (loadmodel, texturename, fwidth, fheight,
 						SRC_RGBA, data, filename, 0, TEXPREF_NONE);
 				}
 				else //use the texture from the bsp file
 				{
-					sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
+					q_snprintf (texturename, sizeof(texturename), "%s:%s", loadmodel->name, tx->name);
 					offset = (src_offset_t)(mt+1) - (src_offset_t)mod_base;
 					tx->gltexture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height,
 						SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_NONE);
@@ -465,7 +469,7 @@ void Mod_LoadTextures (lump_t *l)
 				//now create the warpimage, using dummy data from the hunk to create the initial image
 				Hunk_Alloc (gl_warpimagesize*gl_warpimagesize*4); //make sure hunk is big enough so we don't reach an illegal address
 				Hunk_FreeToLowMark (mark);
-				sprintf (texturename, "%s_warp", texturename);
+				q_snprintf (texturename, sizeof(texturename), "%s_warp", texturename);
 				tx->warpimage = TexMgr_LoadImage (loadmodel, texturename, gl_warpimagesize,
 					gl_warpimagesize, SRC_RGBA, hunk_base, "", (src_offset_t)hunk_base, TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE);
 				tx->update_warp = true;
@@ -474,12 +478,12 @@ void Mod_LoadTextures (lump_t *l)
 			{
 				//external textures -- first look in "textures/mapname/" then look in "textures/"
 				mark = Hunk_LowMark ();
-				COM_StripExtension (loadmodel->name + 5, mapname);
-				sprintf (filename, "textures/%s/%s", mapname, tx->name);
+				COM_StripExtension (loadmodel->name + 5, mapname, sizeof(mapname));
+				q_snprintf (filename, sizeof(filename), "textures/%s/%s", mapname, tx->name);
 				data = Image_LoadImage (filename, &fwidth, &fheight);
 				if (!data)
 				{
-					sprintf (filename, "textures/%s", tx->name);
+					q_snprintf (filename, sizeof(filename), "textures/%s", tx->name);
 					data = Image_LoadImage (filename, &fwidth, &fheight);
 				}
 
@@ -491,10 +495,10 @@ void Mod_LoadTextures (lump_t *l)
 
 					//now try to load glow/luma image from the same place
 					Hunk_FreeToLowMark (mark);
-					sprintf (filename2, "%s_glow", filename);
+					q_snprintf (filename2, sizeof(filename2), "%s_glow", filename);
 					data = Image_LoadImage (filename2, &fwidth, &fheight);
 					if (!data)
-						sprintf (filename2, "%s_luma", filename);
+						q_snprintf (filename2, sizeof(filename2), "%s_luma", filename);
 						data = Image_LoadImage (filename2, &fwidth, &fheight);
 
 					if (data)
@@ -503,13 +507,13 @@ void Mod_LoadTextures (lump_t *l)
 				}
 				else //use the texture from the bsp file
 				{
-					sprintf (texturename, "%s:%s", loadmodel->name, tx->name);
+					q_snprintf (texturename, sizeof(texturename), "%s:%s", loadmodel->name, tx->name);
 					offset = (src_offset_t)(mt+1) - (src_offset_t)mod_base;
 					if (Mod_CheckFullbrights ((byte *)(tx+1), pixels))
 					{
 						tx->gltexture = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height,
 							SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT);
-						sprintf (texturename, "%s:%s_glow", loadmodel->name, tx->name);
+						q_snprintf (texturename, sizeof(texturename), "%s:%s_glow", loadmodel->name, tx->name);
 						tx->fullbright = TexMgr_LoadImage (loadmodel, texturename, tx->width, tx->height,
 							SRC_INDEXED, (byte *)(tx+1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT);
 					}
@@ -630,18 +634,29 @@ Mod_LoadLighting -- johnfitz -- replaced with lit support code via lordhavoc
 */
 void Mod_LoadLighting (lump_t *l)
 {
-	int i;
+	int i, mark;
 	byte *in, *out, *data;
 	byte d;
-	char litfilename[1024];
+	char litfilename[MAX_OSPATH];
+	unsigned int path_id;
+
 	loadmodel->lightdata = NULL;
 	// LordHavoc: check for a .lit file
-	strcpy(litfilename, loadmodel->name);
-	COM_StripExtension(litfilename, litfilename);
-	strcat(litfilename, ".lit");
-	data = (byte*) COM_LoadHunkFile (litfilename);
+	q_strlcpy(litfilename, loadmodel->name, sizeof(litfilename));
+	COM_StripExtension(litfilename, litfilename, sizeof(litfilename));
+	q_strlcat(litfilename, ".lit", sizeof(litfilename));
+	mark = Hunk_LowMark();
+	data = (byte*) COM_LoadHunkFile (litfilename, &path_id);
 	if (data)
 	{
+		// use lit file only from the same gamedir as the map
+		// itself or from a searchpath with higher priority.
+		if (path_id < loadmodel->path_id)
+		{
+			Hunk_FreeToLowMark(mark);
+			Con_Printf("ignored %s from a gamedir with lower priority\n", litfilename);
+		}
+		else
 		if (data[0] == 'Q' && data[1] == 'L' && data[2] == 'I' && data[3] == 'T')
 		{
 			i = LittleLong(((int *)data)[1]);
@@ -652,10 +667,16 @@ void Mod_LoadLighting (lump_t *l)
 				return;
 			}
 			else
+			{
+				Hunk_FreeToLowMark(mark);
 				Con_Printf("Unknown .lit file version (%d)\n", i);
+			}
 		}
 		else
+		{
+			Hunk_FreeToLowMark(mark);
 			Con_Printf("Corrupt .lit file (old version?), ignoring\n");
+		}
 	}
 	// LordHavoc: no .lit found, expand the white lighting data to color
 	if (!l->filelen)
@@ -698,6 +719,38 @@ Mod_LoadEntities
 */
 void Mod_LoadEntities (lump_t *l)
 {
+	char	entfilename[MAX_QPATH];
+	char		*ents;
+	int		mark;
+	unsigned int	path_id;
+
+	if (! external_ents.value)
+		goto _load_embedded;
+
+	q_strlcpy(entfilename, loadmodel->name, sizeof(entfilename));
+	COM_StripExtension(entfilename, entfilename, sizeof(entfilename));
+	q_strlcat(entfilename, ".ent", sizeof(entfilename));
+	Con_DPrintf("trying to load %s\n", entfilename);
+	mark = Hunk_LowMark();
+	ents = (char *) COM_LoadHunkFile (entfilename, &path_id);
+	if (ents)
+	{
+		// use ent file only from the same gamedir as the map
+		// itself or from a searchpath with higher priority.
+		if (path_id < loadmodel->path_id)
+		{
+			Hunk_FreeToLowMark(mark);
+			Con_Printf("ignored %s from a gamedir with lower priority\n", entfilename);
+		}
+		else
+		{
+			loadmodel->entities = ents;
+			Con_DPrintf("Loaded external entity file %s\n", entfilename);
+			return;
+		}
+	}
+
+_load_embedded:
 	if (!l->filelen)
 	{
 		loadmodel->entities = NULL;
@@ -1485,21 +1538,21 @@ void Mod_BoundsFromClipNode (model_t *mod, int hull, int nodenum)
 
 	case PLANE_X:
 		if (plane->signbits == 1)
-			mod->clipmins[0] = min (mod->clipmins[0], -plane->dist - mod->hulls[hull].clip_mins[0]);
+			mod->clipmins[0] = q_min(mod->clipmins[0], -plane->dist - mod->hulls[hull].clip_mins[0]);
 		else
-			mod->clipmaxs[0] = max (mod->clipmaxs[0], plane->dist - mod->hulls[hull].clip_maxs[0]);
+			mod->clipmaxs[0] = q_max(mod->clipmaxs[0], plane->dist - mod->hulls[hull].clip_maxs[0]);
 		break;
 	case PLANE_Y:
 		if (plane->signbits == 2)
-			mod->clipmins[1] = min (mod->clipmins[1], -plane->dist - mod->hulls[hull].clip_mins[1]);
+			mod->clipmins[1] = q_min(mod->clipmins[1], -plane->dist - mod->hulls[hull].clip_mins[1]);
 		else
-			mod->clipmaxs[1] = max (mod->clipmaxs[1], plane->dist - mod->hulls[hull].clip_maxs[1]);
+			mod->clipmaxs[1] = q_max(mod->clipmaxs[1], plane->dist - mod->hulls[hull].clip_maxs[1]);
 		break;
 	case PLANE_Z:
 		if (plane->signbits == 4)
-			mod->clipmins[2] = min (mod->clipmins[2], -plane->dist - mod->hulls[hull].clip_mins[2]);
+			mod->clipmins[2] = q_min(mod->clipmins[2], -plane->dist - mod->hulls[hull].clip_mins[2]);
 		else
-			mod->clipmaxs[2] = max (mod->clipmaxs[2], plane->dist - mod->hulls[hull].clip_maxs[2]);
+			mod->clipmaxs[2] = q_max(mod->clipmaxs[2], plane->dist - mod->hulls[hull].clip_maxs[2]);
 		break;
 	default:
 		//skip nonaxial planes; don't need them
@@ -1737,30 +1790,28 @@ typedef struct
 	short		x, y;
 } floodfill_t;
 
-extern unsigned d_8to24table[];
-
 // must be a power of 2
-#define FLOODFILL_FIFO_SIZE 0x1000
-#define FLOODFILL_FIFO_MASK (FLOODFILL_FIFO_SIZE - 1)
+#define	FLOODFILL_FIFO_SIZE		0x1000
+#define	FLOODFILL_FIFO_MASK		(FLOODFILL_FIFO_SIZE - 1)
 
-#define FLOODFILL_STEP( off, dx, dy ) \
-{ \
-	if (pos[off] == fillcolor) \
-	{ \
-		pos[off] = 255; \
+#define FLOODFILL_STEP( off, dx, dy )				\
+do {								\
+	if (pos[off] == fillcolor)				\
+	{							\
+		pos[off] = 255;					\
 		fifo[inpt].x = x + (dx), fifo[inpt].y = y + (dy); \
-		inpt = (inpt + 1) & FLOODFILL_FIFO_MASK; \
-	} \
-	else if (pos[off] != 255) fdc = pos[off]; \
-}
+		inpt = (inpt + 1) & FLOODFILL_FIFO_MASK;	\
+	}							\
+	else if (pos[off] != 255) fdc = pos[off];		\
+} while (0)
 
 void Mod_FloodFillSkin( byte *skin, int skinwidth, int skinheight )
 {
-	byte				fillcolor = *skin; // assume this is the pixel to fill
-	floodfill_t			fifo[FLOODFILL_FIFO_SIZE];
-	int					inpt = 0, outpt = 0;
-	int					filledcolor = -1;
-	int					i;
+	byte		fillcolor = *skin; // assume this is the pixel to fill
+	floodfill_t	fifo[FLOODFILL_FIFO_SIZE];
+	int			inpt = 0, outpt = 0;
+	int			filledcolor = -1;
+	int			i;
 
 	if (filledcolor == -1)
 	{
@@ -1807,13 +1858,13 @@ Mod_LoadAllSkins
 */
 void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 {
-	int						i, j, k, size, groupskins;
-	char					name[32];
-	byte					*skin, *texels;
-	daliasskingroup_t		*pinskingroup;
+	int			i, j, k, size, groupskins;
+	char			name[32];
+	byte			*skin, *texels;
+	daliasskingroup_t	*pinskingroup;
 	daliasskininterval_t	*pinskinintervals;
-	char					fbr_mask_name[64]; //johnfitz -- added for fullbright support
-	src_offset_t				offset; //johnfitz
+	char			fbr_mask_name[64]; //johnfitz -- added for fullbright support
+	src_offset_t		offset; //johnfitz
 
 	skin = (byte *)(pskintype + 1);
 
@@ -1834,13 +1885,13 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 			memcpy (texels, (byte *)(pskintype + 1), size);
 
 			//johnfitz -- rewritten
-			sprintf (name, "%s:frame%i", loadmodel->name, i);
+			q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, i);
 			offset = (src_offset_t)(pskintype+1) - (src_offset_t)mod_base;
 			if (Mod_CheckFullbrights ((byte *)(pskintype+1), size))
 			{
 				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
 					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_NOBRIGHT);
-				sprintf (fbr_mask_name, "%s:frame%i_glow", loadmodel->name, i);
+				q_snprintf (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_glow", loadmodel->name, i);
 				pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
 					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_FULLBRIGHT);
 			}
@@ -1877,13 +1928,13 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 				}
 
 				//johnfitz -- rewritten
-				sprintf (name, "%s:frame%i_%i", loadmodel->name, i,j);
+				q_snprintf (name, sizeof(name), "%s:frame%i_%i", loadmodel->name, i,j);
 				offset = (src_offset_t)(pskintype) - (src_offset_t)mod_base; //johnfitz
 				if (Mod_CheckFullbrights ((byte *)(pskintype), size))
 				{
 					pheader->gltextures[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
 						SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_NOBRIGHT);
-					sprintf (fbr_mask_name, "%s:frame%i_%i_glow", loadmodel->name, i,j);
+					q_snprintf (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_%i_glow", loadmodel->name, i,j);
 					pheader->fbtextures[i][j&3] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
 						SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, TEXPREF_PAD | TEXPREF_FULLBRIGHT);
 				}
@@ -1937,8 +1988,8 @@ void Mod_CalcAliasBounds (aliashdr_t *a)
 
 			for (k=0; k<3;k++)
 			{
-				loadmodel->mins[k] = min (loadmodel->mins[k], v[k]);
-				loadmodel->maxs[k] = max (loadmodel->maxs[k], v[k]);
+				loadmodel->mins[k] = q_min(loadmodel->mins[k], v[k]);
+				loadmodel->maxs[k] = q_max(loadmodel->maxs[k], v[k]);
 			}
 			dist = v[0] * v[0] + v[1] * v[1];
 			if (yawradius < dist)
@@ -1970,6 +2021,7 @@ void Mod_SetExtraFlags (model_t *mod)
 {
 	extern cvar_t r_nolerp_list;
 	const char *s;
+	char tmp[MAX_QPATH];
 	int i;
 
 	if (!mod || !mod->name || mod->type != mod_alias)
@@ -1978,17 +2030,27 @@ void Mod_SetExtraFlags (model_t *mod)
 	mod->flags &= 0xFF; //only preserve first byte
 
 	// nolerp flag
-	for (s=r_nolerp_list.string; *s; s += i+1, i=0)
+	s = r_nolerp_list.string;
+	while (*s)
 	{
-		//search forwards to the next comma or end of string
-		for (i=0; s[i] != ',' && s[i] != 0; i++) ;
-
+		// make a copy until the next comma or end of string
+		i = 0;
+		while (*s && *s != ',')
+		{
+			if (i < MAX_QPATH - 1)
+				tmp[i++] = *s;
+			s++;
+		}
+		tmp[i] = '\0';
 		//compare it to the model name
-		if (!strncmp(mod->name, s, i))
+		if (!strcmp(mod->name, tmp))
 		{
 			mod->flags |= MOD_NOLERP;
 			break;
 		}
+		//search forwards to the next comma or end of string
+		while (*s && *s == ',')
+			s++;
 	}
 
 	// noshadow flag (TODO: make this a cvar list)
@@ -2186,9 +2248,6 @@ void * Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
 	size = width * height;
 
 	pspriteframe = (mspriteframe_t *) Hunk_AllocName (sizeof (mspriteframe_t),loadname);
-
-	Q_memset (pspriteframe, 0, sizeof (mspriteframe_t));
-
 	*ppframe = pspriteframe;
 
 	pspriteframe->width = width;
@@ -2206,11 +2265,12 @@ void * Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
 	pspriteframe->tmax = (float)height/(float)TexMgr_PadConditional(height);
 	//johnfitz
 
-	sprintf (name, "%s:frame%i", loadmodel->name, framenum);
+	q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, framenum);
 	offset = (src_offset_t)(pinframe+1) - (src_offset_t)mod_base; //johnfitz
 	pspriteframe->gltexture =
-		TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1),
-		loadmodel->name, offset, TEXPREF_PAD | TEXPREF_ALPHA | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
+		TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED,
+				  (byte *)(pinframe + 1), loadmodel->name, offset,
+				  TEXPREF_PAD | TEXPREF_ALPHA | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 
 	return (void *)((byte *)pinframe + sizeof (dspriteframe_t) + size);
 }
@@ -2331,14 +2391,12 @@ void Mod_LoadSpriteModel (model_t *mod, void *buffer)
 		if (frametype == SPR_SINGLE)
 		{
 			pframetype = (dspriteframetype_t *)
-					Mod_LoadSpriteFrame (pframetype + 1,
-										 &psprite->frames[i].frameptr, i);
+					Mod_LoadSpriteFrame (pframetype + 1, &psprite->frames[i].frameptr, i);
 		}
 		else
 		{
 			pframetype = (dspriteframetype_t *)
-					Mod_LoadSpriteGroup (pframetype + 1,
-										 &psprite->frames[i].frameptr, i);
+					Mod_LoadSpriteGroup (pframetype + 1, &psprite->frames[i].frameptr, i);
 		}
 	}
 

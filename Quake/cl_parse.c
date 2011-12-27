@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_parse.c  -- parse a message received from the server
 
 #include "quakedef.h"
+#include "bgmusic.h"
 
 const char *svc_strings[] =
 {
@@ -191,13 +192,14 @@ When the client is taking a long time to load stuff, send keepalive messages
 so the server doesn't disconnect.
 ==================
 */
+static byte	net_olddata[NET_MAXMESSAGE];
 void CL_KeepaliveMessage (void)
 {
 	float	time;
 	static float lastmsg;
 	int		ret;
 	sizebuf_t	old;
-	byte		olddata[8192];
+	byte	*olddata;
 
 	if (sv.active)
 		return;		// no need if server is local
@@ -205,6 +207,7 @@ void CL_KeepaliveMessage (void)
 		return;
 
 // read messages from server, should just be nops
+	olddata = net_olddata;
 	old = net_message;
 	memcpy (olddata, net_message.data, net_message.cursize);
 
@@ -231,7 +234,7 @@ void CL_KeepaliveMessage (void)
 	memcpy (net_message.data, olddata, net_message.cursize);
 
 // check time
-	time = Sys_FloatTime ();
+	time = Sys_DoubleTime ();
 	if (time - lastmsg < 5)
 		return;
 	lastmsg = time;
@@ -287,7 +290,7 @@ void CL_ParseServerInfo (void)
 
 // parse signon message
 	str = MSG_ReadString ();
-	strncpy (cl.levelname, str, sizeof(cl.levelname)-1);
+	q_strlcpy (cl.levelname, str, sizeof(cl.levelname));
 
 // seperate the printfs so the server message can have a color
 	Con_Printf ("\n%s\n", Con_Quakebar(40)); //johnfitz
@@ -312,7 +315,7 @@ void CL_ParseServerInfo (void)
 			Con_Printf ("Server sent too many model precaches\n");
 			return;
 		}
-		strcpy (model_precache[nummodels], str);
+		q_strlcpy (model_precache[nummodels], str, MAX_QPATH);
 		Mod_TouchModel (str);
 	}
 
@@ -333,7 +336,7 @@ void CL_ParseServerInfo (void)
 			Con_Printf ("Server sent too many sound precaches\n");
 			return;
 		}
-		strcpy (sound_precache[numsounds], str);
+		q_strlcpy (sound_precache[numsounds], str, MAX_QPATH);
 		S_TouchSound (str);
 	}
 
@@ -347,7 +350,7 @@ void CL_ParseServerInfo (void)
 //
 
 	// copy the naked name of the map file to the cl structure -- O.S
-	COM_StripExtension (COM_SkipPath(model_precache[1]), cl.mapname);
+	COM_StripExtension (COM_SkipPath(model_precache[1]), cl.mapname, sizeof(cl.mapname));
 
 	for (i=1 ; i<nummodels ; i++)
 	{
@@ -373,8 +376,7 @@ void CL_ParseServerInfo (void)
 	cl_entities[0].model = cl.worldmodel = cl.model_precache[1];
 
 	R_NewMap ();
-	CDAudio_NewMap ();
-	
+
 	//johnfitz -- clear out string; we don't consider identical
 	//messages to be duplicates if the map has changed in between
 	con_lastcenterstring[0] = 0;
@@ -401,17 +403,15 @@ If an entities model or origin changes from frame to frame, it must be
 relinked.  Other attributes can change without relinking.
 ==================
 */
-int	bitcounts[16];
-
 void CL_ParseUpdate (int bits)
 {
-	int			i;
+	int		i;
 	model_t		*model;
-	int			modnum;
+	int		modnum;
 	qboolean	forcelink;
 	entity_t	*ent;
-	int			num;
-	int			skin;
+	int		num;
+	int		skin;
 
 	if (cls.signon == SIGNONS - 1)
 	{	// first update is the final signon stage
@@ -441,10 +441,6 @@ void CL_ParseUpdate (int bits)
 		num = MSG_ReadByte ();
 
 	ent = CL_EntityNum (num);
-
-	for (i=0 ; i<16 ; i++)
-		if (bits&(1<<i))
-			bitcounts[i]++;
 
 	if (ent->msgtime != cl.mtime[1])
 		forcelink = true;	// no previous frame to lerp from
@@ -1027,7 +1023,7 @@ void CL_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_LIGHTSTYLES)
 				Sys_Error ("svc_lightstyle > MAX_LIGHTSTYLES");
-			Q_strcpy (cl_lightstyle[i].map,  MSG_ReadString());
+			q_strlcpy (cl_lightstyle[i].map, MSG_ReadString(), MAX_STYLESTRING);
 			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
 			//johnfitz -- save extra info
 			if (cl_lightstyle[i].length)
@@ -1037,7 +1033,7 @@ void CL_ParseServerMessage (void)
 				for (j=0; j<cl_lightstyle[i].length; j++)
 				{
 					total += cl_lightstyle[i].map[j] - 'a';
-					cl_lightstyle[i].peak = max(cl_lightstyle[i].peak, cl_lightstyle[i].map[j]);
+					cl_lightstyle[i].peak = q_max(cl_lightstyle[i].peak, cl_lightstyle[i].map[j]);
 				}
 				cl_lightstyle[i].average = total / cl_lightstyle[i].length + 'a';
 			}
@@ -1060,7 +1056,7 @@ void CL_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= cl.maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatename > MAX_SCOREBOARD");
-			strcpy (cl.scores[i].name, MSG_ReadString ());
+			q_strlcpy (cl.scores[i].name, MSG_ReadString(), MAX_SCOREBOARDNAME);
 			break;
 
 		case svc_updatefrags:
@@ -1105,10 +1101,12 @@ void CL_ParseServerMessage (void)
 				if (cl.paused)
 				{
 					CDAudio_Pause ();
+					BGM_Pause ();
 				}
 				else
 				{
 					CDAudio_Resume ();
+					BGM_Resume ();
 				}
 			}
 			break;
@@ -1152,9 +1150,9 @@ void CL_ParseServerMessage (void)
 			cl.cdtrack = MSG_ReadByte ();
 			cl.looptrack = MSG_ReadByte ();
 			if ( (cls.demoplayback || cls.demorecording) && (cls.forcetrack != -1) )
-				CDAudio_Play ((byte)cls.forcetrack, true);
+				BGM_PlayCDtrack ((byte)cls.forcetrack, true);
 			else
-				CDAudio_Play ((byte)cl.cdtrack, true);
+				BGM_PlayCDtrack ((byte)cl.cdtrack, true);
 			break;
 
 		case svc_intermission:

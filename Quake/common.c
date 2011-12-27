@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // common.c -- misc functions used in client and server
 
 #include "quakedef.h"
+#include <errno.h>
 
 static char     *largv[MAX_NUM_ARGVS + 1];
 static char     argvdummy[] = " ";
@@ -34,11 +35,7 @@ qboolean        com_modified;   // set true if using non-id files
 
 int com_nummissionpacks; //johnfitz
 
-qboolean		proghack;
-
 int             static_registered = 1;  // only for startup check, then set
-
-qboolean		msg_suppress_1 = 0;
 
 qboolean		fitzmode;
 
@@ -157,7 +154,8 @@ int q_vsnprintf(char *str, size_t size, const char *format, va_list args)
 
 	if (ret < 0)
 		ret = (int)size;
-
+	if (size == 0)	/* no buffer */
+		return ret;
 	if ((size_t)ret >= size)
 		str[size - 1] = '\0';
 
@@ -473,7 +471,7 @@ float Q_atof (const char *str)
 ============================================================================
 */
 
-qboolean        bigendien;
+qboolean	host_bigendian;
 
 short   (*BigShort) (short l);
 short   (*LittleShort) (short l);
@@ -896,13 +894,13 @@ COM_SkipPath
 */
 const char *COM_SkipPath (const char *pathname)
 {
-	const char *last;
+	const char	*last;
 
 	last = pathname;
 	while (*pathname)
 	{
-		if (*pathname=='/')
-			last = pathname+1;
+		if (*pathname == '/')
+			last = pathname + 1;
 		pathname++;
 	}
 	return last;
@@ -913,84 +911,128 @@ const char *COM_SkipPath (const char *pathname)
 COM_StripExtension
 ============
 */
-void COM_StripExtension (const char *in, char *out)
+void COM_StripExtension (const char *in, char *out, size_t outsize)
 {
-	while (*in && *in != '.')
-		*out++ = *in++;
-	*out = 0;
+	int	length;
+
+	if (!*in)
+	{
+		*out = '\0';
+		return;
+	}
+	if (in != out)	/* copy when not in-place editing */
+		q_strlcpy (out, in, outsize);
+	length = (int)strlen(out) - 1;
+	while (length > 0 && out[length] != '.')
+	{
+		--length;
+		if (out[length] == '/' || out[length] == '\\')
+			return;	/* no extension */
+	}
+	if (length > 0)
+		out[length] = '\0';
 }
 
 /*
 ============
-COM_FileExtension
+COM_FileGetExtension - doesn't return NULL
 ============
 */
-const char *COM_FileExtension (const char *in)
+const char *COM_FileGetExtension (const char *in)
 {
-	static char exten[8];
-	int             i;
+	const char	*src;
+	size_t		len;
 
-	while (*in && *in != '.')
-		in++;
-	if (!*in)
+	len = strlen(in);
+	if (len < 2)	/* nothing meaningful */
 		return "";
-	in++;
-	for (i=0 ; i<7 && *in ; i++,in++)
-		exten[i] = *in;
-	exten[i] = 0;
-	return exten;
+
+	src = in + len - 1;
+	while (src != in && src[-1] != '.')
+		src--;
+	if (src == in || strchr(src, '/') != NULL || strchr(src, '\\') != NULL)
+		return "";	/* no extension, or parent directory has a dot */
+
+	return src;
+}
+
+/*
+============
+COM_ExtractExtension
+============
+*/
+void COM_ExtractExtension (const char *in, char *out, size_t outsize)
+{
+	const char *ext = COM_FileGetExtension (in);
+	if (! *ext)
+		*out = '\0';
+	else
+		q_strlcpy (out, ext, outsize);
 }
 
 /*
 ============
 COM_FileBase
+take 'somedir/otherdir/filename.ext',
+write only 'filename' to the output
 ============
 */
-void COM_FileBase (const char *in, char *out)
+void COM_FileBase (const char *in, char *out, size_t outsize)
 {
-	const char *s, *s2;
+	const char	*dot, *slash, *s;
 
-	s = in + strlen(in) - 1;
+	s = in;
+	slash = in;
+	dot = NULL;
+	while (*s)
+	{
+		if (*s == '/')
+			slash = s + 1;
+		if (*s == '.')
+			dot = s;
+		s++;
+	}
+	if (dot == NULL)
+		dot = s;
 
-	while (s != in && *s != '.')
-		s--;
-
-	for (s2 = s ; s2 != in && *s2 && *s2 != '/' ; s2--)
-	;
-
-	if (s-s2 < 2)
-		strcpy (out,"?model?");
+	if (dot - slash < 2)
+		q_strlcpy (out, "?model?", outsize);
 	else
 	{
-		s--;
-		strncpy (out,s2+1, s-s2);
-		out[s-s2] = 0;
+		size_t	len = dot - slash;
+		if (len >= outsize)
+			len = outsize - 1;
+		memcpy (out, slash, len);
+		out[len] = '\0';
 	}
 }
-
 
 /*
 ==================
 COM_DefaultExtension
 ==================
 */
-void COM_DefaultExtension (char *path, const char *extension)
+void COM_DefaultExtension (char *path, const char *extension, size_t len)
 {
-	char    *src;
+	char	*src;
+	size_t	l;
 //
 // if path doesn't have a .EXT, append extension
 // (extension should include the .)
 //
-	src = path + strlen(path) - 1;
+	if (!*path)
+		return;
+	l = strlen(path);
+	src = path + l - 1;
 
 	while (*src != '/' && src != path)
 	{
 		if (*src == '.')
-			return;                 // it has an extension
+			return;		// it has an extension
 		src--;
 	}
 
-	strcat (path, extension);
+	q_strlcat(path, extension, len);
 }
 
 
@@ -1112,7 +1154,7 @@ void COM_CheckRegistered (void)
 	unsigned short  check[128];
 	int                     i;
 
-	COM_OpenFile("gfx/pop.lmp", &h);
+	COM_OpenFile("gfx/pop.lmp", &h, NULL);
 	static_registered = 0;
 
 	if (h == -1)
@@ -1214,7 +1256,7 @@ static void FitzTest_f (void)
 COM_Init
 ================
 */
-void COM_Init (const char *basedir)
+void COM_Init (void)
 {
 	int	i = 0x12345678;
 		/*    U N I X */
@@ -1230,22 +1272,13 @@ void COM_Init (const char *basedir)
 		   N  U  X  I
 	*/
 	if ( *(char *)&i == 0x12 )
-		bigendien = true;
+		host_bigendian = true;
 	else if ( *(char *)&i == 0x78 )
-		bigendien = false;
+		host_bigendian = false;
 	else /* if ( *(char *)&i == 0x34 ) */
 		Sys_Error ("Unsupported endianism.");
 
-	if (bigendien == false)
-	{
-		BigShort = ShortSwap;
-		LittleShort = ShortNoSwap;
-		BigLong = LongSwap;
-		LittleLong = LongNoSwap;
-		BigFloat = FloatSwap;
-		LittleFloat = FloatNoSwap;
-	}
-	else /* we are big endian: */
+	if (host_bigendian)
 	{
 		BigShort = ShortNoSwap;
 		LittleShort = ShortSwap;
@@ -1253,6 +1286,15 @@ void COM_Init (const char *basedir)
 		LittleLong = LongSwap;
 		BigFloat = FloatNoSwap;
 		LittleFloat = FloatSwap;
+	}
+	else /* assumed LITTLE_ENDIAN. */
+	{
+		BigShort = ShortSwap;
+		LittleShort = ShortNoSwap;
+		BigLong = LongSwap;
+		LittleLong = LongNoSwap;
+		BigFloat = FloatSwap;
+		LittleFloat = FloatNoSwap;
 	}
 
 	if (COM_CheckParm("-fitz"))
@@ -1365,9 +1407,13 @@ typedef struct
 
 char    com_gamedir[MAX_OSPATH];
 char    com_basedir[MAX_OSPATH];
+int     file_from_pak;		// ZOID: global indicating that file came from a pak
 
 typedef struct searchpath_s
 {
+	unsigned int path_id;	// identifier assigned to the game directory
+					// Note that <install_dir>/game1 and
+					// <userdir>/game1 have the same id.
 	char    filename[MAX_OSPATH];
 	pack_t  *pack;          // only one of filename / pack will be used
 	struct searchpath_s *next;
@@ -1410,7 +1456,7 @@ void COM_WriteFile (const char *filename, const void *data, int len)
 
 	Sys_mkdir (com_gamedir); //johnfitz -- if we've switched to a nonexistant gamedir, create it now so we don't crash
 
-	sprintf (name, "%s/%s", com_gamedir, filename);
+	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, filename);
 
 	handle = Sys_FileOpenWrite (name);
 	if (handle == -1)
@@ -1445,37 +1491,20 @@ void    COM_CreatePath (char *path)
 }
 
 /*
-===========
-COM_CopyFile
-
-Copies a file over from the net to the local cache, creating any directories
-needed.  This is for the convenience of developers using ISDN from home.
-===========
+================
+COM_filelength
+================
 */
-void COM_CopyFile (const char *netpath, const char *cachepath)
+long COM_filelength (FILE *f)
 {
-	int             in, out;
-	int             remaining, count;
-	char    buf[4096];
+	long		pos, end;
 
-	remaining = Sys_FileOpenRead (netpath, &in);
-	Q_strcpy (buf, cachepath);
-	COM_CreatePath (buf);     // create directories up to the cache file
-	out = Sys_FileOpenWrite (cachepath);
+	pos = ftell (f);
+	fseek (f, 0, SEEK_END);
+	end = ftell (f);
+	fseek (f, pos, SEEK_SET);
 
-	while (remaining)
-	{
-		if (remaining < sizeof(buf))
-			count = remaining;
-		else
-			count = sizeof(buf);
-		Sys_FileRead (in, buf, count);
-		Sys_FileWrite (out, buf, count);
-		remaining -= count;
-	}
-
-	Sys_FileClose (in);
-	Sys_FileClose (out);
+	return end;
 }
 
 /*
@@ -1484,9 +1513,12 @@ COM_FindFile
 
 Finds the file in the search path.
 Sets com_filesize and one of handle or file
+If neither of file or handle is set, this
+can be used for detecting a file's presence.
 ===========
 */
-int COM_FindFile (const char *filename, int *handle, FILE **file)
+static int COM_FindFile (const char *filename, int *handle, FILE **file,
+							unsigned int *path_id)
 {
 	searchpath_t    *search;
 	char            netpath[MAX_OSPATH];
@@ -1496,70 +1528,76 @@ int COM_FindFile (const char *filename, int *handle, FILE **file)
 
 	if (file && handle)
 		Sys_Error ("COM_FindFile: both handle and file set");
-	if (!file && !handle)
-		Sys_Error ("COM_FindFile: neither handle or file set");
+
+	file_from_pak = 0;
 
 //
 // search through the path, one element at a time
 //
-	search = com_searchpaths;
-	if (proghack)
-	{	// gross hack to use quake 1 progs with quake 2 maps
-		if (!strcmp(filename, "progs.dat"))
-			search = search->next;
-	}
-
-	for ( ; search ; search = search->next)
+	for (search = com_searchpaths; search; search = search->next)
 	{
-	// is the element a pak file?
-		if (search->pack)
+		if (search->pack)	/* look through all the pak file elements */
 		{
-		// look through all the pak file elements
 			pak = search->pack;
 			for (i=0 ; i<pak->numfiles ; i++)
-				if (!strcmp (pak->files[i].name, filename))
-				{	// found it!
-				//	Sys_Printf ("PackFile: %s : %s\n",pak->filename, filename);
-					if (handle)
-					{
-						*handle = pak->handle;
-						Sys_FileSeek (pak->handle, pak->files[i].filepos);
-					}
-					else
-					{       // open a new file on the pakfile
-						*file = fopen (pak->filename, "rb");
-						if (*file)
-							fseek (*file, pak->files[i].filepos, SEEK_SET);
-					}
-					com_filesize = pak->files[i].filelen;
+			{
+				if (strcmp(pak->files[i].name, filename) != 0)
+					continue;
+				// found it!
+				com_filesize = pak->files[i].filelen;
+				file_from_pak = 1;
+				if (path_id)
+					*path_id = search->path_id;
+				if (handle)
+				{
+					*handle = pak->handle;
+					Sys_FileSeek (pak->handle, pak->files[i].filepos);
 					return com_filesize;
 				}
+				else if (file)
+				{ /* open a new file on the pakfile */
+					*file = fopen (pak->filename, "rb");
+					if (*file)
+						fseek (*file, pak->files[i].filepos, SEEK_SET);
+					return com_filesize;
+				}
+				else /* for COM_FileExists() */
+				{
+					return com_filesize;
+				}
+			}
 		}
-		else
+		else	/* check a file in the directory tree */
 		{
-	// check a file in the directory tree
 			if (!static_registered)
-			{       // if not a registered version, don't ever go beyond base
+			{ /* if not a registered version, don't ever go beyond base */
 				if ( strchr (filename, '/') || strchr (filename,'\\'))
 					continue;
 			}
 
-			sprintf (netpath, "%s/%s",search->filename, filename);
-
+			q_snprintf (netpath, sizeof(netpath), "%s/%s",search->filename, filename);
 			findtime = Sys_FileTime (netpath);
 			if (findtime == -1)
 				continue;
 
-		//	Sys_Printf ("FindFile: %s\n",netpath);
-			com_filesize = Sys_FileOpenRead (netpath, &i);
+			if (path_id)
+				*path_id = search->path_id;
 			if (handle)
+			{
+				com_filesize = Sys_FileOpenRead (netpath, &i);
 				*handle = i;
+				return com_filesize;
+			}
+			else if (file)
+			{
+				*file = fopen (netpath, "rb");
+				com_filesize = (*file == NULL) ? -1 : COM_filelength (*file);
+				return com_filesize;
+			}
 			else
 			{
-				Sys_FileClose (i);
-				*file = fopen (netpath, "rb");
+				return 0; /* dummy valid value for COM_FileExists() */
 			}
-			return com_filesize;
 		}
 
 	}
@@ -1568,12 +1606,25 @@ int COM_FindFile (const char *filename, int *handle, FILE **file)
 
 	if (handle)
 		*handle = -1;
-	else
+	if (file)
 		*file = NULL;
 	com_filesize = -1;
-	return -1;
+	return com_filesize;
 }
 
+
+/*
+===========
+COM_FileExists
+
+Returns whether the file is found in the quake filesystem.
+===========
+*/
+qboolean COM_FileExists (const char *filename, unsigned int *path_id)
+{
+	int ret = COM_FindFile (filename, NULL, NULL, path_id);
+	return (ret == -1) ? false : true;
+}
 
 /*
 ===========
@@ -1584,9 +1635,9 @@ returns a handle and a length
 it may actually be inside a pak file
 ===========
 */
-int COM_OpenFile (const char *filename, int *handle)
+int COM_OpenFile (const char *filename, int *handle, unsigned int *path_id)
 {
-	return COM_FindFile (filename, handle, NULL);
+	return COM_FindFile (filename, handle, NULL, path_id);
 }
 
 /*
@@ -1597,9 +1648,9 @@ If the requested file is inside a packfile, a new FILE * will be opened
 into the file.
 ===========
 */
-int COM_FOpenFile (const char *filename, FILE **file)
+int COM_FOpenFile (const char *filename, FILE **file, unsigned int *path_id)
 {
-	return COM_FindFile (filename, NULL, file);
+	return COM_FindFile (filename, NULL, file, path_id);
 }
 
 /*
@@ -1629,10 +1680,18 @@ Filename are reletive to the quake directory.
 Allways appends a 0 byte.
 ============
 */
-cache_user_t *loadcache;
-byte    *loadbuf;
-int             loadsize;
-byte *COM_LoadFile (const char *path, int usehunk)
+#define	LOADFILE_ZONE		0
+#define	LOADFILE_HUNK		1
+#define	LOADFILE_TEMPHUNK	2
+#define	LOADFILE_CACHE		3
+#define	LOADFILE_STACK		4
+#define	LOADFILE_MALLOC		5
+
+static byte	*loadbuf;
+static cache_user_t *loadcache;
+static int	loadsize;
+
+byte *COM_LoadFile (const char *path, int usehunk, unsigned int *path_id)
 {
 	int             h;
 	byte    *buf;
@@ -1642,38 +1701,44 @@ byte *COM_LoadFile (const char *path, int usehunk)
 	buf = NULL;     // quiet compiler warning
 
 // look for it in the filesystem or pack files
-	len = COM_OpenFile (path, &h);
+	len = COM_OpenFile (path, &h, path_id);
 	if (h == -1)
 		return NULL;
 
 // extract the filename base name for hunk tag
-	COM_FileBase (path, base);
+	COM_FileBase (path, base, sizeof(base));
 
-	if (usehunk == 1)
-		buf = (byte *) Hunk_AllocName (len+1, base);
-	else if (usehunk == 2)
-		buf = (byte *) Hunk_TempAlloc (len+1);
-	else if (usehunk == 0)
-		buf = (byte *) Z_Malloc (len+1);
-	else if (usehunk == 3)
-		buf = (byte *) Cache_Alloc (loadcache, len+1, base);
-	else if (usehunk == 4)
+	switch (usehunk)
 	{
-		if (len+1 > loadsize)
-			buf = (byte *) Hunk_TempAlloc (len+1);
-		else
+	case LOADFILE_HUNK:
+		buf = (byte *) Hunk_AllocName (len+1, base);
+		break;
+	case LOADFILE_TEMPHUNK:
+		buf = (byte *) Hunk_TempAlloc (len+1);
+		break;
+	case LOADFILE_ZONE:
+		buf = (byte *) Z_Malloc (len+1);
+		break;
+	case LOADFILE_CACHE:
+		buf = (byte *) Cache_Alloc (loadcache, len+1, base);
+		break;
+	case LOADFILE_STACK:
+		if (len < loadsize)
 			buf = loadbuf;
-	}
-	else
+		else
+			buf = (byte *) Hunk_TempAlloc (len+1);
+		break;
+	case LOADFILE_MALLOC:
+		buf = (byte *) malloc (len+1);
+		break;
+	default:
 		Sys_Error ("COM_LoadFile: bad usehunk");
+	}
 
 	if (!buf)
 		Sys_Error ("COM_LoadFile: not enough space for %s", path);
 
 	((byte *)buf)[len] = 0;
-
-	// Draw_BeginDisc causes core dumps when called excessively in big mods S.A.
-	// Draw_BeginDisc ();
 
 	Sys_FileRead (h, buf, len);
 	COM_CloseFile (h);
@@ -1681,33 +1746,45 @@ byte *COM_LoadFile (const char *path, int usehunk)
 	return buf;
 }
 
-byte *COM_LoadHunkFile (const char *path)
+byte *COM_LoadHunkFile (const char *path, unsigned int *path_id)
 {
-	return COM_LoadFile (path, 1);
+	return COM_LoadFile (path, LOADFILE_HUNK, path_id);
 }
 
-byte *COM_LoadTempFile (const char *path)
+byte *COM_LoadZoneFile (const char *path, unsigned int *path_id)
 {
-	return COM_LoadFile (path, 2);
+	return COM_LoadFile (path, LOADFILE_ZONE, path_id);
 }
 
-void COM_LoadCacheFile (const char *path, struct cache_user_s *cu)
+byte *COM_LoadTempFile (const char *path, unsigned int *path_id)
+{
+	return COM_LoadFile (path, LOADFILE_TEMPHUNK, path_id);
+}
+
+void COM_LoadCacheFile (const char *path, struct cache_user_s *cu, unsigned int *path_id)
 {
 	loadcache = cu;
-	COM_LoadFile (path, 3);
+	COM_LoadFile (path, LOADFILE_CACHE, path_id);
 }
 
 // uses temp hunk if larger than bufsize
-byte *COM_LoadStackFile (const char *path, void *buffer, int bufsize)
+byte *COM_LoadStackFile (const char *path, void *buffer, int bufsize, unsigned int *path_id)
 {
 	byte    *buf;
 
 	loadbuf = (byte *)buffer;
 	loadsize = bufsize;
-	buf = COM_LoadFile (path, 4);
+	buf = COM_LoadFile (path, LOADFILE_STACK, path_id);
 
 	return buf;
 }
+
+// returns malloc'd memory
+byte *COM_LoadMallocFile (const char *path, unsigned int *path_id)
+{
+	return COM_LoadFile (path, LOADFILE_MALLOC, path_id);
+}
+
 
 /*
 =================
@@ -1764,7 +1841,7 @@ pack_t *COM_LoadPackFile (const char *packfile)
 	// parse the directory
 	for (i = 0; i < numpackfiles ; i++)
 	{
-		strcpy (newfiles[i].name, info[i].name);
+		q_strlcpy (newfiles[i].name, info[i].name, sizeof(newfiles[i].name));
 		newfiles[i].filepos = LittleLong(info[i].filepos);
 		newfiles[i].filelen = LittleLong(info[i].filelen);
 	}
@@ -1774,7 +1851,7 @@ pack_t *COM_LoadPackFile (const char *packfile)
 	pack = (pack_t *) Z_Malloc (sizeof (pack_t));
 	//johnfitz
 
-	strcpy (pack->filename, packfile);
+	q_strlcpy (pack->filename, packfile, sizeof(pack->filename));
 	pack->handle = packhandle;
 	pack->numfiles = numpackfiles;
 	pack->files = newfiles;
@@ -1791,32 +1868,41 @@ COM_AddGameDirectory -- johnfitz -- modified based on topaz's tutorial
 void COM_AddGameDirectory (const char *dir)
 {
 	int i;
+	unsigned int path_id;
 	searchpath_t *search;
 	pack_t *pak;
 	char pakfile[MAX_OSPATH];
 
-	strcpy (com_gamedir, dir);
+	q_strlcpy (com_gamedir, dir, sizeof(com_gamedir));
+
+	// assign a path_id to this game directory
+	if (com_searchpaths)
+		path_id = com_searchpaths->path_id << 1;
+	else	path_id = 1U;
 
 	// add the directory to the search path
 	search = (searchpath_t *) Z_Malloc(sizeof(searchpath_t));
-	strcpy (search->filename, dir);
+	search->path_id = path_id;
+	q_strlcpy (search->filename, dir, sizeof(search->filename));
 	search->next = com_searchpaths;
 	com_searchpaths = search;
 
 	// add any pak files in the format pak0.pak pak1.pak, ...
 	for (i = 0; ; i++)
 	{
-		sprintf (pakfile, "%s/pak%i.pak", dir, i);
+		q_snprintf (pakfile, sizeof(pakfile), "%s/pak%i.pak", dir, i);
 		pak = COM_LoadPackFile (pakfile);
 		if (!pak)
 			break;
 		search = (searchpath_t *) Z_Malloc(sizeof(searchpath_t));
+		search->path_id = path_id;
 		search->pack = pak;
 		search->next = com_searchpaths;
 		com_searchpaths = search;
 	}
 }
 
+#if defined(USE_QS_CONBACK)
 static void kill_id1_conback (void)  /* QuakeSpasm customization: */
 {
 	searchpath_t	*search;
@@ -1839,6 +1925,7 @@ static void kill_id1_conback (void)  /* QuakeSpasm customization: */
 		}
 	}
 }
+#endif	/* USE_QS_CONBACK */
 
 /*
 =================
@@ -1848,13 +1935,12 @@ COM_InitFilesystem
 void COM_InitFilesystem (void) //johnfitz -- modified based on topaz's tutorial
 {
 	int i, j;
-	searchpath_t *search;
 
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)
-		strcpy (com_basedir, com_argv[i + 1]);
+		q_strlcpy (com_basedir, com_argv[i + 1], sizeof(com_basedir));
 	else
-		strcpy (com_basedir, host_parms.basedir);
+		q_strlcpy (com_basedir, host_parms->basedir, sizeof(com_basedir));
 
 	j = strlen (com_basedir);
 	if (j > 0)
@@ -1865,12 +1951,14 @@ void COM_InitFilesystem (void) //johnfitz -- modified based on topaz's tutorial
 
 	// start up with GAMENAME by default (id1)
 	COM_AddGameDirectory (va("%s/"GAMENAME, com_basedir));
-	strcpy (com_gamedir, va("%s/"GAMENAME, com_basedir));
+	q_strlcpy (com_gamedir, va("%s/"GAMENAME, com_basedir), sizeof(com_gamedir));
 
+#if defined(USE_QS_CONBACK)
 	if (!fitzmode)
 	{ /* QuakeSpasm customization: */
 		kill_id1_conback ();
 	}
+#endif	/* USE_QS_CONBACK */
 
 	//johnfitz -- track number of mission packs added
 	//since we don't want to allow the "game" command to strip them away
@@ -1898,31 +1986,160 @@ void COM_InitFilesystem (void) //johnfitz -- modified based on topaz's tutorial
 		com_modified = true;
 		COM_AddGameDirectory (va("%s/%s", com_basedir, com_argv[i + 1]));
 	}
+}
 
-	i = COM_CheckParm ("-path");
-	if (i)
+
+/* The following FS_*() stdio replacements are necessary if one is
+ * to perform non-sequential reads on files reopened on pak files
+ * because we need the bookkeeping about file start/end positions.
+ * Allocating and filling in the fshandle_t structure is the users'
+ * responsibility when the file is initially opened. */
+
+size_t FS_fread(void *ptr, size_t size, size_t nmemb, fshandle_t *fh)
+{
+	long byte_size;
+	long bytes_read;
+	size_t nmemb_read;
+
+	if (!ptr)
 	{
-		com_modified = true;
-		com_searchpaths = NULL;
-		while (++i < com_argc)
-		{
-			if (!com_argv[i] || com_argv[i][0] == '+' || com_argv[i][0] == '-')
-				break;
-			search = (searchpath_t *) Hunk_Alloc (sizeof(searchpath_t));
-			if (!strcmp(COM_FileExtension(com_argv[i]), "pak") )
-			{
-				search->pack = COM_LoadPackFile (com_argv[i]);
-				if (!search->pack)
-					Sys_Error ("Couldn't load packfile: %s", com_argv[i]);
-			}
-			else
-				strcpy (search->filename, com_argv[i]);
-			search->next = com_searchpaths;
-			com_searchpaths = search;
-		}
+		errno = EFAULT;
+		return 0;
 	}
 
-	if (COM_CheckParm ("-proghack"))
-		proghack = true;
+	if (!(size && nmemb))	/* not an error, just zero bytes wanted */
+	{
+		errno = 0;
+		return 0;
+	}
+
+	if (!fh)
+	{
+		errno = EBADF;
+		return 0;
+	}
+
+	byte_size = nmemb * size;
+	if (byte_size > fh->length - fh->pos)	/* just read to end */
+		byte_size = fh->length - fh->pos;
+	bytes_read = fread(ptr, 1, byte_size, fh->file);
+	fh->pos += bytes_read;
+
+	/* fread() must return the number of elements read,
+	 * not the total number of bytes. */
+	nmemb_read = bytes_read / size;
+	/* even if the last member is only read partially
+	 * it is counted as a whole in the return value. */
+	if (bytes_read % size)
+		nmemb_read++;
+
+	return nmemb_read;
+}
+
+int FS_fseek(fshandle_t *fh, long offset, int whence)
+{
+/* I don't care about 64 bit off_t or fseeko() here.
+ * the quake/hexen2 file system is 32 bits, anyway. */
+	int ret;
+
+	if (!fh)
+	{
+		errno = EBADF;
+		return -1;
+	}
+
+	/* the relative file position shouldn't be smaller
+	 * than zero or bigger than the filesize. */
+	switch (whence)
+	{
+	case SEEK_SET:
+		break;
+	case SEEK_CUR:
+		offset += fh->pos;
+		break;
+	case SEEK_END:
+		offset = fh->length + offset;
+		break;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (offset < 0)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (offset > fh->length)	/* just seek to end */
+		offset = fh->length;
+
+	ret = fseek(fh->file, fh->start + offset, SEEK_SET);
+	if (ret < 0)
+		return ret;
+
+	fh->pos = offset;
+	return 0;
+}
+
+int FS_fclose(fshandle_t *fh)
+{
+	if (!fh)
+	{
+		errno = EBADF;
+		return -1;
+	}
+
+	return fclose(fh->file);
+}
+
+long FS_ftell(fshandle_t *fh)
+{
+	if (!fh)
+	{
+		errno = EBADF;
+		return -1;
+	}
+
+	/* send the relative file position */
+	return fh->pos;
+}
+
+void FS_rewind(fshandle_t *fh)
+{
+	if (!fh)
+		return;
+
+	clearerr(fh->file);
+	fseek(fh->file, fh->start, SEEK_SET);
+	fh->pos = 0;
+}
+
+int FS_feof(fshandle_t *fh)
+{
+	if (fh->pos >= fh->length)
+		return -1;
+	return 0;
+}
+
+int FS_ferror(fshandle_t *fh)
+{
+	return ferror(fh->file);
+}
+
+char *FS_fgets(char *s, int size, fshandle_t *fh)
+{
+	char *ret;
+
+	if (FS_feof(fh))
+		return NULL;
+
+	if (size > (fh->length - fh->pos) + 1)
+		size = (fh->length - fh->pos) + 1;
+
+	ret = fgets(s, size, fh->file);
+	fh->pos = ftell(fh->file) - fh->start;
+
+	return ret;
 }
 

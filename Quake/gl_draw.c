@@ -246,7 +246,7 @@ qpic_t *Draw_PicFromWad (const char *name)
 	else
 	{
 		char texturename[64]; //johnfitz
-		sprintf (texturename, "%s:%s", WADFILENAME, name); //johnfitz
+		q_snprintf (texturename, sizeof(texturename), "%s:%s", WADFILENAME, name); //johnfitz
 
 		offset = (src_offset_t)p - (src_offset_t)wad_base + sizeof(int)*2; //johnfitz
 
@@ -288,7 +288,7 @@ qpic_t	*Draw_CachePic (const char *path)
 //
 // load the pic from disk
 //
-	dat = (qpic_t *)COM_LoadTempFile (path);
+	dat = (qpic_t *)COM_LoadTempFile (path, NULL);
 	if (!dat)
 		Sys_Error ("Draw_CachePic: failed to load %s", path);
 	SwapPic (dat);
@@ -318,11 +318,17 @@ qpic_t	*Draw_CachePic (const char *path)
 Draw_ConbackPic -- QuakeSpasm custom conback drawing.
 ================
 */
+#if !defined(USE_QS_CONBACK)
+static inline qpic_t *Draw_ConbackPic (void)
+{
+	return Draw_CachePic ("gfx/conback.lmp");
+}
+#else
 extern char *get_conback(void);
 static qboolean have_mod_conback;
 void Draw_CheckConback (void)
 {
-	have_mod_conback = (COM_LoadTempFile("gfx/conback.lmp") != NULL);
+	have_mod_conback = (COM_LoadTempFile("gfx/conback.lmp", NULL) != NULL);
 }
 qpic_t *Draw_ConbackPic (void)
 {
@@ -365,6 +371,7 @@ qpic_t *Draw_ConbackPic (void)
 	return &pic->pic;
     }	/* -- QuakeSpasm */
 }
+#endif	/* USE_QS_CONBACK */
 
 /*
 ================
@@ -466,8 +473,10 @@ void Draw_Init (void)
 	// load game pics
 	Draw_LoadPics ();
 
+#if defined(USE_QS_CONBACK)
 	/* QuakeSpasm customization: */
 	Draw_CheckConback ();
+#endif	/* USE_QS_CONBACK */
 }
 
 //==============================================================================
@@ -586,13 +595,13 @@ void Draw_TransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom)
 {
 	static int oldtop = -2;
 	static int oldbottom = -2;
-	gltexture_t *glt;
 
 	if (top != oldtop || bottom != oldbottom)
 	{
+		glpic_t *p = (glpic_t *)pic->data;
+		gltexture_t *glt = p->gltexture;
 		oldtop = top;
 		oldbottom = bottom;
-		glt = ((glpic_t *)pic->data)->gltexture;
 		TexMgr_ReloadImage (glt, top, bottom);
 	}
 	Draw_Pic (x, y, pic);
@@ -727,51 +736,6 @@ void Draw_FadeScreen (void)
 
 /*
 ================
-Draw_BeginDisc
-
-Draws the little blue disc in the corner of the screen.
-Call before beginning any disc IO.
-================
-*/
-void Draw_BeginDisc (void)
-{
-	int viewport[4]; //johnfitz
-	canvastype oldcanvas; //johnfitz
-
-	if (!draw_disc)
-		return;
-
-	//johnfitz -- intel video workarounds from Baker
-	if (isIntelVideo)
-		return;
-	//johnfitz
-
-	//johnfitz -- canvas and matrix stuff
-	glGetIntegerv (GL_VIEWPORT, viewport);
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix ();
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix ();
-	oldcanvas = currentcanvas;
-	GL_SetCanvas (CANVAS_TOPRIGHT);
-	currentcanvas = oldcanvas; // a bit of a hack, since GL_SetCanvas doesn't know we are going to pop the stack
-	//johnfitz
-
-	glDrawBuffer  (GL_FRONT);
-	Draw_Pic (320 - 24, 0, draw_disc);
-	glDrawBuffer  (GL_BACK);
-
-	//johnfitz -- restore everything so that 3d rendering isn't fucked up
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix ();
-	glMatrixMode(GL_MODELVIEW);
-	glPopMatrix ();
-	glViewport (viewport[0], viewport[1], viewport[2], viewport[3]);
-	//johnfitz
-}
-
-/*
-================
 GL_SetCanvas -- johnfitz -- support various canvas types
 ================
 */
@@ -801,7 +765,7 @@ void GL_SetCanvas (canvastype newcanvas)
 		glViewport (glx, gly, glwidth, glheight);
 		break;
 	case CANVAS_MENU:
-		s = min ((float)glwidth / 320.0, (float)glheight / 200.0);
+		s = q_min((float)glwidth / 320.0, (float)glheight / 200.0);
 		s = CLAMP (1.0, scr_menuscale.value, s);
 		glOrtho (0, 320, 200, 0, -99999, 99999);
 		glViewport (glx + (glwidth - 320*s) / 2, gly + (glheight - 200*s) / 2, 320*s, 200*s);
@@ -824,7 +788,7 @@ void GL_SetCanvas (canvastype newcanvas)
 		glViewport (glx, gly+glheight-gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
 		break;
 	case CANVAS_CROSSHAIR: //0,0 is center of viewport
-		s = CLAMP (1.0, scr_crosshaircale.value, 10.0);
+		s = CLAMP (1.0, scr_crosshairscale.value, 10.0);
 		glOrtho (scr_vrect.width/-2/s, scr_vrect.width/2/s, scr_vrect.height/2/s, scr_vrect.height/-2/s, -99999, 99999);
 		glViewport (scr_vrect.x, glheight - scr_vrect.y - scr_vrect.height, scr_vrect.width & ~1, scr_vrect.height & ~1);
 		break;

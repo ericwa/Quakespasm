@@ -22,30 +22,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __CDAUDIO_H
 #define __CDAUDIO_H
 
-void CDAudio_NewMap ();
-int CDAudio_Init(void);
-void CDAudio_PlayNamed(const char *name, qboolean looping);
-void CDAudio_Play(byte track, qboolean looping);
-void CDAudio_Stop(void);
-void CDAudio_Pause(void);
-void CDAudio_Resume(void);
-void CDAudio_Shutdown(void);
-void CDAudio_Update(void);
-
-// Private
-
-void CDAudioBackend_Eject(void);
-void CDAudioBackend_Play(byte track, qboolean looping);
-qboolean CDAudioBackend_IsPlaying();
-void CDAudioBackend_Stop(void);
-void CDAudioBackend_Next(void);
-void CDAudioBackend_Prev(void);
-void CDAudioBackend_Pause(void);
-void CDAudioBackend_Resume(void);
-void CDAudioBackend_Info(void);
-void CDAudioBackend_Update(void);
-int CDAudioBackend_Init(void);
-void CDAudioBackend_Shutdown(void);
+int	CDAudio_Init (void);
+int	CDAudio_Play (byte track, qboolean looping);
+	/* returns 0 for success, -1 for failure. */
+void	CDAudio_Stop (void);
+void	CDAudio_Pause (void);
+void	CDAudio_Resume (void);
+void	CDAudio_Shutdown (void);
+void	CDAudio_Update (void);
 
 #endif	/* __CDAUDIO_H */
 

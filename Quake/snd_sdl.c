@@ -1,10 +1,11 @@
 /*
-	snd_sdl2.c
+	snd_sdl.c
 	SDL audio driver for Hexen II: Hammer of Thyrion, based on the
 	implementations found in the quakeforge and quake3-icculus.org
 	projects.
 
-	$Id: snd_sdl2.c,v 1.8 2010/01/23 12:01:23 sezero Exp $
+	Copyright (C) 1999-2005 Id Software, Inc.
+	Copyright (C) 2005-2011 O.Sezer <sezero@users.sourceforge.net>
 
 	This program is free software; you can redistribute it and/or
 	modify it under the terms of the GNU General Public License
@@ -71,24 +72,7 @@ static void paint_audio (void *unused, Uint8 *stream, int len)
 		shm->samplepos = 0;
 }
 
-static struct
-{
-	Uint16	enumFormat;
-	char		*stringFormat;
-} formatToStringTable[ ] =
-{
-	{ AUDIO_U8,     "AUDIO_U8" },
-	{ AUDIO_S8,     "AUDIO_S8" },
-	{ AUDIO_U16LSB, "AUDIO_U16LSB" },
-	{ AUDIO_S16LSB, "AUDIO_S16LSB" },
-	{ AUDIO_U16MSB, "AUDIO_U16MSB" },
-	{ AUDIO_S16MSB, "AUDIO_S16MSB" }
-};
-
-static int formatToStringTableSize =
-sizeof( formatToStringTable ) / sizeof( formatToStringTable[ 0 ] );
-
-qboolean SNDDMA_Init (void)
+qboolean SNDDMA_Init (dma_t *dma)
 {
 	SDL_AudioSpec desired, obtained;
 	int		tmp, val;
@@ -137,8 +121,8 @@ qboolean SNDDMA_Init (void)
 		return false;
 	}
 
-	memset ((void *) &sn, 0, sizeof(dma_t));
-	shm = &sn;
+	memset ((void *) dma, 0, sizeof(dma_t));
+	shm = dma;
 
 	/* Fill the audio DMA information block */
 	shm->samplebits = (obtained.format & 0xFF); /* first byte of format is bits */
@@ -159,19 +143,8 @@ qboolean SNDDMA_Init (void)
 	shm->samplepos = 0;
 	shm->submission_chunk = 1;
 
-	{
-		int i;
-		char *fmt = NULL;
-		for( i = 0; i < formatToStringTableSize; i++ ) {
-			if( obtained.format == formatToStringTable[ i ].enumFormat ) {
-				fmt = formatToStringTable[ i ].stringFormat;
-			}
-		}
-		
-		Con_Printf ("SDL audio spec  : %s, %d Hz, %d samples, %d channels\n",
-				fmt, obtained.freq, obtained.samples, obtained.channels);
-	}
-	
+	Con_Printf ("SDL audio spec  : %d Hz, %d samples, %d channels\n",
+			obtained.freq, obtained.samples, obtained.channels);
 	if (SDL_AudioDriverName(drivername, sizeof(drivername)) == NULL)
 		strcpy(drivername, "(UNKNOWN)");
 	buffersize = shm->samples * (shm->samplebits / 8);

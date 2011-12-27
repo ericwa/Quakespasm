@@ -68,13 +68,6 @@ cvar_t	hostname = {"hostname", "UNNAMED"};
 #define sfunc	net_drivers[sock->driver]
 #define dfunc	net_drivers[net_driverlevel]
 
-/* NOTE: several sock->driver checks in the code serve the
-   purpose of ignoring local connections, because the loop
-   driver always takes number 0: it is the first member in
-   the net_drivers[] array.  If you ever change that, such
-   as by removing the loop driver, you must re-visit those
-   checks and adjust them properly!.			*/
-
 int		net_driverlevel;
 
 double		net_time;
@@ -82,7 +75,7 @@ double		net_time;
 
 double SetNetTime (void)
 {
-	net_time = Sys_FloatTime();
+	net_time = Sys_DoubleTime();
 	return net_time;
 }
 
@@ -215,13 +208,9 @@ static void MaxPlayers_f (void)
 
 	svs.maxclients = n;
 	if (n == 1)
-	{
 		Cvar_Set ("deathmatch", "0");
-	}
 	else
-	{
 		Cvar_Set ("deathmatch", "1");
-	}
 }
 
 
@@ -298,7 +287,7 @@ void NET_Slist_f (void)
 	}
 
 	slistInProgress = true;
-	slistStartTime = Sys_FloatTime();
+	slistStartTime = Sys_DoubleTime();
 
 	SchedulePollProcedure(&slistSendProcedure, 0.0);
 	SchedulePollProcedure(&slistPollProcedure, 0.1);
@@ -311,14 +300,14 @@ static void Slist_Send (void *unused)
 {
 	for (net_driverlevel = 0; net_driverlevel < net_numdrivers; net_driverlevel++)
 	{
-		if (!slistLocal && net_driverlevel == 0)
+		if (!slistLocal && IS_LOOP_DRIVER(net_driverlevel))
 			continue;
 		if (net_drivers[net_driverlevel].initialized == false)
 			continue;
 		dfunc.SearchForHosts (true);
 	}
 
-	if ((Sys_FloatTime() - slistStartTime) < 0.5)
+	if ((Sys_DoubleTime() - slistStartTime) < 0.5)
 		SchedulePollProcedure(&slistSendProcedure, 0.75);
 }
 
@@ -327,7 +316,7 @@ static void Slist_Poll (void *unused)
 {
 	for (net_driverlevel = 0; net_driverlevel < net_numdrivers; net_driverlevel++)
 	{
-		if (!slistLocal && net_driverlevel == 0)
+		if (!slistLocal && IS_LOOP_DRIVER(net_driverlevel))
 			continue;
 		if (net_drivers[net_driverlevel].initialized == false)
 			continue;
@@ -337,7 +326,7 @@ static void Slist_Poll (void *unused)
 	if (! slistSilent)
 		PrintSlist();
 
-	if ((Sys_FloatTime() - slistStartTime) < 1.5)
+	if ((Sys_DoubleTime() - slistStartTime) < 1.5)
 	{
 		SchedulePollProcedure(&slistPollProcedure, 0.1);
 		return;
@@ -455,7 +444,7 @@ qsocket_t *NET_CheckNewConnections (void)
 	{
 		if (net_drivers[net_driverlevel].initialized == false)
 			continue;
-		if (net_driverlevel && listening == false)
+		if (!IS_LOOP_DRIVER(net_driverlevel) && listening == false)
 			continue;
 		ret = dfunc.CheckNewConnections ();
 		if (ret)
@@ -518,7 +507,7 @@ int	NET_GetMessage (qsocket_t *sock)
 	ret = sfunc.QGetMessage(sock);
 
 	// see if this connection has timed out
-	if (ret == 0 && sock->driver)
+	if (ret == 0 && !IS_LOOP_DRIVER(sock->driver))
 	{
 		if (net_time - sock->lastMessageTime > net_messagetimeout.value)
 		{
@@ -529,7 +518,7 @@ int	NET_GetMessage (qsocket_t *sock)
 
 	if (ret > 0)
 	{
-		if (sock->driver)
+		if (!IS_LOOP_DRIVER(sock->driver))
 		{
 			sock->lastMessageTime = net_time;
 			if (ret == 1)
@@ -569,7 +558,7 @@ int NET_SendMessage (qsocket_t *sock, sizebuf_t *data)
 
 	SetNetTime();
 	r = sfunc.QSendMessage(sock, data);
-	if (r == 1 && sock->driver)
+	if (r == 1 && !IS_LOOP_DRIVER(sock->driver))
 		messagesSent++;
 
 	return r;
@@ -591,7 +580,7 @@ int NET_SendUnreliableMessage (qsocket_t *sock, sizebuf_t *data)
 
 	SetNetTime();
 	r = sfunc.SendUnreliableMessage(sock, data);
-	if (r == 1 && sock->driver)
+	if (r == 1 && !IS_LOOP_DRIVER(sock->driver))
 		unreliableMessagesSent++;
 
 	return r;
@@ -637,7 +626,7 @@ int NET_SendToAll (sizebuf_t *data, double blocktime)
 		*/
 		if (host_client->netconnection && host_client->active)
 		{
-			if (host_client->netconnection->driver == 0)	/* Loop */
+			if (IS_LOOP_DRIVER(host_client->netconnection->driver))
 			{
 				NET_SendMessage(host_client->netconnection, data);
 				msg_init[i] = true;
@@ -655,7 +644,7 @@ int NET_SendToAll (sizebuf_t *data, double blocktime)
 		}
 	}
 
-	start = Sys_FloatTime();
+	start = Sys_DoubleTime();
 	while (count)
 	{
 		count = 0;
@@ -690,7 +679,7 @@ int NET_SendToAll (sizebuf_t *data, double blocktime)
 				continue;
 			}
 		}
-		if ((Sys_FloatTime() - start) > blocktime)
+		if ((Sys_DoubleTime() - start) > blocktime)
 			break;
 	}
 	return count;
@@ -715,6 +704,7 @@ void NET_Init (void)
 		i = COM_CheckParm ("-udpport");
 	if (!i)
 		i = COM_CheckParm ("-ipxport");
+
 	if (i)
 	{
 		if (i < com_argc-1)
@@ -724,11 +714,11 @@ void NET_Init (void)
 	}
 	net_hostport = DEFAULTnet_hostport;
 
-	if (COM_CheckParm("-listen") || cls.state == ca_dedicated)
-		listening = true;
 	net_numsockets = svs.maxclientslimit;
 	if (cls.state != ca_dedicated)
 		net_numsockets++;
+	if (COM_CheckParm("-listen") || cls.state == ca_dedicated)
+		listening = true;
 
 	SetNetTime();
 
@@ -762,13 +752,23 @@ void NET_Init (void)
 			net_drivers[net_driverlevel].Listen (true);
 	}
 
-	if (i == 0 && cls.state == ca_dedicated)
+	/* Loop_Init() returns -1 for dedicated server case,
+	 * therefore the i == 0 check is correct */
+	if (i == 0
+			&& cls.state == ca_dedicated
+	   )
+	{
 		Sys_Error("Network not available!");
+	}
 
 	if (*my_ipx_address)
+	{
 		Con_DPrintf("IPX address %s\n", my_ipx_address);
+	}
 	if (*my_tcpip_address)
+	{
 		Con_DPrintf("TCP/IP address %s\n", my_tcpip_address);
+	}
 }
 
 /*
@@ -822,7 +822,7 @@ void SchedulePollProcedure(PollProcedure *proc, double timeOffset)
 {
 	PollProcedure *pp, *prev;
 
-	proc->nextTime = Sys_FloatTime() + timeOffset;
+	proc->nextTime = Sys_DoubleTime() + timeOffset;
 	for (pp = pollProcedureList, prev = NULL; pp; pp = pp->next)
 	{
 		if (pp->nextTime >= proc->nextTime)

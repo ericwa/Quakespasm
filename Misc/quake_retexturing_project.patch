@@ -1,0 +1,117 @@
+Index: Quake/gl_model.c
+===================================================================
+--- Quake/gl_model.c	(revision 508)
++++ Quake/gl_model.c	(working copy)
+@@ -386,6 +386,8 @@ void Mod_LoadTextures (lump_t *l)
+ 	extern byte *hunk_base;
+ //johnfitz
+ 
++	extern cvar_t r_externaltexture_fix; //mk
++
+ 	//johnfitz -- don't return early if no textures; still need to create dummy texture
+ 	if (!l->filelen)
+ 	{
+@@ -437,7 +439,17 @@ void Mod_LoadTextures (lump_t *l)
+ 		if (!isDedicated) //no texture uploading for dedicated server
+ 		{
+ 			if (!Q_strncasecmp(tx->name,"sky",3)) //sky texture //also note -- was Q_strncmp, changed to match qbsp
++			{
++				//mk -- begin
++				if (r_externaltexture_fix.value) {
++					if (strstr(tx->name,"sky4")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==13039)
++							strcpy(tx->name,"sky1");
++						Con_Printf("  using %s\n", tx->name);
++					}
++				} //mk -- end
+ 				Sky_LoadTexture (tx);
++			}
+ 			else if (tx->name[0] == '*') //warping texture
+ 			{
+ 				//external textures -- first look in "textures/mapname/" then look in "textures/"
+@@ -479,6 +491,52 @@ void Mod_LoadTextures (lump_t *l)
+ 				//external textures -- first look in "textures/mapname/" then look in "textures/"
+ 				mark = Hunk_LowMark ();
+ 				COM_StripExtension (loadmodel->name + 5, mapname);
++				//mk begin
++				if (r_externaltexture_fix.value) {
++					if (strstr(tx->name,"plat_top1")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==24428)
++							strcpy(tx->name,"plat_top1_cable");
++						else
++							strcpy(tx->name,"plat_top1_bolt");
++						Con_Printf("  using %s\n", tx->name);
++					}
++
++					if (strstr(tx->name,"metal5_2")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==49173)
++							strcpy(tx->name,"metal5_2_x");
++						else
++							strcpy(tx->name,"metal5_2_arc");
++						Con_Printf("  using %s\n", tx->name);
++					}
++
++					if (strstr(tx->name,"metal5_4")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==20977)
++							strcpy(tx->name,"metal5_4_double");
++						else
++							strcpy(tx->name,"metal5_4_arc");
++						Con_Printf("  using %s\n", tx->name);
++					}
++					if (strstr(tx->name,"metal5_8")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==48444)
++							strcpy(tx->name,"metal5_8_rune");
++						else
++							strcpy(tx->name,"metal5_8_back");
++						Con_Printf("  using %s\n", tx->name);
++					}
++					if (strstr(tx->name,"metal5_8")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==48444)
++							strcpy(tx->name,"metal5_8_rune");
++						else
++							strcpy(tx->name,"metal5_8_back");
++						Con_Printf("  using %s\n", tx->name);
++					}
++					if (strstr(tx->name,"window03")) {
++						if (CRC_Block((byte *)(tx+1), tx->width * tx->height)==63697) // e4m2 variant
++							strcpy(tx->name,"window03_e4m2");
++						Con_Printf("  using %s\n", tx->name);
++					}
++				} //mk end
++
+ 				sprintf (filename, "textures/%s/%s", mapname, tx->name);
+ 				data = Image_LoadImage (filename, &fwidth, &fheight);
+ 				if (!data)
+Index: Quake/gl_rmain.c
+===================================================================
+--- Quake/gl_rmain.c	(revision 508)
++++ Quake/gl_rmain.c	(working copy)
+@@ -102,6 +102,7 @@
+ cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs/braztall.mdl,progs/brazshrt.mdl,progs/longtrch.mdl,progs/flame_pyre.mdl,progs/v_saw.mdl,progs/v_xfist.mdl,progs/h2stuff/newfire.mdl"};
+ extern cvar_t	r_vfog;
+ //johnfitz
++cvar_t	r_externaltexture_fix = {"r_externaltexture_fix","0", true}; //mk
+ 
+ cvar_t	gl_zfix = {"gl_zfix", "1", true}; // QuakeSpasm z-fighting fix
+ 
+Index: Quake/gl_rmisc.c
+===================================================================
+--- Quake/gl_rmisc.c	(revision 508)
++++ Quake/gl_rmisc.c	(working copy)
+@@ -44,6 +44,7 @@
+ extern cvar_t r_lerpmove;
+ extern cvar_t r_nolerp_list;
+ //johnfitz
++extern cvar_t r_externaltexture_fix; //mk
+ 
+ extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
+ 
+@@ -241,6 +242,7 @@ void R_Init (void)
+ 	Cvar_RegisterVariable (&r_lerpmove, NULL);
+ 	Cvar_RegisterVariable (&r_nolerp_list, R_NoLerpList_f);
+ 	//johnfitz
++	Cvar_RegisterVariable (&r_externaltexture_fix, NULL); //mk
+ 
+ 	Cvar_RegisterVariable (&gl_zfix, NULL); // QuakeSpasm z-fighting fix
+ 
+

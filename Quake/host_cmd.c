@@ -59,6 +59,7 @@ void Host_Quit_f (void)
 //==============================================================================
 
 // Declarations shared with common.c:
+// FIXME: **** CLEAN THIS MESS!!! ***
 typedef struct
 {
 	char	name[MAX_QPATH];
@@ -75,6 +76,9 @@ typedef struct pack_s
 
 typedef struct searchpath_s
 {
+	unsigned int path_id;	// identifier assigned to the game directory
+					// Note that <install_dir>/game1 and
+					// <userdir>/game1 have the same id.
 	char	filename[MAX_OSPATH];
 	pack_t	*pack;		// only one of filename / pack will be used
 	struct searchpath_s *next;
@@ -129,13 +133,13 @@ Host_Game_f
 void Host_Game_f (void)
 {
 	int i;
+	unsigned int path_id;
 	searchpath_t *search = com_searchpaths;
 	pack_t *pak;
 	char   pakfile[MAX_OSPATH]; //FIXME: it's confusing to use this string for two different things
 
 	if (Cmd_Argc() > 1)
 	{
-
 		if (!registered.value) //disable command for shareware quake
 		{
 			Con_Printf("You must have the registered version to use modified games\n");
@@ -148,7 +152,7 @@ void Host_Game_f (void)
 			return;
 		}
 
-		strcpy (pakfile, va("%s/%s", host_parms.basedir, Cmd_Argv(1)));
+		q_strlcpy (pakfile, va("%s/%s", host_parms->basedir, Cmd_Argv(1)), sizeof(pakfile));
 		if (!Q_strcasecmp(pakfile, com_gamedir)) //no change
 		{
 			Con_Printf("\"game\" is already \"%s\"\n", COM_SkipPath(com_gamedir));
@@ -168,23 +172,29 @@ void Host_Game_f (void)
 		if (NumGames(com_searchpaths) > 1 + com_nummissionpacks)
 			KillGameDir(com_searchpaths);
 
-		strcpy (com_gamedir, pakfile);
+		q_strlcpy (com_gamedir, pakfile, sizeof(com_gamedir));
 
 		if (Q_strcasecmp(Cmd_Argv(1), GAMENAME)) //game is not id1
 		{
+			// assign a path_id to this game directory
+			if (com_searchpaths)
+				path_id = com_searchpaths->path_id << 1;
+			else	path_id = 1U;
 			search = (searchpath_t *) Z_Malloc(sizeof(searchpath_t));
-			strcpy (search->filename, pakfile);
+			search->path_id = path_id;
+			q_strlcpy (search->filename, pakfile, sizeof(search->filename));
 			search->next = com_searchpaths;
 			com_searchpaths = search;
 
 			//Load the paks if any are found:
 			for (i = 0; ; i++)
 			{
-				sprintf (pakfile, "%s/pak%i.pak", com_gamedir, i);
+				q_snprintf (pakfile, sizeof(pakfile), "%s/pak%i.pak", com_gamedir, i);
 				pak = COM_LoadPackFile (pakfile);
 				if (!pak)
 					break;
 				search = (searchpath_t *) Z_Malloc(sizeof(searchpath_t));
+				search->path_id = path_id;
 				search->pack = pak;
 				search->next = com_searchpaths;
 				com_searchpaths = search;
@@ -232,7 +242,7 @@ void ExtraMaps_Add (const char *name)
 	}
 
 	level = (extralevel_t *) Z_Malloc(sizeof(extralevel_t));
-	strcpy (level->name, name);
+	q_strlcpy (level->name, name, sizeof(level->name));
 
 	// insert each entry in alphabetical order
 	if (extralevels == NULL ||
@@ -268,13 +278,13 @@ void ExtraMaps_Init (void)
 
 	// we don't want to list the maps in id1 pakfiles,
 	// because these are not "add-on" levels
-	sprintf (ignorepakdir, "/%s/", GAMENAME);
+	q_snprintf (ignorepakdir, sizeof(ignorepakdir), "/%s/", GAMENAME);
 
 	for (search = com_searchpaths; search; search = search->next)
 	{
 		if (*search->filename) //directory
 		{
-			sprintf (filestring,"%s/maps/",search->filename);
+			q_snprintf (filestring, sizeof(filestring), "%s/maps/", search->filename);
 			dir_p = opendir(filestring);
 			if (dir_p == NULL)
 				continue;
@@ -282,7 +292,7 @@ void ExtraMaps_Init (void)
 			{
 				if (!strstr(dir_t->d_name, ".bsp") && !strstr(dir_t->d_name, ".BSP"))
 					continue;
-				COM_StripExtension(dir_t->d_name, mapname);
+				COM_StripExtension(dir_t->d_name, mapname, sizeof(mapname));
 				ExtraMaps_Add (mapname);
 			}
 			closedir(dir_p);
@@ -297,7 +307,7 @@ void ExtraMaps_Init (void)
 					{
 						if (pak->files[i].filelen > 32*1024)
 						{ // don't list files under 32k (ammo boxes etc)
-							COM_StripExtension(pak->files[i].name + 5, mapname);
+							COM_StripExtension(pak->files[i].name + 5, mapname, sizeof(mapname));
 							ExtraMaps_Add (mapname);
 						}
 					}
@@ -368,7 +378,7 @@ void Modlist_Add (const char *name)
 	}
 
 	mod = (mod_t *) Z_Malloc(sizeof(mod_t));
-	strcpy (mod->name, name);
+	q_strlcpy (mod->name, name, sizeof(mod->name));
 
 	//insert each entry in alphabetical order
 	if (modlist == NULL ||
@@ -401,9 +411,9 @@ void Modlist_Init (void)
 
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)
-		sprintf (dir_string, "%s/", com_argv[i+1]);
+		q_snprintf (dir_string, sizeof(dir_string), "%s/", com_argv[i+1]);
 	else
-		sprintf (dir_string, "%s/", host_parms.basedir);
+		q_snprintf (dir_string, sizeof(dir_string), "%s/", host_parms->basedir);
 
 	dir_p = opendir(dir_string);
 	if (dir_p == NULL)
@@ -413,7 +423,7 @@ void Modlist_Init (void)
 	{
 		if ((strcmp(dir_t->d_name, ".") == 0) || (strcmp(dir_t->d_name, "..") == 0))
 			continue;
-		sprintf(mod_dir_string, "%s%s/", dir_string, dir_t->d_name);
+		q_snprintf(mod_dir_string, sizeof(mod_dir_string), "%s%s/", dir_string, dir_t->d_name);
 		mod_dir_p = opendir(mod_dir_string);
 		if (mod_dir_p == NULL)
 			continue;
@@ -554,7 +564,7 @@ void Host_God_f (void)
 		return;
 	}
 
-	if (pr_global_struct->deathmatch && !host_client->privileged)
+	if (pr_global_struct->deathmatch)
 		return;
 
 	//johnfitz -- allow user to explicitly set god mode to on or off
@@ -599,7 +609,7 @@ void Host_Notarget_f (void)
 		return;
 	}
 
-	if (pr_global_struct->deathmatch && !host_client->privileged)
+	if (pr_global_struct->deathmatch)
 		return;
 
 	//johnfitz -- allow user to explicitly set notarget to on or off
@@ -646,7 +656,7 @@ void Host_Noclip_f (void)
 		return;
 	}
 
-	if (pr_global_struct->deathmatch && !host_client->privileged)
+	if (pr_global_struct->deathmatch)
 		return;
 
 	//johnfitz -- allow user to explicitly set noclip to on or off
@@ -702,7 +712,7 @@ void Host_Fly_f (void)
 		return;
 	}
 
-	if (pr_global_struct->deathmatch && !host_client->privileged)
+	if (pr_global_struct->deathmatch)
 		return;
 
 	//johnfitz -- allow user to explicitly set noclip to on or off
@@ -828,7 +838,7 @@ void Host_Map_f (void)
 	SCR_BeginLoadingPlaque ();
 
 	svs.serverflags = 0;			// haven't completed an episode yet
-	strcpy (name, Cmd_Argv(1));
+	q_strlcpy (name, Cmd_Argv(1), sizeof(name));
 	// remove (any) trailing ".bsp" from mapname S.A.
 	p = strstr(name, ".bsp");
 	if (p && p[4] == '\0')
@@ -839,12 +849,11 @@ void Host_Map_f (void)
 
 	if (cls.state != ca_dedicated)
 	{
-		strcpy (cls.spawnparms, "");
-
+		memset (cls.spawnparms, 0, MAX_MAPSTRING);
 		for (i = 2; i < Cmd_Argc(); i++)
 		{
-			strcat (cls.spawnparms, Cmd_Argv(i));
-			strcat (cls.spawnparms, " ");
+			q_strlcat (cls.spawnparms, Cmd_Argv(i), MAX_MAPSTRING);
+			q_strlcat (cls.spawnparms, " ", MAX_MAPSTRING);
 		}
 
 		Cmd_ExecuteString ("connect local", src_command);
@@ -875,8 +884,8 @@ void Host_Changelevel_f (void)
 	}
 
 	//johnfitz -- check for client having map before anything else
-	sprintf (level, "maps/%s.bsp", Cmd_Argv(1));
-	if (COM_OpenFile (level, &i) == -1)
+	q_snprintf (level, sizeof(level), "maps/%s.bsp", Cmd_Argv(1));
+	if (COM_OpenFile (level, &i, NULL) == -1)
 		Host_Error ("cannot find map %s", level);
 	//johnfitz
 
@@ -884,7 +893,7 @@ void Host_Changelevel_f (void)
 		IN_Activate();	// -- S.A.
 	key_dest = key_game;	// remove console or menu
 	SV_SaveSpawnparms ();
-	strcpy (level, Cmd_Argv(1));
+	q_strlcpy (level, Cmd_Argv(1), sizeof(level));
 	SV_SpawnServer (level);
 }
 
@@ -904,7 +913,7 @@ void Host_Restart_f (void)
 
 	if (cmd_source != src_command)
 		return;
-	strcpy (mapname, sv.name);	// must copy out, because it gets cleared
+	q_strlcpy (mapname, sv.name, sizeof(mapname));	// must copy out, because it gets cleared
 								// in sv_spawnserver
 	SV_SpawnServer (mapname);
 }
@@ -940,7 +949,7 @@ void Host_Connect_f (void)
 		CL_StopPlayback ();
 		CL_Disconnect ();
 	}
-	strcpy (name, Cmd_Argv(1));
+	q_strlcpy (name, Cmd_Argv(1), sizeof(name));
 	CL_EstablishConnection (name);
 	Host_Reconnect_f ();
 }
@@ -970,7 +979,7 @@ void Host_SavegameComment (char *text)
 
 	for (i = 0; i < SAVEGAME_COMMENT_LENGTH; i++)
 		text[i] = ' ';
-	memcpy (text, cl.levelname, min(strlen(cl.levelname),22)); //johnfitz -- only copy 22 chars.
+	memcpy (text, cl.levelname, q_min(strlen(cl.levelname),22)); //johnfitz -- only copy 22 chars.
 	sprintf (kills,"kills:%3i/%3i", cl.stats[STAT_MONSTERS], cl.stats[STAT_TOTALMONSTERS]);
 	memcpy (text+22, kills, strlen(kills));
 // convert space to _ to make stdio happy
@@ -990,7 +999,7 @@ Host_Savegame_f
 */
 void Host_Savegame_f (void)
 {
-	char	name[256];
+	char	name[MAX_OSPATH];
 	FILE	*f;
 	int	i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
@@ -1037,8 +1046,8 @@ void Host_Savegame_f (void)
 		}
 	}
 
-	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
-	COM_DefaultExtension (name, ".sav");
+	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
+	COM_DefaultExtension (name, ".sav", sizeof(name));
 
 	Con_Printf ("Saving game to %s...\n", name);
 	f = fopen (name, "w");
@@ -1109,8 +1118,8 @@ void Host_Loadgame_f (void)
 
 	cls.demonum = -1;		// stop demo loop in case this fails
 
-	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
-	COM_DefaultExtension (name, ".sav");
+	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
+	COM_DefaultExtension (name, ".sav", sizeof(name));
 
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has
 // been used.  The menu calls it before stuffing loadgame command
@@ -1148,6 +1157,7 @@ void Host_Loadgame_f (void)
 
 	if (!sv.active)
 	{
+		fclose (f);
 		Con_Printf ("Couldn't load map\n");
 		return;
 	}
@@ -1179,14 +1189,20 @@ void Host_Loadgame_f (void)
 			}
 		}
 		if (i == sizeof(str) - 1)
+		{
+			fclose (f);
 			Sys_Error ("Loadgame buffer overflow");
+		}
 		str[i] = 0;
 		start = str;
 		start = COM_Parse(str);
 		if (!com_token[0])
 			break;		// end of file
 		if (strcmp(com_token,"{"))
+		{
+			fclose (f);
 			Sys_Error ("First token isn't a brace");
+		}
 
 		if (entnum == -1)
 		{	// parse the global vars
@@ -1240,9 +1256,9 @@ void Host_Name_f (void)
 		return;
 	}
 	if (Cmd_Argc () == 2)
-		Q_strncpy(newName, Cmd_Argv(1), sizeof(newName)-1);
+		q_strlcpy(newName, Cmd_Argv(1), sizeof(newName));
 	else
-		Q_strncpy(newName, Cmd_Args(), sizeof(newName)-1);
+		q_strlcpy(newName, Cmd_Args(), sizeof(newName));
 	newName[15] = 0;	// client_t structure actually says name[32].
 
 	if (cmd_source == src_command)
@@ -1268,14 +1284,6 @@ void Host_Name_f (void)
 	MSG_WriteByte (&sv.reliable_datagram, svc_updatename);
 	MSG_WriteByte (&sv.reliable_datagram, host_client - svs.clients);
 	MSG_WriteString (&sv.reliable_datagram, host_client->name);
-}
-
-
-void Host_Version_f (void)
-{
-	Con_Printf ("Quake Version %1.2f\n", VERSION); //johnfitz
-	Con_Printf ("QuakeSpasm Version %1.2f.%d\n", FITZQUAKE_VERSION, QUAKESPASM_VER_PATCH); //johnfitz
-	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 }
 
 void Host_Say(qboolean teamonly)
@@ -1624,7 +1632,7 @@ void Host_Spawn_f (void)
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);
 		PR_ExecuteProgram (pr_global_struct->ClientConnect);
 
-		if ((Sys_FloatTime() - host_client->netconnection->connecttime) <= sv.time)
+		if ((Sys_DoubleTime() - host_client->netconnection->connecttime) <= sv.time)
 			Sys_Printf ("%s entered the game\n", host_client->name);
 
 		PR_ExecuteProgram (pr_global_struct->PutClientInServer);
@@ -1740,7 +1748,7 @@ void Host_Kick_f (void)
 			return;
 		}
 	}
-	else if (pr_global_struct->deathmatch && !host_client->privileged)
+	else if (pr_global_struct->deathmatch)
 		return;
 
 	save = host_client;
@@ -1828,7 +1836,7 @@ void Host_Give_f (void)
 		return;
 	}
 
-	if (pr_global_struct->deathmatch && !host_client->privileged)
+	if (pr_global_struct->deathmatch)
 		return;
 
 	t = Cmd_Argv(1);
@@ -2193,7 +2201,7 @@ void Host_Startdemos_f (void)
 	Con_Printf ("%i demo(s) in loop\n", c);
 
 	for (i = 1; i < c + 1; i++)
-		strncpy (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0])-1);
+		q_strlcpy (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
 
 	if (!sv.active && cls.demonum != -1 && !cls.demoplayback)
 	{
@@ -2274,7 +2282,6 @@ void Host_InitCommands (void)
 	Cmd_AddCommand ("reconnect", Host_Reconnect_f);
 	Cmd_AddCommand ("name", Host_Name_f);
 	Cmd_AddCommand ("noclip", Host_Noclip_f);
-	Cmd_AddCommand ("version", Host_Version_f);
 
 	Cmd_AddCommand ("say", Host_Say_f);
 	Cmd_AddCommand ("say_team", Host_Say_Team_f);

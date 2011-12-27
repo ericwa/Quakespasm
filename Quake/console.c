@@ -80,8 +80,8 @@ const char *Con_Quakebar (int len)
 	static char bar[42];
 	int i;
 
-	len = min(len, sizeof(bar) - 2);
-	len = min(len, con_linewidth);
+	len = q_min(len, sizeof(bar) - 2);
+	len = q_min(len, con_linewidth);
 
 	bar[0] = '\35';
 	for (i = 1; i < len - 1; i++)
@@ -162,7 +162,7 @@ void Con_Dump_f (void)
 #if 1
 	//johnfitz -- there is a security risk in writing files with an arbitrary filename. so,
 	//until stuffcmd is crippled to alleviate this risk, just force the default filename.
-	sprintf (name, "%s/condump.txt", com_gamedir);
+	q_snprintf (name, sizeof(name), "%s/condump.txt", com_gamedir);
 #else
 	if (Cmd_Argc() > 2)
 	{
@@ -177,11 +177,11 @@ void Con_Dump_f (void)
 			Con_Printf ("Relative pathnames are not allowed.\n");
 			return;
 		}
-		sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
-		COM_DefaultExtension (name, ".txt");
+		q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
+		COM_DefaultExtension (name, ".txt", sizeof(name));
 	}
 	else
-		sprintf (name, "%s/condump.txt", com_gamedir);
+		q_snprintf (name, sizeof(name), "%s/condump.txt", com_gamedir);
 #endif
 
 	COM_CreatePath (name);
@@ -329,9 +329,12 @@ Con_Init
 */
 void Con_Init (void)
 {
+	int i;
+
 	//johnfitz -- user settable console buffer size
-	if (COM_CheckParm("-consize"))
-		con_buffersize = max(CON_MINSIZE,Q_atoi(com_argv[COM_CheckParm("-consize")+1])*1024);
+	i = COM_CheckParm("-consize");
+	if (i && i < com_argc-1)
+		con_buffersize = q_max(CON_MINSIZE,Q_atoi(com_argv[i+1])*1024);
 	else
 		con_buffersize = CON_TEXTSIZE;
 	//johnfitz
@@ -642,7 +645,7 @@ void Con_CenterPrintf (int linewidth, const char *fmt, ...)
 	q_vsnprintf (msg, sizeof(msg), fmt, argptr);
 	va_end (argptr);
 
-	linewidth = min (linewidth, con_linewidth);
+	linewidth = q_min(linewidth, con_linewidth);
 	for (src = msg; *src; )
 	{
 		dst = line;
@@ -682,9 +685,9 @@ void Con_LogCenterPrint (const char *str)
 
 	if (con_logcenterprint.value)
 	{
-		Con_Printf (Con_Quakebar(40));
+		Con_Printf ("%s", Con_Quakebar(40));
 		Con_CenterPrintf (40, "%s\n", str);
-		Con_Printf (Con_Quakebar(40));
+		Con_Printf ("%s", Con_Quakebar(40));
 		Con_ClearNotify ();
 	}
 }
@@ -1222,9 +1225,9 @@ void Con_NotifyBox (const char *text)
 
 // during startup for sound / cd warnings
 	Con_Printf ("\n\n%s", Con_Quakebar(40)); //johnfitz
-	Con_Printf (text);
+	Con_Printf ("%s", text);
 	Con_Printf ("Press a key.\n");
-	Con_Printf (Con_Quakebar(40)); //johnfitz
+	Con_Printf ("%s", Con_Quakebar(40)); //johnfitz
 
 	key_count = -2;		// wait for a key down and up
 	IN_Deactivate(vid.type == MODE_WINDOWED);
@@ -1232,10 +1235,10 @@ void Con_NotifyBox (const char *text)
 
 	do
 	{
-		t1 = Sys_FloatTime ();
+		t1 = Sys_DoubleTime ();
 		SCR_UpdateScreen ();
 		Sys_SendKeyEvents ();
-		t2 = Sys_FloatTime ();
+		t2 = Sys_DoubleTime ();
 		realtime += t2-t1;		// make the cursor blink
 	} while (key_count < 0);
 
@@ -1258,9 +1261,9 @@ void LOG_Init (quakeparms_t *parms)
 	strftime (session, sizeof(session), "%m/%d/%Y %H:%M:%S", localtime(&inittime));
 	q_snprintf (logfilename, sizeof(logfilename), "%s/qconsole.log", parms->basedir);
 
-	unlink (logfilename);
+//	unlink (logfilename);
 
-	log_fd = open (logfilename, O_WRONLY | O_CREAT | O_APPEND, 0666);
+	log_fd = open (logfilename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (log_fd == -1)
 	{
 		fprintf (stderr, "Error: Unable to create log file %s\n", logfilename);

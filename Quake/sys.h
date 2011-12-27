@@ -1,6 +1,5 @@
 /*
 Copyright (C) 1996-2001 Id Software, Inc.
-Copyright (C) 2002-2009 John Fitzgibbons and others
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -30,19 +29,16 @@ void Sys_Init (void);
 // file IO
 //
 
-// returns the file size
-// return -1 if file is not present
+// returns the file size or -1 if file is not present.
 // the file should be in BINARY mode for stupid OSs that care
 int Sys_FileOpenRead (const char *path, int *hndl);
 
 int Sys_FileOpenWrite (const char *path);
 void Sys_FileClose (int handle);
 void Sys_FileSeek (int handle, int position);
-void Sys_FileSeekRelative (int handle, int position);
 int Sys_FileRead (int handle, void *dest, int count);
 int Sys_FileWrite (int handle,const void *data, int count);
-int	Sys_FileTime (const char *path);
-int	Sys_FileTell (int handle);
+int Sys_FileTime (const char *path);
 void Sys_mkdir (const char *path);
 
 //
@@ -56,13 +52,12 @@ void Sys_Printf (const char *fmt, ...) __attribute__((__format__(__printf__,1,2)
 
 void Sys_Quit (void) __attribute__((__noreturn__));
 
-double Sys_FloatTime (void);
+double Sys_DoubleTime (void);
 
-char *Sys_ConsoleInput (void);
+const char *Sys_ConsoleInput (void);
 
-void Sys_Sleep (void);
-// called to yield for a little bit so as
-// not to hog cpu when paused or debugging
+void Sys_Sleep (unsigned long msecs);
+// yield for about 'msecs' milliseconds.
 
 void Sys_SendKeyEvents (void);
 // Perform Key_Event () callbacks until the input que is empty

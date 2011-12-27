@@ -25,53 +25,34 @@
 
 #include "quakedef.h"
 
-void CDAudioBackend_Eject(void)
+int CDAudio_Play(byte track, qboolean looping)
+{
+	return -1;
+}
+
+void CDAudio_Stop(void)
 {
 }
 
-void CDAudioBackend_Play(byte track, qboolean looping)
+void CDAudio_Pause(void)
 {
 }
 
-qboolean CDAudioBackend_IsPlaying()
-{
-	return false;
-}
-
-void CDAudioBackend_Stop(void)
+void CDAudio_Resume(void)
 {
 }
 
-void CDAudioBackend_Next(void)
+void CDAudio_Update(void)
 {
 }
 
-void CDAudioBackend_Prev(void)
-{
-}
-
-void CDAudioBackend_Pause(void)
-{
-}
-
-void CDAudioBackend_Resume(void)
-{
-}
-
-void CDAudioBackend_Info(void)
-{
-}
-
-void CDAudioBackend_Update(void)
-{
-}
-
-int CDAudioBackend_Init(void)
+int CDAudio_Init(void)
 {
 	Con_Printf("CDAudio disabled at compile time\n");
 	return -1;
 }
 
-void CDAudioBackend_Shutdown(void)
+void CDAudio_Shutdown(void)
 {
 }
+

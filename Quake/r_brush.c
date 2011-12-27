@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t gl_fullbrights, r_drawflat, gl_overbright, r_oldwater; //johnfitz
 
+extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
+
 int		gl_lightmap_format;
 int		lightmap_bytes;
 
@@ -154,7 +156,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 		{
 			for (p = s->polys->next; p; p = p->next)
 			{
-				srand((unsigned int) (size_t) p);
+				srand((unsigned int) (uintptr_t) p);
 				glColor3f (rand()%256/255.0, rand()%256/255.0, rand()%256/255.0);
 				DrawGLPoly (p);
 				rs_brushpasses++;
@@ -162,7 +164,7 @@ void R_DrawSequentialPoly (msurface_t *s)
 			return;
 		}
 
-		srand((unsigned int) (size_t) s->polys);
+		srand((unsigned int) (uintptr_t) s->polys);
 		glColor3f (rand()%256/255.0, rand()%256/255.0, rand()%256/255.0);
 		DrawGLPoly (s->polys);
 		rs_brushpasses++;
@@ -543,7 +545,19 @@ void R_DrawBrushModel (entity_t *e)
 
     glPushMatrix ();
 	e->angles[0] = -e->angles[0];	// stupid quake bug
+	if (gl_zfix.value)
+	{
+		e->origin[0] -= DIST_EPSILON;
+		e->origin[1] -= DIST_EPSILON;
+		e->origin[2] -= DIST_EPSILON;
+	}
 	R_RotateForEntity (e->origin, e->angles);
+	if (gl_zfix.value)
+	{
+		e->origin[0] += DIST_EPSILON;
+		e->origin[1] += DIST_EPSILON;
+		e->origin[2] += DIST_EPSILON;
+	}
 	e->angles[0] = -e->angles[0];	// stupid quake bug
 
 	//
@@ -779,7 +793,7 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 {
 	int			i, lindex, lnumverts;
 	medge_t		*pedges, *r_pedge;
-	int			vertpage;
+//	int		vertpage;
 	float		*vec;
 	float		s, t;
 	glpoly_t	*poly;
@@ -787,7 +801,7 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 // reconstruct the polygon
 	pedges = currentmodel->edges;
 	lnumverts = fa->numedges;
-	vertpage = 0;
+//	vertpage = 0;
 
 	//
 	// draw texture

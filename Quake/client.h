@@ -26,16 +26,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct
 {
-	vec3_t	viewangles;
-
-// intended velocities
-	float	forwardmove;
-	float	sidemove;
-	float	upmove;
-} usercmd_t;
-
-typedef struct
-{
 	int		length;
 	char	map[MAX_STYLESTRING];
 	char	average; //johnfitz
@@ -320,18 +310,14 @@ extern 	kbutton_t 	in_speed;
 
 void CL_InitInput (void);
 void CL_SendCmd (void);
-void CL_SendMove (usercmd_t *cmd);
+void CL_SendMove (const usercmd_t *cmd);
+int  CL_ReadFromServer (void);
+void CL_BaseMove (usercmd_t *cmd);
 
 void CL_ParseTEnt (void);
 void CL_UpdateTEnts (void);
 
 void CL_ClearState (void);
-
-
-int  CL_ReadFromServer (void);
-void CL_WriteToServer (usercmd_t *cmd);
-void CL_BaseMove (usercmd_t *cmd);
-
 
 float CL_KeyState (kbutton_t *key);
 const char *Key_KeynumToString (int keynum);
@@ -365,12 +351,21 @@ void V_Register (void);
 void V_ParseDamage (void);
 void V_SetContentsColor (int contents);
 
-
 //
 // cl_tent
 //
 void CL_InitTEnts (void);
 void CL_SignonReply (void);
+
+//
+// chase
+//
+extern	cvar_t	chase_active;
+
+void Chase_Init (void);
+void TraceLine (vec3_t start, vec3_t end, vec3_t impact);
+void Chase_UpdateForClient (void);	//johnfitz
+void Chase_UpdateForDrawing (void);	//johnfitz
 
 #endif	/* _CLIENT_H_ */
 

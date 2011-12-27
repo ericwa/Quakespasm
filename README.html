@@ -2,16 +2,16 @@
 <HTML>
 <HEAD>
  <META NAME="GENERATOR" CONTENT="LinuxDoc-Tools 0.9.21">
- <TITLE>QuakeSpasm </TITLE>
+ <TITLE>QuakeSpasm</TITLE>
 </HEAD>
 <BODY>
-<H1>QuakeSpasm </H1>
+<H1>QuakeSpasm</H1>
 
 <H2></H2><P>
 <PRE>
 </PRE>
 </P>
-<P>QuakeSpasm 0.85.3 (19 September 2010)</P>
+<P>QuakeSpasm 0.85.5 (25 December 2011)</P>
 
 <P>
 <H2><A NAME="toc1">1.</A> <A HREF="README.html#s1">About </A></H2>
@@ -22,16 +22,26 @@
 <P>
 <H2><A NAME="toc3">3.</A> <A HREF="README.html#s3">Hints </A></H2>
 
+<UL>
+<LI><A NAME="toc3.1">3.1</A> <A HREF="README.html#ss3.1">Music Playback</A>
+</UL>
 <P>
 <H2><A NAME="toc4">4.</A> <A HREF="README.html#s4">Compiling </A></H2>
 
+<UL>
+<LI><A NAME="toc4.1">4.1</A> <A HREF="README.html#ss4.1">Linux/Unix </A>
+<LI><A NAME="toc4.2">4.2</A> <A HREF="README.html#ss4.2">Windows </A>
+<LI><A NAME="toc4.3">4.3</A> <A HREF="README.html#ss4.3">Mac OS X </A>
+</UL>
 <P>
 <H2><A NAME="toc5">5.</A> <A HREF="README.html#s5">Changes</A></H2>
 
 <UL>
-<LI><A NAME="toc5.1">5.1</A> <A HREF="README.html#ss5.1">0.85.3</A>
-<LI><A NAME="toc5.2">5.2</A> <A HREF="README.html#ss5.2">0.85.2</A>
-<LI><A NAME="toc5.3">5.3</A> <A HREF="README.html#ss5.3">0.85.1</A>
+<LI><A NAME="toc5.1">5.1</A> <A HREF="README.html#ss5.1">Changes in 0.85.5</A>
+<LI><A NAME="toc5.2">5.2</A> <A HREF="README.html#ss5.2">Changes in 0.85.4</A>
+<LI><A NAME="toc5.3">5.3</A> <A HREF="README.html#ss5.3">Changes in 0.85.3</A>
+<LI><A NAME="toc5.4">5.4</A> <A HREF="README.html#ss5.4">Changes in 0.85.2</A>
+<LI><A NAME="toc5.5">5.5</A> <A HREF="README.html#ss5.5">Changes in 0.85.1</A>
 </UL>
 <P>
 <H2><A NAME="toc6">6.</A> <A HREF="README.html#s6">Todo </A></H2>
@@ -45,22 +55,33 @@
 
 
 <P>QuakeSpasm is a Quake 1 engine based on the SDL port of FitzQuake.
-It includes 64bit CPU cupport, a new sound driver, several networking fixes, and a few graphical niceities.</P>
+It includes 64bit CPU support, a new sound driver, several networking fixes and a few graphical niceities.</P>
 <P>
 <A HREF="http://quakespasm.sourceforge.net">http://quakespasm.sourceforge.net</A></P>
+
 
 <H2><A NAME="s2">2.</A> <A HREF="#toc2">Downloads </A></H2>
 
 
 <P>
-<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.3.tgz/download">Source</A><BR>
-<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.3_linux.tgz/download">Linux binary</A><BR>
-<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.3_windows.zip/download">Windows</A><BR>
-<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.3_osx.zip/download">OSX universal binary</A><BR></P>
+<UL>
+<LI>
+<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.5.tgz/download">Source</A></LI>
+<LI>
+<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.5_linux.tgz/download">Linux (x86)</A></LI>
+<LI>
+<A HREF="http://sourceforge.net/projects/quakespasm/files/quakespasm-0.85.5_windows.zip/download">Windows (x86)</A></LI>
+<LI>
+<A HREF="http://sourceforge.net/projects/quakespasm/files/QuakeSpasm-0.85.5.dmg/download">OSX image</A></LI>
+</UL>
+</P>
+
 
 <H2><A NAME="s3">3.</A> <A HREF="#toc3">Hints </A></H2>
 
 
+<P><EM> Visit the 
+<A HREF="http://www.celephais.net/fitzquake">FitzQuake Homepage</A> for a full run-down of the engine's commands and variables.</EM></P>
 <P>
 <UL>
 <LI>To disable some changes, use "<B>quakespasm -fitz</B>"
@@ -68,28 +89,40 @@ It includes 64bit CPU cupport, a new sound driver, several networking fixes, and
 <LI>For different sound drivers use "<B>SDL_AUDIODRIVER=</B><EM>DRIVER</EM><B> ./quakespasm</B>"
 , where DRIVER may be alsa, dsp, pulse, esd ...
 </LI>
-<LI><B>Shift+Escape</B> draws the Console.
-</LI>
-<LI>From the console, use <B>UP</B> to browse the command line history, and
-<B>TAB</B> to autocomplete command and map names.
-</LI>
-<LI>Quakespasm allows loading new games (mods) on the fly with "<B>game</B> <EM>GAMENAME</EM>"
-</LI>
-<LI>There is currently no music volume support. cd_sdl.c needs replacing with cd_linux.c, cd_bsd.c etc..
-</LI>
+<LI><B>Shift+Escape</B> draws the Console.</LI>
+<LI>From the console, use <B>UP</B> to browse the command line history and
+<B>TAB</B> to autocomplete command and map names.</LI>
+<LI>There is currently no CD Music volume support. cd_sdl.c needs replacing with cd_linux.c, cd_bsd.c etc..</LI>
 <LI>In windows, alternative CD drives are accessible by "<B>quakespasm -cddev F</B>" (for example)
 </LI>
+<LI>Quakespasm allows loading new games (mods) on the fly with "<B>game</B> <EM>GAMENAME</EM>"</LI>
 </UL>
 </P>
-<P><EM> Visit the 
-<A HREF="http://www.celephais.net/fitzquake">FitzQuake Homepage</A> for a full run-down of this engine's features.</EM></P>
+<H2><A NAME="ss3.1">3.1</A> <A HREF="#toc3.1">Music Playback</A>
+</H2>
+
+<P>Since version 0.85.4, Quakespasm can play back external MP3, OGG and Wave music files.
+<UL>
+<LI>Tracks should be named like "track02.ogg", "track03.ogg" ... (there is no track01) and placed into "Quake/id1/music".</LI>
+<LI>Unix users may need some extra libraries installed: "libmad" or "libmpg123" for MP3, and "libogg" and "libvorbis" for OGG.</LI>
+<LI>To prevent tracks from being downsampled, use the "-sndspeed" option to set a sufficiently high sample rate.</LI>
+<LI>Use the "-noextmusic" option to disable this feature.</LI>
+<LI>See README.music for more details, if necessary.</LI>
+</UL>
+</P>
+
 
 <H2><A NAME="s4">4.</A> <A HREF="#toc4">Compiling </A></H2>
 
-<P>Just extract the source tarball, then
+
+<P>To check-out the latest version of QuakeSpasm, use :<BR>
+<EM>svn co https://quakespasm.svn.sourceforge.net/svnroot/quakespasm/trunk</EM></P>
+<H2><A NAME="ss4.1">4.1</A> <A HREF="#toc4.1">Linux/Unix </A>
+</H2>
+
+<P>After extracting the source tarball, browse the Makefile and edit the music streaming options, then
 <HR>
 <PRE>
-cd quakespasm-0.85.3
 make
 cp quakespasm /usr/local/games/quake (for example)
 </PRE>
@@ -98,19 +131,66 @@ cp quakespasm /usr/local/games/quake (for example)
 Compile time options include
 <UL>
 <LI><B>make DEBUG=1</B> for debugging</LI>
-<LI><B>make SDLNET=1</B> to enable SDL_net (Otherwise the socket api will be used directly)</LI>
-<LI><B>make SDL_CONFIG=</B><EM>/PATH/TO/SDL-CONFIG</EM> for unusual SDL installs<BR><BR></LI>
-<LI>HOME directory support can be enabled via the <B>Misc/homedir_0.patch</B> diff</LI>
+<LI><B>make SDL_CONFIG=</B><EM>/PATH/TO/SDL-CONFIG</EM> for unusual SDL installations</LI>
 </UL>
-<BR>
-If for any reason this doesn't work, the project can also be built with Codeblocks.
-This is a large, free, integrated development environment that requires wxWidgets and cmake to install.
-The process is not for the faint hearted.</P>
+</P>
+<P>Streaming music playback requires "libmad" or "libmpg123" for MP3, and "libogg" and "libvorbis" for OGG files.</P>
+<P>HOME directory support can be enabled via <B>Misc/homedir_0.patch</B></P>
+<P>The project can also be built with Codeblocks (project files included).</P>
+<H2><A NAME="ss4.2">4.2</A> <A HREF="#toc4.2">Windows </A>
+</H2>
 
+<P>The QuakeSpasm developers cross-compile windows binaries using 
+<A HREF="http://www.mingw.org">MinGW</A> and 
+<A HREF="http://mingw-w64.sf.net">Mingw-w64</A>.</P>
+<P>The project can also be built using Visual Studio 2005 (or newer).</P>
+<H2><A NAME="ss4.3">4.3</A> <A HREF="#toc4.3">Mac OS X </A>
+</H2>
+
+<P>A Quakespasm App (including program launcher and update framework) can be made using the <B>Xcode</B> template found in the MacOSX directory.</P>
+<P>Alternatively, have a look at <B>Makefile.darwin</B> for more instructions on building from a console.</P>
 <H2><A NAME="s5">5.</A> <A HREF="#toc5">Changes</A></H2>
 
 
-<H2><A NAME="ss5.1">5.1</A> <A HREF="#toc5.1">0.85.3</A>
+
+<H2><A NAME="ss5.1">5.1</A> <A HREF="#toc5.1">Changes in 0.85.5</A>
+</H2>
+
+<P>
+<UL>
+<LI> SDL input driver updated adding native keymap and dead key support to the console</LI>
+<LI> Fixed a crash in net play in maps with extended limits</LI>
+<LI> Verified successful compilation using gcc-4.6.x</LI>
+<LI> Added workaround against GL texture flicker (z fighting), controlled by new cvar 'gl_zfix'</LI>
+<LI> Read video variables early so that a vid_restart isn't necessary after init</LI>
+<LI> mlook and lookspring fixes</LI>
+<LI> Added support for loading external entity files, controlled by new cvar 'external_ents'</LI>
+<LI> Made mp3 playback to allocate system memory instead of zone</LI>
+<LI> Some updates to the progs interpreter code</LI>
+<LI> Fixed r_nolerp_list parsing code of fitzquake</LI>
+<LI> Made sure that deathmatch and coop are not set at the same time</LI>
+<LI> Several code updates from uHexen2 project, several code cleanups.</LI>
+</UL>
+</P>
+<H2><A NAME="ss5.2">5.2</A> <A HREF="#toc5.2">Changes in 0.85.4</A>
+</H2>
+
+<P>
+<UL>
+<LI> Implement music (OGG, MP3, WAV) playback</LI>
+<LI> A better fix for the infamous SV_TouchLinks problem, no more hard lockups with maps such as "whiteroom"</LI>
+<LI> Add support for mouse buttons 4 and 5</LI>
+<LI> Fix the "unalias" console command</LI>
+<LI> Restore the "screen size" menu item</LI>
+<LI> Fixed an erroneous protocol check in the server code</LI>
+<LI> Raised the default zone memory size to 384 kb</LI>
+<LI> Raised the default max_edicts from 1024 to 2048</LI>
+<LI> Revised lit file loading, the lit file must be from the same game directory as the map itself or from a searchpath with a higher priority</LI>
+<LI> Fixed rest of the compiler warnings</LI>
+<LI> Other minor sound and cdaudio updates</LI>
+</UL>
+</P>
+<H2><A NAME="ss5.3">5.3</A> <A HREF="#toc5.3">Changes in 0.85.3</A>
 </H2>
 
 <P>
@@ -119,7 +199,7 @@ The process is not for the faint hearted.</P>
 <LI> Much needed OSX framework stuff from Kristian</LI>
 <LI> Add a persistent history feature (thanks Baker)</LI>
 <LI> Add a slider for scr_sbaralpha, which now defaults to 0.95 (slightly transparent, allowing for a nicer status bar)</LI>
-<LI> Allow player messages longer than 32 chars</LI>
+<LI> Allow player messages longer than 32 characters</LI>
 <LI> Sockaddr fix for FreeBSD/OSX/etc networking</LI>
 <LI> Connect status bar size to the scale slider</LI>
 <LI> Include an ISNAN (is not-a-number) fix to catch the occassional quake C bug giving traceline problems</LI>
@@ -129,12 +209,11 @@ The process is not for the faint hearted.</P>
 <LI> Lots of code fixes (some from uhexen2)</LI>
 <LI> Sys_Error calls Host_Shutdown</LI>
 <LI> Added MS Visual Studio support</LI>
-<LI> Add a "-cd" option to let the CD Player work in dedicated mode, and some other CD tweaks.
-</LI>
+<LI> Add a "-cd" option to let the CD Player work in dedicated mode, and some other CD tweaks.</LI>
 </UL>
 </P>
 
-<H2><A NAME="ss5.2">5.2</A> <A HREF="#toc5.2">0.85.2</A>
+<H2><A NAME="ss5.4">5.4</A> <A HREF="#toc5.4">Changes in 0.85.2</A>
 </H2>
 
 <P>
@@ -147,13 +226,13 @@ The process is not for the faint hearted.</P>
 <LI> Block/Unblock sound upon focus loss/gain</LI>
 <LI> NAT fix (networking protocol fix)</LI>
 <LI> SDLNet_ResolveHost bug-fix allowing connection to ports other than 26000</LI>
-<LI> sv_main.c (localmodels) Bumped array size from 5 to 6 in order for it to operate correctly with the raised limits of fitzquake-0.85</LI>
+<LI> Bumped array size of sv_main.c::localmodels from 5 to 6 fixing an old fitzquake-0.85 bug which used to cause segfaults depending on the compiler.</LI>
 <LI> Accept commandline options like "+connect ip:port"</LI>
 <LI> Add OSX Makefile (tested?)</LI>
 </UL>
 </P>
 
-<H2><A NAME="ss5.3">5.3</A> <A HREF="#toc5.3">0.85.1</A>
+<H2><A NAME="ss5.5">5.5</A> <A HREF="#toc5.5">Changes in 0.85.1</A>
 </H2>
 
 <P>
@@ -161,7 +240,7 @@ The process is not for the faint hearted.</P>
 <LI>64 bit CPU support</LI>
 <LI>Restructured SDL sound driver</LI>
 <LI>Custom conback </LI>
-<LI>Tweaked the command line completion , and added a map/changelevel autocompletion function</LI>
+<LI>Tweaked the command line completion and added a map/changelevel autocompletion function</LI>
 <LI>Alt+Enter toggles fullscreen</LI>
 <LI>Disable Draw_BeginDisc which causes core dumps when called excessively</LI>
 <LI>Show helpful info on start-up</LI>
@@ -173,7 +252,7 @@ The process is not for the faint hearted.</P>
 <LI>Don't play demos on program init</LI>
 <LI>Default Heapsize is 64meg</LI>
 <LI>Changes to default console alpha, speed</LI>
-<LI>Changes to cvar persistence gl_flashblend(default 0), r_shadow, r_wateralpha, r_dynamic, r_novis</LI>
+<LI>Changes to cvar persistence gl_flashblend (default 0), r_shadow, r_wateralpha, r_dynamic, r_novis</LI>
 </UL>
 </P>
 
@@ -182,32 +261,42 @@ The process is not for the faint hearted.</P>
 
 <P>
 <UL>
-<LI>Ogg/Mp3 music file support</LI>
-<LI>Add HoT's first person camera (and menu item)</LI>
-<LI>Native CD audio support .... cd_sdl.c doesn't have proper volume controls</LI>
-<LI>Test usb keyboards. Do the keypads work ?</LI>
-<LI>Tested HOME directory support</LI>
+<LI>Add uHexen2's first person camera (and menu item)</LI>
+<LI>Native CD audio support (if desired). cd_sdl.c doesn't have proper volume controls</LI>
+<LI>Test usb keyboards. Do the keypads work? Make the OSX apple key work.</LI>
+<LI>Complete the unix user directories support</LI>
 <LI>Finalize OSX automatic updating feature</LI>
-<LI>Fix Centerview (V_StartPitchDrift)</LI>
-<LI>Fix compiler warnings</LI>
-<LI>Tie down the "-window/-fullscreen" options / behaviour ?</LI>
 </UL>
 </P>
+
 
 <H2><A NAME="s7">7.</A> <A HREF="#toc7">Links </A></H2>
 
 
 <P>
-<A HREF="http://quakespasm.sourceforge.net">QuakeSpasm Homepage</A><BR>
-<A HREF="http://sourceforge.net/projects/quakespasm">QuakeSpasm Project page</A><BR>
-<A HREF="http://www.celephais.net/fitzquake">FitzQuake Homepage</A><BR>
-<A HREF="http://www.kristianduske.com/fitzquake">Sleepwalkr's Original SDL Port</A><BR>
-<A HREF="http://quakeone.com/proquake/src_other/fitzquake_sdl_20090510_src_beta_1.zip">Baker's 0.85 Source Code</A><BR>
-<A HREF="http://www.celephais.net/board/view_thread.php?id=60452">Func Quakespasm forum</A><BR>
-<A HREF="http://www.celephais.net/board/view_thread.php?id=60172">Func SDL Fitzquake forum</A><BR>
-<A HREF="mailto:gmail - dot - com - username - sezeroz">Ozkan's email</A><BR>
-<A HREF="mailto:yahoo - dot - com - username - stevenaaus">Stevenaaus email</A><BR>
-<A HREF="mailto:gmail - dot - com - username - inveigle">Kristian's email</A></P>
+<UL>
+<LI>
+<A HREF="http://quakespasm.sourceforge.net">QuakeSpasm Homepage</A></LI>
+<LI>
+<A HREF="http://sourceforge.net/projects/quakespasm">QuakeSpasm Project page</A></LI>
+<LI>
+<A HREF="http://www.celephais.net/fitzquake">FitzQuake Homepage</A></LI>
+<LI>
+<A HREF="http://www.kristianduske.com/fitzquake">Sleepwalkr's Original SDL Port</A></LI>
+<LI>
+<A HREF="http://quakeone.com/proquake/src_other/fitzquake_sdl_20090510_src_beta_1.zip">Baker's 0.85 Source Code</A></LI>
+<LI>
+<A HREF="http://www.celephais.net/board/view_thread.php?id=60452">Func Quakespasm forum</A></LI>
+<LI>
+<A HREF="http://www.celephais.net/board/view_thread.php?id=60172">Func SDL Fitzquake forum</A></LI>
+<LI>
+<A HREF="mailto:gmail - dot - com - username - sezeroz">Ozkan's email</A></LI>
+<LI>
+<A HREF="mailto:yahoo - dot - com - username - stevenaaus">Stevenaaus email</A></LI>
+<LI>
+<A HREF="mailto:gmail - dot - com - username - inveigle">Kristian's email</A></LI>
+</UL>
+</P>
 
 </BODY>
 </HTML>

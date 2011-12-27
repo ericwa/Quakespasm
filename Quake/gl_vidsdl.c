@@ -20,9 +20,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-// gl_vidnt.c -- NT GL vid component
+// gl_vidsdl.c -- SDL GL vid component
 
 #include "quakedef.h"
+#include "cfgfile.h"
+#include "bgmusic.h"
 #include "resource.h"
 #include "SDL.h"
 
@@ -75,7 +77,7 @@ static int		nummodes;
 static vmode_t	badmode;
 
 static qboolean	vid_initialized = false;
-static qboolean	windowed, leavecurrentmode;
+static qboolean	windowed;
 static qboolean vid_canalttab = false;
 static qboolean vid_toggle_works = true;
 extern qboolean	mouseactive;  // from in_win.c
@@ -137,7 +139,7 @@ cvar_t		vid_fullscreen = {"vid_fullscreen", "0", true};	// QuakeSpasm, was "1"
 cvar_t		vid_width = {"vid_width", "800", true};		// QuakeSpasm, was 640
 cvar_t		vid_height = {"vid_height", "600", true};	// QuakeSpasm, was 480
 cvar_t		vid_bpp = {"vid_bpp", "16", true};
-cvar_t		vid_refreshrate = {"vid_refreshrate", "60", true};
+//cvar_t		vid_refreshrate = {"vid_refreshrate", "60", true};
 cvar_t		vid_vsync = {"vid_vsync", "0", true};
 //johnfitz
 
@@ -199,7 +201,7 @@ void VID_Gamma_Shutdown (void)
 VID_Gamma_f -- callback when the cvar changes
 ================
 */
-void VID_Gamma_f (void)
+void VID_Gamma_f (cvar_t *var)
 {
 	static float oldgamma;
 	int i;
@@ -209,7 +211,7 @@ void VID_Gamma_f (void)
 
 	oldgamma = vid_gamma.value;
 
-	for (i=0; i<256; i++)
+	for (i = 0; i < 256; i++)
 	{
 		vid_gamma_red[i] =
 			CLAMP(0, (int) (255 * pow ((i+0.5)/255.5, vid_gamma.value) + 0.5), 255) << 8;
@@ -243,7 +245,6 @@ VID_SetMode
 int VID_SetMode (int modenum)
 {
 	int		temp;
-	qboolean	stat = false;
 	Uint32	flags = SDL_DEFAULT_FLAGS;
 	char		caption[50];
 
@@ -260,6 +261,7 @@ int VID_SetMode (int modenum)
 	scr_disabled_for_loading = true;
 
 	CDAudio_Pause ();
+	BGM_Pause ();
 
 	// set vertical sync
 	if (gl_swap_control)
@@ -283,17 +285,14 @@ int VID_SetMode (int modenum)
 			draw_context = SDL_SetVideoMode(modelist[modenum].width,
 							modelist[modenum].height,
 							modelist[modenum].bpp, flags);
-			stat = true;
 		}
 		else
 		{
 			draw_context = SDL_SetVideoMode(modelist[modenum].width,
 							modelist[modenum].height,
 							modelist[modenum].bpp, flags);
-			stat = true;
 		}
 		modestate = MODE_WINDOWED;
-		// TODO set icon and title
 	}
 	else if (modelist[modenum].type == MODE_FULLSCREEN_DEFAULT)
 	{
@@ -301,7 +300,6 @@ int VID_SetMode (int modenum)
 		draw_context = SDL_SetVideoMode(modelist[modenum].width,
 						modelist[modenum].height,
 						modelist[modenum].bpp, flags);
-		stat = true;
 		modestate = MODE_FULLSCREEN_DEFAULT;
 	}
 	else
@@ -309,12 +307,11 @@ int VID_SetMode (int modenum)
 		Sys_Error ("VID_SetMode: Bad mode type in modelist");
 	}
 
-	if (!stat)
+	if (!draw_context)
 	{
 		Sys_Error ("Couldn't set video mode");
 	}
 
-	//kristian -- set window caption
 	sprintf(caption, "QuakeSpasm %1.2f.%d", (float)FITZQUAKE_VERSION, QUAKESPASM_VER_PATCH);
 	SDL_WM_SetCaption(caption, caption);
 
@@ -328,6 +325,7 @@ int VID_SetMode (int modenum)
 	VID_UpdateWindowStatus ();
 
 	CDAudio_Resume ();
+	BGM_Resume ();
 	scr_disabled_for_loading = temp;
 
 	vid_modenum = modenum;
@@ -335,8 +333,7 @@ int VID_SetMode (int modenum)
 // fix the leftover Alt from any Alt-Tab or the like that switched us away
 	ClearAllStates ();
 
-	if (!msg_suppress_1)
-		Con_SafePrintf ("Video mode %s initialized\n", VID_GetModeDescription (vid_modenum));
+	Con_SafePrintf ("Video mode %s initialized\n", VID_GetModeDescription (vid_modenum));
 
 	vid.recalc_refdef = 1;
 
@@ -355,7 +352,7 @@ int VID_SetMode (int modenum)
 VID_Changed_f -- kristian -- notify us that a value has changed that requires a vid_restart
 ===================
 */
-void VID_Changed_f (void)
+static void VID_Changed_f (cvar_t *var)
 {
 	vid_changed = true;
 }
@@ -368,7 +365,6 @@ VID_Restart -- johnfitz -- change video modes on the fly
 void VID_Restart (void)
 {
 	int		i;
-	vmode_t		oldmode;
 
 	if (vid_locked || !vid_changed)
 		return;
@@ -376,11 +372,9 @@ void VID_Restart (void)
 //
 // decide which mode to set
 //
-	oldmode = modelist[vid_default];
-
 	if (vid_fullscreen.value)
 	{
-		for (i=1; i<nummodes; i++)
+		for (i = 1; i < nummodes; i++)
 		{
 			if (modelist[i].width == (int)vid_width.value &&
 			    modelist[i].height == (int)vid_height.value &&
@@ -392,11 +386,10 @@ void VID_Restart (void)
 
 		if (i == nummodes)
 		{
-			Con_Printf ("%dx%dx%d %dHz is not a valid fullscreen mode\n",
+			Con_Printf ("%dx%dx%d is not a valid fullscreen mode\n",
 						(int)vid_width.value,
 						(int)vid_height.value,
-						(int)vid_bpp.value,
-						(int)vid_refreshrate.value);
+						(int)vid_bpp.value);
 			return;
 		}
 
@@ -562,37 +555,6 @@ void GL_Info_f (void)
 
 /*
 ===============
-CheckArrayExtensions
-===============
-*/
-#if 0 /* unused */
-void CheckArrayExtensions (void)
-{
-	const char	*tmp;
-
-	tmp = (const char *)glGetString(GL_EXTENSIONS);
-	while (*tmp)
-	{
-		if (strncmp(tmp, "GL_EXT_vertex_array", sizeof("GL_EXT_vertex_array") -1) == 0)
-		{
-			if (((glArrayElementEXT = SDL_GL_GetProcAddress("glArrayElementEXT")) == NULL) ||
-			    ((glColorPointerEXT = SDL_GL_GetProcAddress("glColorPointerEXT")) == NULL) ||
-			    ((glTexCoordPointerEXT = SDL_GL_GetProcAddress("glTexCoordPointerEXT")) == NULL) ||
-			    ((glVertexPointerEXT = SDL_GL_GetProcAddress("glVertexPointerEXT")) == NULL) )
-			{
-				Sys_Error ("GetProcAddress for vertex extension failed");
-			}
-			return;
-		}
-		tmp++;
-	}
-
-	Sys_Error ("Vertex array extension not present");
-}
-#endif /* #if 0 */
-
-/*
-===============
 GL_CheckExtensions -- johnfitz
 ===============
 */
@@ -605,81 +567,82 @@ void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-nomtex"))
 		Con_Warning ("Mutitexture disabled at command line\n");
-	else
-		if (strstr(gl_extensions, "GL_ARB_multitexture"))
+	else if (strstr(gl_extensions, "GL_ARB_multitexture"))
+	{
+		GL_MTexCoord2fFunc = (PFNGLMULTITEXCOORD2FARBPROC) SDL_GL_GetProcAddress("glMultiTexCoord2fARB");
+		GL_SelectTextureFunc = (PFNGLACTIVETEXTUREARBPROC) SDL_GL_GetProcAddress("glActiveTextureARB");
+		if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
 		{
-			GL_MTexCoord2fFunc = (PFNGLMULTITEXCOORD2FARBPROC)
-						SDL_GL_GetProcAddress("glMultiTexCoord2fARB");
-			GL_SelectTextureFunc = (PFNGLACTIVETEXTUREARBPROC)
-						SDL_GL_GetProcAddress("glActiveTextureARB");
-			if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
-			{
-				Con_Printf("FOUND: ARB_multitexture\n");
-				TEXTURE0 = GL_TEXTURE0_ARB;
-				TEXTURE1 = GL_TEXTURE1_ARB;
-				gl_mtexable = true;
-			}
-			else
-				Con_Warning ("multitexture not supported (SDL_GL_GetProcAddress failed)\n");
+			Con_Printf("FOUND: ARB_multitexture\n");
+			TEXTURE0 = GL_TEXTURE0_ARB;
+			TEXTURE1 = GL_TEXTURE1_ARB;
+			gl_mtexable = true;
 		}
 		else
-			if (strstr(gl_extensions, "GL_SGIS_multitexture"))
-			{
-				GL_MTexCoord2fFunc = (PFNGLMULTITEXCOORD2FARBPROC)
-							SDL_GL_GetProcAddress("glMTexCoord2fSGIS");
-				GL_SelectTextureFunc = (PFNGLACTIVETEXTUREARBPROC)
-							SDL_GL_GetProcAddress("glSelectTextureSGIS");
-				if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
-				{
-					Con_Printf("FOUND: SGIS_multitexture\n");
-					TEXTURE0 = TEXTURE0_SGIS;
-					TEXTURE1 = TEXTURE1_SGIS;
-					gl_mtexable = true;
-				}
-				else
-					Con_Warning ("multitexture not supported (SDL_GL_GetProcAddress failed)\n");
+		{
+			Con_Warning ("Couldn't link to multitexture functions\n");
+		}
+	}
+	else if (strstr(gl_extensions, "GL_SGIS_multitexture"))
+	{
+		GL_MTexCoord2fFunc = (PFNGLMULTITEXCOORD2FARBPROC) SDL_GL_GetProcAddress("glMTexCoord2fSGIS");
+		GL_SelectTextureFunc = (PFNGLACTIVETEXTUREARBPROC) SDL_GL_GetProcAddress("glSelectTextureSGIS");
+		if (GL_MTexCoord2fFunc && GL_SelectTextureFunc)
+		{
+			Con_Printf("FOUND: SGIS_multitexture\n");
+			TEXTURE0 = TEXTURE0_SGIS;
+			TEXTURE1 = TEXTURE1_SGIS;
+			gl_mtexable = true;
+		}
+		else
+		{
+			Con_Warning ("Couldn't link to multitexture functions\n");
+		}
+	}
+	else
+	{
+		Con_Warning ("multitexture not supported (extension not found)\n");
+	}
 
-			}
-			else
-				Con_Warning ("multitexture not supported (extension not found)\n");
 	//
 	// texture_env_combine
 	//
 	if (COM_CheckParm("-nocombine"))
 		Con_Warning ("texture_env_combine disabled at command line\n");
+	else if (strstr(gl_extensions, "GL_ARB_texture_env_combine"))
+	{
+		Con_Printf("FOUND: ARB_texture_env_combine\n");
+		gl_texture_env_combine = true;
+	}
+	else if (strstr(gl_extensions, "GL_EXT_texture_env_combine"))
+	{
+		Con_Printf("FOUND: EXT_texture_env_combine\n");
+		gl_texture_env_combine = true;
+	}
 	else
-		if (strstr(gl_extensions, "GL_ARB_texture_env_combine"))
-		{
-			Con_Printf("FOUND: ARB_texture_env_combine\n");
-			gl_texture_env_combine = true;
-		}
-		else
-			if (strstr(gl_extensions, "GL_EXT_texture_env_combine"))
-			{
-				Con_Printf("FOUND: EXT_texture_env_combine\n");
-				gl_texture_env_combine = true;
-			}
-			else
-				Con_Warning ("texture_env_combine not supported\n");
+	{
+		Con_Warning ("texture_env_combine not supported\n");
+	}
+
 	//
 	// texture_env_add
 	//
 	if (COM_CheckParm("-noadd"))
 		Con_Warning ("texture_env_add disabled at command line\n");
+	else if (strstr(gl_extensions, "GL_ARB_texture_env_add"))
+	{
+		Con_Printf("FOUND: ARB_texture_env_add\n");
+		gl_texture_env_add = true;
+	}
+	else if (strstr(gl_extensions, "GL_EXT_texture_env_add"))
+	{
+		Con_Printf("FOUND: EXT_texture_env_add\n");
+		gl_texture_env_add = true;
+	}
 	else
-		if (strstr(gl_extensions, "GL_ARB_texture_env_add"))
-		{
-			Con_Printf("FOUND: ARB_texture_env_add\n");
-			gl_texture_env_add = true;
-		}
-		else
-			if (strstr(gl_extensions, "GL_EXT_texture_env_add"))
-			{
-				Con_Printf("FOUND: EXT_texture_env_add\n");
-				gl_texture_env_add = true;
-			}
-			else
-				Con_Warning ("texture_env_add not supported\n");
+	{
+		Con_Warning ("texture_env_add not supported\n");
+	}
 
 	//
 	// swap control
@@ -709,7 +672,9 @@ void GL_CheckExtensions (void)
 		}
 	}
 	else
+	{
 		Con_Warning ("vertical sync not supported (extension not found)\n");
+	}
 
 	//
 	// anisotropic filtering
@@ -735,13 +700,17 @@ void GL_CheckExtensions (void)
 			gl_anisotropy_able = true;
 		}
 		else
+		{
 			Con_Warning ("anisotropic filtering locked by driver. Current driver setting is %f\n", test1);
+		}
 
 		//get max value either way, so the menu and stuff know it
 		glGetFloatv (GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_max_anisotropy);
 	}
 	else
+	{
 		Con_Warning ("texture_filter_anisotropic not supported\n");
+	}
 }
 
 /*
@@ -880,7 +849,7 @@ void ClearAllStates (void)
 	int		i;
 
 // send an up event for each key, to make sure the server clears them all
-	for (i=0 ; i<256 ; i++)
+	for (i = 0; i < 256; i++)
 	{
 		Key_Event (i, false);
 	}
@@ -932,24 +901,12 @@ const char *VID_GetModeDescription (int mode)
 {
 	const char	*pinfo;
 	vmode_t		*pv;
-	static char	temp[100];
 
 	if ((mode < 0) || (mode >= nummodes))
 		return NULL;
 
-	if (!leavecurrentmode)
-	{
-		pv = VID_GetModePtr (mode);
-		pinfo = pv->modedesc;
-	}
-	else
-	{
-		sprintf (temp, "Desktop resolution (%ix%ix%i)", //johnfitz -- added bpp
-				 modelist[MODE_FULLSCREEN_DEFAULT].width,
-				 modelist[MODE_FULLSCREEN_DEFAULT].height,
-				 modelist[MODE_FULLSCREEN_DEFAULT].bpp); //johnfitz -- added bpp
-		pinfo = temp;
-	}
+	pv = VID_GetModePtr (mode);
+	pinfo = pv->modedesc;
 
 	return pinfo;
 }
@@ -971,17 +928,7 @@ const char *VID_GetExtModeDescription (int mode)
 	pv = VID_GetModePtr (mode);
 	if (modelist[mode].type == MODE_FULLSCREEN_DEFAULT)
 	{
-		if (!leavecurrentmode)
-		{
-			sprintf(pinfo,"%s fullscreen", pv->modedesc);
-		}
-		else
-		{
-			sprintf (pinfo, "Desktop resolution (%ix%ix%i)", //johnfitz -- added bpp
-					 modelist[MODE_FULLSCREEN_DEFAULT].width,
-					 modelist[MODE_FULLSCREEN_DEFAULT].height,
-					 modelist[MODE_FULLSCREEN_DEFAULT].bpp); //johnfitz -- added bpp
-		}
+		sprintf(pinfo,"%s fullscreen", pv->modedesc);
 	}
 	else
 	{
@@ -1011,21 +958,20 @@ VID_DescribeModes_f -- johnfitz -- changed formatting, and added refresh rates a
 */
 void VID_DescribeModes_f (void)
 {
-	int		i, lnummodes, t;
+	int		i, lnummodes;
 	vmode_t		*pv;
-	int		lastwidth=0, lastheight=0, lastbpp=0, count=0;
+	int		lastwidth, lastheight, lastbpp, count;
 
 	lnummodes = VID_NumModes ();
 
-	t = leavecurrentmode;
-	leavecurrentmode = 0;
+	lastwidth = lastheight = lastbpp = count = 0;
 
-	for (i=1 ; i<lnummodes ; i++)
+	for (i = 1; i < lnummodes; i++)
 	{
 		pv = VID_GetModePtr (i);
 		if (lastwidth != pv->width || lastheight != pv->height || lastbpp != pv->bpp)
 		{
-			if (count>0)
+			if (count > 0)
 				Con_SafePrintf ("\n");
 			Con_SafePrintf ("   %4i x %4i x %i", pv->width, pv->height, pv->bpp);
 			lastwidth = pv->width;
@@ -1035,8 +981,6 @@ void VID_DescribeModes_f (void)
 		}
 	}
 	Con_Printf ("\n%i modes\n", count);
-
-	leavecurrentmode = t;
 }
 
 //==========================================================================
@@ -1053,21 +997,33 @@ VID_InitDIB
 void VID_InitDIB (void)
 {
 	const SDL_VideoInfo *info;
+	int i;
 
 	modelist[0].type = MODE_WINDOWED;
 
-	if (COM_CheckParm("-width"))
-		modelist[0].width = Q_atoi(com_argv[COM_CheckParm("-width")+1]);
-	else
-		modelist[0].width = 800;	// QuakeSpasm, was 640
+	modelist[0].width = vid_width.value;
+	modelist[0].height = vid_height.value;
+
+	i = COM_CheckParm("-width");
+	if (i && i < com_argc-1)
+	{
+		modelist[0].width = Q_atoi(com_argv[i+1]);
+		
+		if (!COM_CheckParm("-height"))
+			modelist[0].height = modelist[0].width * 3 / 4;
+	}
+
+	i = COM_CheckParm("-height");
+	if (i && i < com_argc-1)
+	{
+		modelist[0].height = Q_atoi(com_argv[i+1]);
+
+		if (!COM_CheckParm("-width"))
+			modelist[0].width = modelist[0].height * 4 / 3;
+	}
 
 	if (modelist[0].width < 320)
 		modelist[0].width = 320;
-
-	if (COM_CheckParm("-height"))
-		modelist[0].height= Q_atoi(com_argv[COM_CheckParm("-height")+1]);
-	else
-		modelist[0].height = modelist[0].width * 240/320;
 
 	if (modelist[0].height < 200) //johnfitz -- was 240
 		modelist[0].height = 200; //johnfitz -- was 240
@@ -1185,12 +1141,13 @@ void	VID_Init (void)
 	static char vid_center[] = "SDL_VIDEO_CENTERED=center";
 	const SDL_VideoInfo *info;
 	int		i, existingmode;
-	int		basenummodes, width, height, bpp, findbpp, done;
-
-	//johnfitz -- clean up init readouts
-	//Con_Printf("------------- Init Video -------------\n");
-	//Con_Printf("%cVideo Init\n", 2);
-	//johnfitz
+	int		width, height, bpp;
+	int		p;
+	const char	*read_vars[] = { "vid_fullscreen",
+					 "vid_width",
+					 "vid_height",
+					 "vid_bpp" };
+#define num_readvars	( sizeof(read_vars)/sizeof(read_vars[0]) )
 
 	Cvar_RegisterVariable (&vid_fullscreen, VID_Changed_f); //johnfitz
 	Cvar_RegisterVariable (&vid_width, VID_Changed_f); //johnfitz
@@ -1208,168 +1165,154 @@ void	VID_Init (void)
 	if (SDL_InitSubSystem(SDL_INIT_VIDEO) == -1)
 		Sys_Error("Could not initialize SDL Video");
 
-	SDL_putenv (vid_center);
+	putenv (vid_center);	/* SDL_putenv is problematic in versions <= 1.2.9 */
+
+	if (CFG_OpenConfig("config.cfg") == 0)
+	{
+		CFG_ReadCvars(read_vars, num_readvars);
+		CFG_CloseConfig();
+	}
+	CFG_ReadCvarOverrides(read_vars, num_readvars);
 
 	VID_InitDIB();
-	basenummodes = nummodes = 1;
 	VID_InitFullDIB();
 
-	// Config file is not read yet, so we don't know vid_fullscreen.value
-	// Changed this to default to -window as otherwise it occasionally forces
-	// two switches of video mode (window->fullscreen->window) which is bad S.A
-	// It's still not perfect but, hell, this ancient code can be a pain
-	if (!COM_CheckParm("-fullscreen") && !COM_CheckParm ("-f"))
+	if (COM_CheckParm("-window") || COM_CheckParm("-w"))
+	{
+		Cvar_Set ("vid_fullscreen", "0");
+	}
+	else if (COM_CheckParm("-fullscreen") || COM_CheckParm("-f"))
+	{
+		Cvar_Set ("vid_fullscreen", "1");
+	}
+
+	if (!vid_fullscreen.value)
 	{
 		windowed = true;
 		vid_default = MODE_WINDOWED;
 	}
 	else
 	{
-		Cvar_Set ("vid_fullscreen", "1");
-		if (nummodes == 1)
-			Sys_Error ("No RGB fullscreen modes available");
-
 		windowed = false;
+		vid_default = NO_MODE;
 
-		if (COM_CheckParm("-mode"))
+		width = vid_width.value;
+		height = vid_height.value;
+		bpp = vid_bpp.value;
+
+		if (COM_CheckParm("-current"))
 		{
-			vid_default = Q_atoi(com_argv[COM_CheckParm("-mode")+1]);
+			info = SDL_GetVideoInfo();
+			width = info->current_w;
+			height = info->current_h;
+			bpp = info->vfmt->BitsPerPixel;
 		}
 		else
 		{
-			if (COM_CheckParm("-current"))
+			p = COM_CheckParm("-width");
+			if (p && p < com_argc-1)
 			{
-				info = SDL_GetVideoInfo();
-				modelist[MODE_FULLSCREEN_DEFAULT].width = info->current_w;
-				modelist[MODE_FULLSCREEN_DEFAULT].height = info->current_h;
-				vid_default = MODE_FULLSCREEN_DEFAULT;
-				leavecurrentmode = 1;
+				width = Q_atoi(com_argv[p+1]);
+
+				if(!COM_CheckParm("-height"))
+					height = width * 3 / 4;
 			}
-			else
+
+			p = COM_CheckParm("-height");
+			if (p && p < com_argc-1)
 			{
-				if (COM_CheckParm("-width"))
+				height = Q_atoi(com_argv[p+1]);
+
+				if(!COM_CheckParm("-width"))
+					width = height * 4 / 3;
+			}
+
+			p = COM_CheckParm("-bpp");
+			if (p && p < com_argc-1)
+				bpp = Q_atoi(com_argv[p+1]);
+		}
+
+		// if they want to force it, add the specified mode to the list
+		if (COM_CheckParm("-force") && (nummodes < MAX_MODE_LIST))
+		{
+			modelist[nummodes].type = MODE_FULLSCREEN_DEFAULT;
+			modelist[nummodes].width = width;
+			modelist[nummodes].height = height;
+			modelist[nummodes].modenum = 0;
+			modelist[nummodes].halfscreen = 0;
+			modelist[nummodes].dib = 1;
+			modelist[nummodes].fullscreen = 1;
+			modelist[nummodes].bpp = bpp;
+			sprintf (modelist[nummodes].modedesc, "%dx%dx%d",
+					 modelist[nummodes].width,
+					 modelist[nummodes].height,
+					 modelist[nummodes].bpp);
+
+			for (i=nummodes, existingmode = 0 ; i<nummodes ; i++)
+			{
+				if ((modelist[nummodes].width == modelist[i].width)   &&
+					(modelist[nummodes].height == modelist[i].height) &&
+					(modelist[nummodes].bpp == modelist[i].bpp))
 				{
-					width = Q_atoi(com_argv[COM_CheckParm("-width")+1]);
-				}
-				else
-				{
-					width = 640;
-				}
-
-				if (COM_CheckParm("-bpp"))
-				{
-					bpp = Q_atoi(com_argv[COM_CheckParm("-bpp")+1]);
-					findbpp = 0;
-				}
-				else
-				{
-					bpp = 15;
-					findbpp = 1;
-				}
-
-				if (COM_CheckParm("-height"))
-					height = Q_atoi(com_argv[COM_CheckParm("-height")+1]);
-				else
-					height = width * 3 / 4; // assume 4:3 aspect ratio
-
-			// if they want to force it, add the specified mode to the list
-				if (COM_CheckParm("-force") && (nummodes < MAX_MODE_LIST))
-				{
-					modelist[nummodes].type = MODE_FULLSCREEN_DEFAULT;
-					modelist[nummodes].width = width;
-					modelist[nummodes].height = height;
-					modelist[nummodes].modenum = 0;
-					modelist[nummodes].halfscreen = 0;
-					modelist[nummodes].dib = 1;
-					modelist[nummodes].fullscreen = 1;
-					modelist[nummodes].bpp = bpp;
-					sprintf (modelist[nummodes].modedesc, "%dx%dx%d",
-							 modelist[nummodes].width,
-							 modelist[nummodes].height,
-							 modelist[nummodes].bpp);
-
-					for (i=nummodes, existingmode = 0 ; i<nummodes ; i++)
-					{
-						if ((modelist[nummodes].width == modelist[i].width)   &&
-							(modelist[nummodes].height == modelist[i].height) &&
-							(modelist[nummodes].bpp == modelist[i].bpp))
-						{
-							existingmode = 1;
-							break;
-						}
-					}
-
-					if (!existingmode)
-					{
-						nummodes++;
-					}
-				}
-
-				done = 0;
-
-				do
-				{
-					if (COM_CheckParm("-height"))
-					{
-						height = Q_atoi(com_argv[COM_CheckParm("-height")+1]);
-
-						for (i=1, vid_default=0 ; i<nummodes ; i++)
-						{
-							if ((modelist[i].width == width) &&
-								(modelist[i].height == height) &&
-								(modelist[i].bpp == bpp))
-							{
-								vid_default = i;
-								done = 1;
-								break;
-							}
-						}
-					}
-					else
-					{
-						for (i=1, vid_default=0 ; i<nummodes ; i++)
-						{
-							if ((modelist[i].width == width) && (modelist[i].bpp == bpp))
-							{
-								vid_default = i;
-								done = 1;
-								break;
-							}
-						}
-					}
-
-					if (!done)
-					{
-						if (findbpp)
-						{
-							switch (bpp)
-							{
-							case 15:
-								bpp = 16;
-								break;
-							case 16:
-								bpp = 32;
-								break;
-							case 32:
-								bpp = 24;
-								break;
-							case 24:
-								done = 1;
-								break;
-							}
-						}
-						else
-						{
-							done = 1;
-						}
-					}
-				} while (!done);
-
-				if (!vid_default)
-				{
-					Sys_Error ("Specified video mode not available");
+					existingmode = 1;
+					break;
 				}
 			}
+
+			if (!existingmode)
+			{
+				nummodes++;
+			}
+		}
+
+		// Try to find a mode with matching width, height and bpp
+		if (vid_default == NO_MODE)
+		{
+			for (i = 1; i < nummodes; i++)
+			{
+				if ((modelist[i].width == width) &&
+					(modelist[i].height == height) &&
+					(modelist[i].bpp == bpp))
+				{
+					vid_default = i;
+					break;
+				}
+			}
+		}
+
+		// Try to find a mode with matching width and height
+		if (vid_default == NO_MODE)
+		{
+			for (i = 1; i < nummodes; i++)
+			{
+				if ((modelist[i].width == width) &&
+					(modelist[i].height == height))
+				{
+					vid_default = i;
+					break;
+				}
+			}
+		}
+
+		// Try to find a mode with matching width
+		if (vid_default == NO_MODE)
+		{
+			for (i = 1; i < nummodes; i++)
+			{
+				if ((modelist[i].width == width))
+				{
+					vid_default = i;
+					break;
+				}
+			}
+		}
+
+		// Still no luck? Default to windowed mode
+		if (vid_default == NO_MODE)
+		{
+			Cvar_Set ("vid_fullscreen", "0");
+			windowed = true;
+			vid_default = MODE_WINDOWED;
 		}
 	}
 
@@ -1404,20 +1347,9 @@ void	VID_Init (void)
 	VID_Gamma_Init(); //johnfitz
 	VID_Menu_Init(); //johnfitz
 
-	//johnfitz -- command line vid settings should override config file settings.
+	//QuakeSpasm: current vid settings should override config file settings.
 	//so we have to lock the vid mode from now until after all config files are read.
-	if (COM_CheckParm("-width") || COM_CheckParm("-height") ||
-		COM_CheckParm("-bpp")				||
-		COM_CheckParm("-window") || COM_CheckParm("-w") ||
-		COM_CheckParm("-fullscreen") || COM_CheckParm("-f"))
-	{
-		vid_locked = true;
-	}
-	//johnfitz
-
-	// The problem here is (say) previous video mode is 1024x768 windowed
-	// And we call "fitzquake -w". This disables setting of 1024x768, and when video lock
-	// is removed, we get 800x600.
+	vid_locked = true;
 }
 
 // new proc by S.A., called by alt-return key binding.
@@ -1496,21 +1428,21 @@ VID_Menu_Init
 */
 void VID_Menu_Init (void)
 {
-	int i,j,h,w;
+	int i, j, h, w;
 
-	for (i=1;i<nummodes;i++) //start i at mode 1 because 0 is windowed mode
+	for (i = 1; i < nummodes; i++) //start i at mode 1 because 0 is windowed mode
 	{
 		w = modelist[i].width;
 		h = modelist[i].height;
 
-		for (j=0;j<vid_menu_nummodes;j++)
+		for (j = 0; j < vid_menu_nummodes; j++)
 		{
 			if (vid_menu_modes[j].width == w &&
 				vid_menu_modes[j].height == h)
 				break;
 		}
 
-		if (j==vid_menu_nummodes)
+		if (j == vid_menu_nummodes)
 		{
 			vid_menu_modes[j].width = w;
 			vid_menu_modes[j].height = h;
@@ -1528,11 +1460,11 @@ regenerates bpp list based on current vid_width and vid_height
 */
 void VID_Menu_RebuildBppList (void)
 {
-	int i,j,b;
+	int i, j, b;
 
-	vid_menu_numbpps=0;
+	vid_menu_numbpps = 0;
 
-	for (i=1;i<nummodes;i++) //start i at mode 1 because 0 is windowed mode
+	for (i = 1; i < nummodes; i++) //start i at mode 1 because 0 is windowed mode
 	{
 		//bpp list is limited to bpps available with current width/height
 		if (modelist[i].width != vid_width.value ||
@@ -1541,13 +1473,13 @@ void VID_Menu_RebuildBppList (void)
 
 		b = modelist[i].bpp;
 
-		for (j=0;j<vid_menu_numbpps;j++)
+		for (j = 0; j < vid_menu_numbpps; j++)
 		{
 			if (vid_menu_bpps[j] == b)
 				break;
 		}
 
-		if (j==vid_menu_numbpps)
+		if (j == vid_menu_numbpps)
 		{
 			vid_menu_bpps[j] = b;
 			vid_menu_numbpps++;
@@ -1562,11 +1494,11 @@ void VID_Menu_RebuildBppList (void)
 	}
 
 	//if vid_bpp is not in the new list, change vid_bpp
-	for (i=0;i<vid_menu_numbpps;i++)
+	for (i = 0; i < vid_menu_numbpps; i++)
 		if (vid_menu_bpps[i] == (int)(vid_bpp.value))
 			break;
 
-	if (i==vid_menu_numbpps)
+	if (i == vid_menu_numbpps)
 		Cvar_SetValue ("vid_bpp",(float)vid_menu_bpps[0]);
 }
 
@@ -1582,29 +1514,32 @@ void VID_Menu_ChooseNextMode (int dir)
 {
 	int i;
 
-	for (i=0;i<vid_menu_nummodes;i++)
+	if (vid_menu_nummodes)
 	{
-		if (vid_menu_modes[i].width == vid_width.value &&
-			vid_menu_modes[i].height == vid_height.value)
-			break;
-	}
+		for (i = 0; i < vid_menu_nummodes; i++)
+		{
+			if (vid_menu_modes[i].width == vid_width.value &&
+				vid_menu_modes[i].height == vid_height.value)
+				break;
+		}
 
-	if (i==vid_menu_nummodes) //can't find it in list, so it must be a custom windowed res
-	{
-		i = 0;
-	}
-	else
-	{
-		i+=dir;
-		if (i>=vid_menu_nummodes)
+		if (i == vid_menu_nummodes) //can't find it in list, so it must be a custom windowed res
+		{
 			i = 0;
-		else if (i<0)
-			i = vid_menu_nummodes-1;
-	}
+		}
+		else
+		{
+			i += dir;
+			if (i >= vid_menu_nummodes)
+				i = 0;
+			else if (i < 0)
+				i = vid_menu_nummodes-1;
+		}
 
-	Cvar_SetValue ("vid_width",(float)vid_menu_modes[i].width);
-	Cvar_SetValue ("vid_height",(float)vid_menu_modes[i].height);
-	VID_Menu_RebuildBppList ();
+		Cvar_SetValue ("vid_width",(float)vid_menu_modes[i].width);
+		Cvar_SetValue ("vid_height",(float)vid_menu_modes[i].height);
+		VID_Menu_RebuildBppList ();
+	}
 }
 
 /*
@@ -1618,26 +1553,29 @@ void VID_Menu_ChooseNextBpp (int dir)
 {
 	int i;
 
-	for (i=0;i<vid_menu_numbpps;i++)
+	if (vid_menu_numbpps)
 	{
-		if (vid_menu_bpps[i] == vid_bpp.value)
-			break;
-	}
+		for (i = 0; i < vid_menu_numbpps; i++)
+		{
+			if (vid_menu_bpps[i] == vid_bpp.value)
+				break;
+		}
 
-	if (i==vid_menu_numbpps) //can't find it in list
-	{
-		i = 0;
-	}
-	else
-	{
-		i+=dir;
-		if (i>=vid_menu_numbpps)
+		if (i == vid_menu_numbpps) //can't find it in list
+		{
 			i = 0;
-		else if (i<0)
-			i = vid_menu_numbpps-1;
-	}
+		}
+		else
+		{
+			i += dir;
+			if (i >= vid_menu_numbpps)
+				i = 0;
+			else if (i < 0)
+				i = vid_menu_numbpps-1;
+		}
 
-	Cvar_SetValue ("vid_bpp",(float)vid_menu_bpps[i]);
+		Cvar_SetValue ("vid_bpp",(float)vid_menu_bpps[i]);
+	}
 }
 
 /*
@@ -1649,28 +1587,33 @@ chooses next refresh rate in order, then updates vid_refreshrate cvar
 */
 void VID_Menu_ChooseNextRate (int dir)
 {
+#if 0	/* not implemented for SDL */
 	int i;
 
-	for (i=0;i<vid_menu_numrates;i++)
+	if (vid_menu_numrates)
 	{
-		if (vid_menu_rates[i] == vid_refreshrate.value)
-			break;
-	}
+		for (i = 0; i < vid_menu_numrates; i++)
+		{
+			if (vid_menu_rates[i] == vid_refreshrate.value)
+				break;
+		}
 
-	if (i==vid_menu_numrates) //can't find it in list
-	{
-		i = 0;
-	}
-	else
-	{
-		i+=dir;
-		if (i>=vid_menu_numrates)
+		if (i == vid_menu_numrates) //can't find it in list
+		{
 			i = 0;
-		else if (i<0)
-			i = vid_menu_numrates-1;
-	}
+		}
+		else
+		{
+			i += dir;
+			if (i >= vid_menu_numrates)
+				i = 0;
+			else if (i < 0)
+				i = vid_menu_numrates-1;
+		}
 
-	Cvar_SetValue ("vid_refreshrate",(float)vid_menu_rates[i]);
+		Cvar_SetValue ("vid_refreshrate",(float)vid_menu_rates[i]);
+	}
+#endif
 }
 
 /*
@@ -1823,7 +1766,8 @@ void VID_MenuDraw (void)
 	i++;
 
 	M_Print (16, video_cursor_table[i], "      Refresh rate");
-//	M_Print (184, video_cursor_table[i], va("%i Hz", (int)vid_refreshrate.value)); refresh rates are disabled for now -- kristian
+// refresh rates not implemented -- kristian
+//	M_Print (184, video_cursor_table[i], va("%i Hz", (int)vid_refreshrate.value));
 	M_Print (184, video_cursor_table[i], "N/A");
 	i++;
 
@@ -1871,3 +1815,4 @@ void VID_Menu_f (void)
 	//set up bpp and rate lists based on current cvars
 	VID_Menu_RebuildBppList ();
 }
+

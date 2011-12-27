@@ -86,7 +86,7 @@ cvar_t		scr_sbaralpha = {"scr_sbaralpha", "0.95", true};
 cvar_t		scr_conwidth = {"scr_conwidth", "0", true};
 cvar_t		scr_conscale = {"scr_conscale", "1", true};
 cvar_t		scr_scale = {"scr_scale", "1", true};
-cvar_t		scr_crosshaircale = {"scr_crosshaircale", "1", true};
+cvar_t		scr_crosshairscale = {"scr_crosshairscale", "1", true};
 cvar_t		scr_showfps = {"scr_showfps", "0"};
 cvar_t		scr_clock = {"scr_clock", "0"};
 //johnfitz
@@ -340,7 +340,7 @@ void SCR_SizeDown_f (void)
 SCR_Conwidth_f -- johnfitz -- called when scr_conwidth or scr_conscale changes
 ==================
 */
-void SCR_Conwidth_f (void)
+void SCR_Conwidth_f (cvar_t *var)
 {
 	vid.conwidth = (scr_conwidth.value > 0) ? (int)scr_conwidth.value : (scr_conscale.value > 0) ? (int)(vid.width/scr_conscale.value) : vid.width;
 	vid.conwidth = CLAMP (320, vid.conwidth, vid.width);
@@ -375,7 +375,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_conwidth, &SCR_Conwidth_f);
 	Cvar_RegisterVariable (&scr_conscale, &SCR_Conwidth_f);
 	Cvar_RegisterVariable (&scr_scale, NULL);
-	Cvar_RegisterVariable (&scr_crosshaircale, NULL);
+	Cvar_RegisterVariable (&scr_crosshairscale, NULL);
 	Cvar_RegisterVariable (&scr_showfps, NULL);
 	Cvar_RegisterVariable (&scr_clock, NULL);
 	//johnfitz
@@ -451,7 +451,7 @@ SCR_DrawClock -- johnfitz
 */
 void SCR_DrawClock (void)
 {
-	char	str[9];
+	char	str[12];
 
 	if (scr_clock.value == 1)
 	{
@@ -738,8 +738,8 @@ void SCR_ScreenShot_f (void)
 // find a file name to save it to
 	for (i=0; i<10000; i++)
 	{
-		sprintf (tganame, "spasm%04i.tga", i);	// "fitz%04i.tga"
-		sprintf (checkname, "%s/%s", com_gamedir, tganame);
+		q_snprintf (tganame, sizeof(tganame), "spasm%04i.tga", i);	// "fitz%04i.tga"
+		q_snprintf (checkname, sizeof(checkname), "%s/%s", com_gamedir, tganame);
 		if (Sys_FileTime(checkname) == -1)
 			break;	// file doesn't exist
 	}
@@ -870,14 +870,14 @@ int SCR_ModalMessage (const char *text, float timeout) //johnfitz -- timeout
 
 	S_ClearBuffer ();		// so dma doesn't loop current sound
 
-	time1 = Sys_FloatTime () + timeout; //johnfitz -- timeout
+	time1 = Sys_DoubleTime () + timeout; //johnfitz -- timeout
 	time2 = 0.0f; //johnfitz -- timeout
 
 	do
 	{
 		key_count = -1;		// wait for a key down and up
 		Sys_SendKeyEvents ();
-		if (timeout) time2 = Sys_FloatTime (); //johnfitz -- zero timeout means wait forever.
+		if (timeout) time2 = Sys_DoubleTime (); //johnfitz -- zero timeout means wait forever.
 	} while (key_lastpress != 'y' &&
 			 key_lastpress != 'n' &&
 			 key_lastpress != K_ESCAPE &&

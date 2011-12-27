@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-char loadfilename[MAX_OSPATH]; //file scope so that error messages can use it
+static char loadfilename[MAX_OSPATH]; //file scope so that error messages can use it
 
 /*
 ============
@@ -33,17 +33,17 @@ returns a pointer to hunk allocated RGBA data
 TODO: search order: tga png jpg pcx lmp
 ============
 */
-byte *Image_LoadImage (char *name, int *width, int *height)
+byte *Image_LoadImage (const char *name, int *width, int *height)
 {
 	FILE	*f;
 
-	sprintf (loadfilename, "%s.tga", name);
-	COM_FOpenFile (loadfilename, &f);
+	q_snprintf (loadfilename, sizeof(loadfilename), "%s.tga", name);
+	COM_FOpenFile (loadfilename, &f, NULL);
 	if (f)
 		return Image_LoadTGA (f, width, height);
 
-	sprintf (loadfilename, "%s.pcx", name);
-	COM_FOpenFile (loadfilename, &f);
+	q_snprintf (loadfilename, sizeof(loadfilename), "%s.pcx", name);
+	COM_FOpenFile (loadfilename, &f, NULL);
 	if (f)
 		return Image_LoadPCX (f, width, height);
 
@@ -99,14 +99,14 @@ returns true if successful
 TODO: support BGRA and BGR formats (since opengl can return them, and we don't have to swap)
 ============
 */
-qboolean Image_WriteTGA (char *name, byte *data, int width, int height, int bpp, qboolean upsidedown)
+qboolean Image_WriteTGA (const char *name, byte *data, int width, int height, int bpp, qboolean upsidedown)
 {
 	int		handle, i, size, temp, bytes;
 	char	pathname[MAX_OSPATH];
 	byte	header[TARGAHEADERSIZE];
 
 	Sys_mkdir (com_gamedir); //if we've switched to a nonexistant gamedir, create it now so we don't crash
-	sprintf (pathname, "%s/%s", com_gamedir, name);
+	q_snprintf (pathname, sizeof(pathname), "%s/%s", com_gamedir, name);
 	handle = Sys_FileOpenWrite (pathname);
 	if (handle == -1)
 		return false;
@@ -196,24 +196,24 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 				switch (targa_header.pixel_size)
 				{
 				case 24:
-						blue = getc(fin);
-						green = getc(fin);
-						red = getc(fin);
-						*pixbuf++ = red;
-						*pixbuf++ = green;
-						*pixbuf++ = blue;
-						*pixbuf++ = 255;
-						break;
+					blue = getc(fin);
+					green = getc(fin);
+					red = getc(fin);
+					*pixbuf++ = red;
+					*pixbuf++ = green;
+					*pixbuf++ = blue;
+					*pixbuf++ = 255;
+					break;
 				case 32:
-						blue = getc(fin);
-						green = getc(fin);
-						red = getc(fin);
-						alphabyte = getc(fin);
-						*pixbuf++ = red;
-						*pixbuf++ = green;
-						*pixbuf++ = blue;
-						*pixbuf++ = alphabyte;
-						break;
+					blue = getc(fin);
+					green = getc(fin);
+					red = getc(fin);
+					alphabyte = getc(fin);
+					*pixbuf++ = red;
+					*pixbuf++ = green;
+					*pixbuf++ = blue;
+					*pixbuf++ = alphabyte;
+					break;
 				}
 			}
 		}
@@ -236,17 +236,19 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 					switch (targa_header.pixel_size)
 					{
 					case 24:
-							blue = getc(fin);
-							green = getc(fin);
-							red = getc(fin);
-							alphabyte = 255;
-							break;
+						blue = getc(fin);
+						green = getc(fin);
+						red = getc(fin);
+						alphabyte = 255;
+						break;
 					case 32:
-							blue = getc(fin);
-							green = getc(fin);
-							red = getc(fin);
-							alphabyte = getc(fin);
-							break;
+						blue = getc(fin);
+						green = getc(fin);
+						red = getc(fin);
+						alphabyte = getc(fin);
+						break;
+					default: /* avoid compiler warnings */
+						blue = red = green = alphabyte = 0;
 					}
 
 					for(j=0;j<packetSize;j++)
@@ -277,24 +279,26 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 						switch (targa_header.pixel_size)
 						{
 						case 24:
-								blue = getc(fin);
-								green = getc(fin);
-								red = getc(fin);
-								*pixbuf++ = red;
-								*pixbuf++ = green;
-								*pixbuf++ = blue;
-								*pixbuf++ = 255;
-								break;
+							blue = getc(fin);
+							green = getc(fin);
+							red = getc(fin);
+							*pixbuf++ = red;
+							*pixbuf++ = green;
+							*pixbuf++ = blue;
+							*pixbuf++ = 255;
+							break;
 						case 32:
-								blue = getc(fin);
-								green = getc(fin);
-								red = getc(fin);
-								alphabyte = getc(fin);
-								*pixbuf++ = red;
-								*pixbuf++ = green;
-								*pixbuf++ = blue;
-								*pixbuf++ = alphabyte;
-								break;
+							blue = getc(fin);
+							green = getc(fin);
+							red = getc(fin);
+							alphabyte = getc(fin);
+							*pixbuf++ = red;
+							*pixbuf++ = green;
+							*pixbuf++ = blue;
+							*pixbuf++ = alphabyte;
+							break;
+						default: /* avoid compiler warnings */
+							blue = red = green = alphabyte = 0;
 						}
 						column++;
 						if (column==columns) // pixel packet run spans across rows
