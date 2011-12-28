@@ -74,7 +74,7 @@ cvar_t		sfxvolume = {"volume", "0.7", true};
 cvar_t		precache = {"precache", "1"};
 cvar_t		loadas8bit = {"loadas8bit", "0"};
 
-cvar_t		sndspeed = {"sndspeed", "11025"};
+cvar_t		sndspeed = {"sndspeed", "44100"};
 
 static	float	oldvolume = -1.0;
 

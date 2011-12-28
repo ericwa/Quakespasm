@@ -22,6 +22,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+static int getsample(byte *data, int inwidth, int srcsample)
+{
+	if (inwidth == 2)
+		return LittleShort ( ((short *)data)[srcsample] );
+	else
+		return (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+}
+
+static void putsample(byte *data, int outwidth, int i, int sample)
+{
+	if (outwidth == 2)
+		((short *)data)[i] = sample;
+	else
+		((signed char *)data)[i] = sample >> 8;
+}
+
+
 /*
 ================
 ResampleSfx
@@ -29,11 +46,11 @@ ResampleSfx
 */
 static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 {
-	int		outcount;
+	int		incount, outcount;
 	int		srcsample;
-	float	stepscale;
+	float	stepscale, samplefrac;
 	int		i;
-	int		sample, samplefrac, fracstep;
+	int		sample;
 	sfxcache_t	*sc;
 
 	sc = (sfxcache_t *) Cache_Check (&sfx->cache);
@@ -42,6 +59,7 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 
 	stepscale = (float)inrate / shm->speed;	// this is usually 0.5, 1, or 2
 
+	incount = sc->length;
 	outcount = sc->length / stepscale;
 	sc->length = outcount;
 	if (sc->loopstart != -1)
@@ -64,21 +82,30 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 	}
 	else
 	{
-// general case
-		samplefrac = 0;
-		fracstep = stepscale*256;
-		for (i = 0; i < outcount; i++)
+		if (stepscale < 1)
 		{
-			srcsample = samplefrac >> 8;
-			samplefrac += fracstep;
-			if (inwidth == 2)
-				sample = LittleShort ( ((short *)data)[srcsample] );
-			else
-				sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
-			if (sc->width == 2)
-				((short *)sc->data)[i] = sample;
-			else
-				((signed char *)sc->data)[i] = sample >> 8;
+// upsampling
+			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
+			{	
+				int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
+				int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);
+				
+				float srcsample1weight = samplefrac - floor(samplefrac);
+				float srcsample2weight = 1 - srcsample1weight;
+				
+				sample = (srcsample1weight * getsample(data, inwidth, srcsample1))
+						  + (srcsample2weight * getsample(data, inwidth, srcsample2));
+				putsample(sc->data, sc->width, i, sample);
+			}
+		}
+		else
+		{
+// general case / downsampling
+			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
+			{	
+				sample = getsample(data, inwidth, (int)samplefrac);
+				putsample(sc->data, sc->width, i, sample);
+			}
 		}
 	}
 }
