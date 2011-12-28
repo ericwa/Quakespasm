@@ -22,12 +22,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-static int getsample(byte *data, int inwidth, int srcsample)
+static int getsamplefromfile(byte *data, int inwidth, int srcsample)
 {
 	if (inwidth == 2)
 		return LittleShort ( ((short *)data)[srcsample] );
 	else
 		return (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+}
+
+static int getsample(byte *data, int inwidth, int srcsample)
+{
+	if (inwidth == 2)
+		return ((short *)data)[srcsample];
+	else
+		return (int)(((signed char *)data)[srcsample]) << 8;
 }
 
 static void putsample(byte *data, int outwidth, int i, int sample)
@@ -87,22 +95,46 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
 			{	
 				int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
-				int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);
+				int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);				
 				
-				float srcsample2weight = samplefrac - floor(samplefrac);
-				float srcsample1weight = 1 - srcsample2weight;
-				
-				sample = (srcsample1weight * getsample(data, inwidth, srcsample1))
-						  + (srcsample2weight * getsample(data, inwidth, srcsample2));
+				// how far between the samples. in [0, 1].
+				float mu = samplefrac - floor(samplefrac);
+
+				float srcsample1weight = 1 - mu;		
+				float srcsample2weight = mu;
+
+				sample = (srcsample1weight * getsamplefromfile(data, inwidth, srcsample1))
+						  + (srcsample2weight * getsamplefromfile(data, inwidth, srcsample2));
 				putsample(sc->data, sc->width, i, sample);
 			}
+
+			// poor man's low pass filter:
+			// s[i] = (s[i] + s[i+1] + s[i+2] + s[i+3]) / 4
+			
+			const int avg = 4;
+			char temp[sc->width * sc->length];
+			memset(temp, 0, sc->width * sc->length);
+			for (i = 0; i < outcount; i++)
+			{	
+				int64_t sum = 0;
+				int j;
+				for (j=0; j<avg; j++)
+				{
+					int pos = CLAMP(0, i + j, outcount - 1);
+					sum += getsample(sc->data, sc->width, pos);
+				}
+				sum /= avg;
+				putsample(temp, sc->width, i, sum);
+			}
+										 
+			memcpy(sc->data, temp, sc->width * sc->length);
 		}
 		else
 		{
 // general case / downsampling
 			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
 			{	
-				sample = getsample(data, inwidth, (int)samplefrac);
+				sample = getsamplefromfile(data, inwidth, (int)samplefrac);
 				putsample(sc->data, sc->width, i, sample);
 			}
 		}
