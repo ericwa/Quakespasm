@@ -59,7 +59,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-basedir /Applications/Quake"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-nolauncher"

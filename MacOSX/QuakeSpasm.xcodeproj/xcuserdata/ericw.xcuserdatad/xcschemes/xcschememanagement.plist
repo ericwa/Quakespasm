@@ -9,14 +9,29 @@
 			<key>orderHint</key>
 			<integer>1</integer>
 		</dict>
+		<key>QuakeSpasm Release.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>3</integer>
+		</dict>
 		<key>QuakeSpasm.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
+		<key>QuakeSpasm.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>2</integer>
+		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
+		<key>48A7C18B14A9E5000011B754</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 		<key>48ADEC8E1243D946000AF19C</key>
 		<dict>
 			<key>primary</key>
