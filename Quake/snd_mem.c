@@ -76,7 +76,7 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 	if (loadas8bit.value)
 		sc->width = 1;
 	else
-		sc->width = inwidth;
+		sc->width = 2;
 	sc->stereo = 0;
 
 // resample / decimate to the current source rate
@@ -195,7 +195,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	stepscale = (float)info.rate / shm->speed;
 	len = info.samples / stepscale;
 
-	len = len * info.width * info.channels;
+	len = len * 2 * info.channels;
 
 	if (info.samples == 0 || len == 0)
 	{
