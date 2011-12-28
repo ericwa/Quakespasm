@@ -47,7 +47,6 @@ ResampleSfx
 static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 {
 	int		incount, outcount;
-	int		srcsample;
 	float	stepscale, samplefrac;
 	int		i;
 	int		sample;
@@ -90,8 +89,8 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 				int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
 				int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);
 				
-				float srcsample1weight = samplefrac - floor(samplefrac);
-				float srcsample2weight = 1 - srcsample1weight;
+				float srcsample2weight = samplefrac - floor(samplefrac);
+				float srcsample1weight = 1 - srcsample2weight;
 				
 				sample = (srcsample1weight * getsample(data, inwidth, srcsample1))
 						  + (srcsample2weight * getsample(data, inwidth, srcsample2));
