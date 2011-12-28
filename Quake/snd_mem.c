@@ -109,7 +109,6 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			}
 
 			// poor man's low pass filter:
-			// s[i] = (s[i] + s[i+1] + s[i+2] + s[i+3]) / 4
 			
 			const int avg = 4;
 			char temp[sc->width * sc->length];
@@ -118,9 +117,9 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			{	
 				int64_t sum = 0;
 				int j;
-				for (j=0; j<avg; j++)
+				for (j = (i-(avg/2)); j < (i-(avg/2)) + avg; j++)
 				{
-					int pos = CLAMP(0, i + j, outcount - 1);
+					int pos = CLAMP(0, j, outcount - 1);
 					sum += getsample(sc->data, sc->width, pos);
 				}
 				sum /= avg;
