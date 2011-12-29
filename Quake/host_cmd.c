@@ -33,7 +33,13 @@ extern int com_nummissionpacks; //johnfitz
 
 int	current_skill;
 
+char lastsavename[MAX_QPATH]; // autosave
+char lastsavemapname[MAX_QPATH]; // autosave
+
 void Mod_Print (void);
+
+static qboolean _autoloadIfPossible();
+static void _resetAutoload();
 
 /*
 ==================
@@ -837,6 +843,8 @@ void Host_Map_f (void)
 	key_dest = key_game;			// remove console or menu
 	SCR_BeginLoadingPlaque ();
 
+    _resetAutoload(); // autosave
+
 	svs.serverflags = 0;			// haven't completed an episode yet
 	q_strlcpy (name, Cmd_Argv(1), sizeof(name));
 	// remove (any) trailing ".bsp" from mapname S.A.
@@ -894,7 +902,50 @@ void Host_Changelevel_f (void)
 	key_dest = key_game;	// remove console or menu
 	SV_SaveSpawnparms ();
 	q_strlcpy (level, Cmd_Argv(1), sizeof(level));
+	fprintf(stderr, "Host_Changelevel_f '%s'\n", level);
+	_resetAutoload(); // autosave
 	SV_SpawnServer (level);
+}
+
+static qboolean _autoloadIfPossible()
+{
+    if (!deathmatch.value &&
+        !coop.value &&
+        sv.active &&
+        !cl.intermission &&
+        svs.maxclients == 1)
+	{
+		if (0 == strcmp(sv.name, lastsavemapname))
+		{
+		    char command[MAX_QPATH + 5];
+		    sprintf(command, "load %s", lastsavename);
+
+            Cmd_ExecuteString (command, src_command);
+            return true;
+		}
+	}
+    return false;
+}
+
+static void _resetAutoload()
+{
+    lastsavemapname[0] = '\0'; // autosave - we are explicitly restarting the level, so don't autoload
+    lastsavename[0] = '\0';
+}
+
+/*
+==================
+Host_Autoload_f
+
+Automatically loads either the
+==================
+*/
+void Host_Autoload_f (void)
+{
+	if (!_autoloadIfPossible())
+	{
+	    Host_Restart_f();
+	}
 }
 
 /*
@@ -915,6 +966,18 @@ void Host_Restart_f (void)
 		return;
 	q_strlcpy (mapname, sv.name, sizeof(mapname));	// must copy out, because it gets cleared
 								// in sv_spawnserver
+
+	if (sv_player->v.deadflag != DEAD_NO) // autosave
+	{
+	    // If we are dead, attempt to autoload
+	    if (_autoloadIfPossible())
+	    {
+	        return;
+	    }
+	}
+
+    _resetAutoload();
+
 	SV_SpawnServer (mapname);
 }
 
@@ -1045,6 +1108,9 @@ void Host_Savegame_f (void)
 			return;
 		}
 	}
+
+    strcpy(lastsavename, Cmd_Argv(1)); // autosave
+    strcpy(lastsavemapname, sv.name); // autosave
 
 	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (name, ".sav", sizeof(name));
@@ -2297,6 +2363,7 @@ void Host_InitCommands (void)
 	Cmd_AddCommand ("load", Host_Loadgame_f);
 	Cmd_AddCommand ("save", Host_Savegame_f);
 	Cmd_AddCommand ("give", Host_Give_f);
+	Cmd_AddCommand ("autoload", Host_Autoload_f); //autosave
 
 	Cmd_AddCommand ("startdemos", Host_Startdemos_f);
 	Cmd_AddCommand ("demos", Host_Demos_f);
