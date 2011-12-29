@@ -92,6 +92,11 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 		if (stepscale < 1)
 		{
 // upsampling
+			
+			// linearly interpolate between the two closest source samples.
+			// this alone sounds much better than id's method, but still produces
+			// high-frequency junk.
+			
 			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
 			{	
 				int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
