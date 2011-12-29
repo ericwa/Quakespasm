@@ -113,25 +113,36 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 				putsample(sc->data, sc->width, i, sample);
 			}
 
-			// poor man's low pass filter:
+			// box filter
+			// FIXME: doesn't handle the start or end of the sound properly
 			
-			const int avg = 4;
-			char temp[sc->width * sc->length];
-			memset(temp, 0, sc->width * sc->length);
+			const int left = 2;
+			const int right = 2;
+			const int box_width = left + right + 1;
+			int history[left];
+			memset(history, 0, sizeof(history));
+			int box_sum = 0;
 			for (i = 0; i < outcount; i++)
 			{	
-				int64_t sum = 0;
+				const int sample_at_i = getsample(sc->data, sc->width, i);
+				
+				box_sum += sample_at_i;
+				box_sum -= history[0];
+				
+				const int newsample = box_sum / box_width;
+				
+				const int write_loc = CLAMP(0, i - right, outcount - 1);
+				
+				// before writing the sample at write_loc, copy it to the end of the history buffer
 				int j;
-				for (j = (i-(avg/2)); j < (i-(avg/2)) + avg; j++)
+				for (j=0; j<(left-1); j++)
 				{
-					int pos = CLAMP(0, j, outcount - 1);
-					sum += getsample(sc->data, sc->width, pos);
+					history[j] = history[j+1];
 				}
-				sum /= avg;
-				putsample(temp, sc->width, i, sum);
+				history[left-1] = getsample(sc->data, sc->width, write_loc);
+				
+				putsample(sc->data, sc->width, write_loc, newsample);
 			}
-										 
-			memcpy(sc->data, temp, sc->width * sc->length);
 		}
 		else
 		{
