@@ -114,7 +114,6 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			}
 
 			// box filter
-			// FIXME: doesn't handle the start or end of the sound properly
 			
 			// box_half_width is the number of samples on each side of a given sample
 			// that are averaged together. 
@@ -129,16 +128,12 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 				int history[box_half_width];
 				memset(history, 0, sizeof(history));
 				int box_sum = 0;
-				for (i = 0; i < outcount; i++)
+				for (i = 0; i < (outcount + box_half_width); i++)
 				{	
-					const int sample_at_i = getsample(sc->data, sc->width, i);
-					
+					const int sample_at_i = getsample(sc->data, sc->width, CLAMP(0, i, outcount - 1));					
 					box_sum += sample_at_i;
 					box_sum -= history[0];
-					
 					const int newsample = box_sum / box_width;
-					
-					const int write_loc = CLAMP(0, i - box_half_width, outcount - 1);
 					
 					// before writing the sample at write_loc, copy it to the end of the history buffer
 					int j;
@@ -146,9 +141,13 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 					{
 						history[j] = history[j+1];
 					}
-					history[box_half_width-1] = getsample(sc->data, sc->width, write_loc);
+					const int write_loc = i - box_half_width;
+					history[box_half_width-1] = getsample(sc->data, sc->width, CLAMP(0, write_loc, outcount - 1));
 					
-					putsample(sc->data, sc->width, write_loc, newsample);
+					if (write_loc >= 0 && write_loc < outcount)
+					{
+						putsample(sc->data, sc->width, write_loc, newsample);
+					}
 				}
 			}
 		}
