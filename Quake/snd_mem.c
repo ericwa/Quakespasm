@@ -129,20 +129,25 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 				int box_sum = 0;
 				for (i = 0; i < (outcount + box_half_width); i++)
 				{	
+					// calculate the new sample we will write
 					const int sample_at_i = getsample(sc->data, sc->width, CLAMP(0, i, outcount - 1));					
 					box_sum += sample_at_i;
 					box_sum -= history[0];
 					const int newsample = box_sum / box_width;
 					
-					// before writing the sample at write_loc, copy it to the end of the history buffer
+					// shift the entries in the history buffer left, discarding the entry
+					// at history[0] and leaving a space at history[box_half_width-1]
 					int j;
 					for (j=0; j<(box_half_width-1); j++)
 					{
 						history[j] = history[j+1];
 					}
+					
+					// save the sample we are going to overwrite at history[box_half_width-1]
 					const int write_loc = i - box_half_width;
 					history[box_half_width-1] = getsample(sc->data, sc->width, CLAMP(0, write_loc, outcount - 1));
 					
+					// only write the new sample if it lies within the bounds of the output array
 					if (write_loc >= 0 && write_loc < outcount)
 					{
 						putsample(sc->data, sc->width, write_loc, newsample);
