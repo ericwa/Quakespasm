@@ -117,10 +117,9 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			
 			// box_half_width is the number of samples on each side of a given sample
 			// that are averaged together. 
-			// for the most common case, 11025Hz => 44100Hz, i.e. stepscale = 0.25,
-			// I determined that a box width of 5 (i.e. a box_half_width of 2) produces
-			// the best sounding results.
-			const int box_half_width = CLAMP(0, (1 / (stepscale * 2)), 8);
+			// for 44100Hz output, a box width of 5 (i.e. a box_half_width of 2) seems
+			// to sound the best
+			const int box_half_width = CLAMP(0, sc->speed / 22050, 4);
 			
 			if (box_half_width > 0)
 			{
