@@ -116,32 +116,40 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 			// box filter
 			// FIXME: doesn't handle the start or end of the sound properly
 			
-			const int left = 2;
-			const int right = 2;
-			const int box_width = left + right + 1;
-			int history[left];
-			memset(history, 0, sizeof(history));
-			int box_sum = 0;
-			for (i = 0; i < outcount; i++)
-			{	
-				const int sample_at_i = getsample(sc->data, sc->width, i);
-				
-				box_sum += sample_at_i;
-				box_sum -= history[0];
-				
-				const int newsample = box_sum / box_width;
-				
-				const int write_loc = CLAMP(0, i - right, outcount - 1);
-				
-				// before writing the sample at write_loc, copy it to the end of the history buffer
-				int j;
-				for (j=0; j<(left-1); j++)
-				{
-					history[j] = history[j+1];
+			// box_half_width is the number of samples on each side of a given sample
+			// that are averaged together. 
+			// for the most common case, 11025Hz => 44100Hz, i.e. stepscale = 0.25,
+			// I determined that a box width of 5 (i.e. a box_half_width of 2) produces
+			// the best sounding results.
+			const int box_half_width = CLAMP(0, (1 / (stepscale * 2)), 8);
+			
+			if (box_half_width > 0)
+			{
+				const int box_width = (2 * box_half_width) + 1;
+				int history[box_half_width];
+				memset(history, 0, sizeof(history));
+				int box_sum = 0;
+				for (i = 0; i < outcount; i++)
+				{	
+					const int sample_at_i = getsample(sc->data, sc->width, i);
+					
+					box_sum += sample_at_i;
+					box_sum -= history[0];
+					
+					const int newsample = box_sum / box_width;
+					
+					const int write_loc = CLAMP(0, i - box_half_width, outcount - 1);
+					
+					// before writing the sample at write_loc, copy it to the end of the history buffer
+					int j;
+					for (j=0; j<(box_half_width-1); j++)
+					{
+						history[j] = history[j+1];
+					}
+					history[box_half_width-1] = getsample(sc->data, sc->width, write_loc);
+					
+					putsample(sc->data, sc->width, write_loc, newsample);
 				}
-				history[left-1] = getsample(sc->data, sc->width, write_loc);
-				
-				putsample(sc->data, sc->width, write_loc, newsample);
 			}
 		}
 		else
