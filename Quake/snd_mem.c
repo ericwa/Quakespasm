@@ -46,6 +46,107 @@ static void putsample(byte *data, int outwidth, int i, int sample)
 		((signed char *)data)[i] = sample >> 8;
 }
 
+/*
+================
+BoxFilter
+================
+*/
+void BoxFilter(int boxwidth, int numsamples, int width, void *data)
+{	
+	if (boxwidth <= 1)
+		return;
+	
+	const int box_half_width = boxwidth / 2;
+	boxwidth = (2 * box_half_width) + 1;
+		
+	int history[box_half_width];
+	memset(history, 0, sizeof(history));
+	int box_sum = 0;
+	
+	int i;
+	for (i = 0; i < (numsamples + box_half_width); i++)
+	{	
+		// calculate the new sample we will write
+		const int sample_at_i = getsample(data, width, CLAMP(0, i, numsamples - 1));					
+		box_sum += sample_at_i;
+		box_sum -= history[0];
+		const int newsample = box_sum / boxwidth;
+		
+		// shift the entries in the history buffer left, discarding the entry
+		// at history[0] and leaving a space at history[box_half_width-1]
+		int j;
+		for (j=0; j<(box_half_width-1); j++)
+		{
+			history[j] = history[j+1];
+		}
+		
+		// save the sample we are going to overwrite at history[box_half_width-1]
+		const int write_loc = i - box_half_width;
+		history[box_half_width-1] = getsample(data, width, CLAMP(0, write_loc, numsamples - 1));
+		
+		// only write the new sample if it lies within the bounds of the output array
+		if (write_loc >= 0 && write_loc < numsamples)
+		{
+			putsample(data, width, write_loc, newsample);
+		}
+	}
+}
+
+int ResamplerGetOutCount(int inrate, int incount, int outrate)
+{
+	float stepscale = (float)inrate / outrate;
+	int outcount = inrate / stepscale;
+	return outcount;
+}
+
+#define USE_ID_RESAMPLER 0
+
+void ResamplerConvert(int inrate, int incount, int inwidth, void *indata, 
+					  int outrate, int outcount, int outwidth, void *outdata)
+{
+	float stepscale = (float)inrate / outrate;
+	int i;
+	float samplefrac;
+	
+	if (stepscale < 1 && !USE_ID_RESAMPLER)
+	{
+		// upsampling
+		
+		// linearly interpolate between the two closest source samples.
+		// this alone sounds much better than id's method
+		
+		for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
+		{	
+			int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
+			int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);				
+			
+			// how far between the samples. in [0, 1].
+			float mu = samplefrac - floor(samplefrac);
+
+			// FIXME: Get rid of getsamplefromfile; caller should ensure input data is host-endian
+			int sample = ((1 - mu) * getsamplefromfile(indata, inwidth, srcsample1))
+			                 + (mu * getsamplefromfile(indata, inwidth, srcsample2));
+			putsample(outdata, outwidth, i, sample);
+		}
+		
+		// box filter to filter out garbage high frequencies produced by the upsampling
+		
+		// for 44100Hz output, a box width of 5 seems to sound the best
+		const int boxwidth = CLAMP(0, (outrate / 11025) + 1, 4);
+		
+		BoxFilter(boxwidth, outcount, outwidth, outdata);
+	}
+	else
+	{
+		// general case / downsampling
+		for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
+		{	
+			int sample = getsamplefromfile(indata, inwidth, (int)samplefrac);
+			putsample(outdata, outwidth, i, sample);
+		}
+	}
+}
+
 
 /*
 ================
@@ -55,16 +156,14 @@ ResampleSfx
 static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 {
 	int		incount, outcount;
-	float	stepscale, samplefrac;
-	int		i;
-	int		sample;
+	float	stepscale;
 	sfxcache_t	*sc;
 
 	sc = (sfxcache_t *) Cache_Check (&sfx->cache);
 	if (!sc)
 		return;
 
-	stepscale = (float)inrate / shm->speed;	// this is usually 0.5, 1, or 2
+	stepscale = (float)inrate / shm->speed;
 
 	incount = sc->length;
 	outcount = sc->length / stepscale;
@@ -79,92 +178,8 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 		sc->width = 2;
 	sc->stereo = 0;
 
-// resample / decimate to the current source rate
-
-	if (stepscale == 1 && inwidth == 1 && sc->width == 1)
-	{
-// fast special case
-		for (i = 0; i < outcount; i++)
-			((signed char *)sc->data)[i] = (int)( (unsigned char)(data[i]) - 128);
-	}
-	else
-	{
-		if (stepscale < 1)
-		{
-// upsampling
-			
-			// linearly interpolate between the two closest source samples.
-			// this alone sounds much better than id's method, but still produces
-			// high-frequency junk.
-			
-			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
-			{	
-				int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
-				int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);				
-				
-				// how far between the samples. in [0, 1].
-				float mu = samplefrac - floor(samplefrac);
-
-				float srcsample1weight = 1 - mu;		
-				float srcsample2weight = mu;
-
-				sample = (srcsample1weight * getsamplefromfile(data, inwidth, srcsample1))
-						  + (srcsample2weight * getsamplefromfile(data, inwidth, srcsample2));
-				putsample(sc->data, sc->width, i, sample);
-			}
-
-			// box filter
-			
-			// box_half_width is the number of samples on each side of a given sample
-			// that are averaged together. 
-			// for 44100Hz output, a box width of 5 (i.e. a box_half_width of 2) seems
-			// to sound the best
-			const int box_half_width = CLAMP(0, sc->speed / 22050, 4);
-			
-			if (box_half_width > 0)
-			{
-				const int box_width = (2 * box_half_width) + 1;
-				int history[box_half_width];
-				memset(history, 0, sizeof(history));
-				int box_sum = 0;
-				for (i = 0; i < (outcount + box_half_width); i++)
-				{	
-					// calculate the new sample we will write
-					const int sample_at_i = getsample(sc->data, sc->width, CLAMP(0, i, outcount - 1));					
-					box_sum += sample_at_i;
-					box_sum -= history[0];
-					const int newsample = box_sum / box_width;
-					
-					// shift the entries in the history buffer left, discarding the entry
-					// at history[0] and leaving a space at history[box_half_width-1]
-					int j;
-					for (j=0; j<(box_half_width-1); j++)
-					{
-						history[j] = history[j+1];
-					}
-					
-					// save the sample we are going to overwrite at history[box_half_width-1]
-					const int write_loc = i - box_half_width;
-					history[box_half_width-1] = getsample(sc->data, sc->width, CLAMP(0, write_loc, outcount - 1));
-					
-					// only write the new sample if it lies within the bounds of the output array
-					if (write_loc >= 0 && write_loc < outcount)
-					{
-						putsample(sc->data, sc->width, write_loc, newsample);
-					}
-				}
-			}
-		}
-		else
-		{
-// general case / downsampling
-			for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
-			{	
-				sample = getsamplefromfile(data, inwidth, (int)samplefrac);
-				putsample(sc->data, sc->width, i, sample);
-			}
-		}
-	}
+	ResamplerConvert(inrate, incount, inwidth, data,
+					 sc->speed, outcount, sc->width, sc->data);
 }
 
 //=============================================================================
