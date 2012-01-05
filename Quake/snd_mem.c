@@ -156,7 +156,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
 
-	Z_Free(data);
+	free(data);
 	
 	return sc;
 }

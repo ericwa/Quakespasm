@@ -228,7 +228,7 @@ byte *S_CodecLoad(const char *filename, snd_info_t *info)
 	{	
 		*info = stream->info;
 		
-		byte *data = (byte *)Z_Malloc(stream->info.size);
+		byte *data = (byte *)malloc(stream->info.size);
 		
 		if (stream->info.size != S_CodecReadStream(stream, stream->info.size, data))
 		{
