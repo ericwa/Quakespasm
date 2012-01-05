@@ -62,7 +62,7 @@ static short FGetLittleShort(FILE *f)
 WAV_ReadChunkInfo
 =================
 */
-static int WAV_ReadChunkInfo(FILE *f, char *name)
+static int WAV_ReadChunkInfo(const fshandle_t *fh, char *name)
 {
 	int len, r;
 
@@ -73,9 +73,8 @@ static int WAV_ReadChunkInfo(FILE *f, char *name)
 		return -1;
 
 	len = FGetLittleLong(f);
-	if (len < 0)
+	if (len < 0 || (ftell(fh->file) + len) > (fh->start + fh->length))
 	{
-		Con_Printf("WAV: Negative chunk length\n");
 		return -1;
 	}
 
@@ -84,17 +83,17 @@ static int WAV_ReadChunkInfo(FILE *f, char *name)
 
 /*
 =================
-WAV_FindRIFFChunk
+WAV_FindNextRIFFChunk
 
 Returns the length of the data in the chunk, or -1 if not found
 =================
 */
-static int WAV_FindRIFFChunk(FILE *f, const char *chunk)
+static int WAV_FindNextRIFFChunk(const fshandle_t *fh, const char *chunk)
 {
 	char	name[5];
 	int		len;
 
-	while ((len = WAV_ReadChunkInfo(f, name)) >= 0)
+	while ((len = WAV_ReadChunkInfo(fh, name)) >= 0)
 	{
 		/* If this is the right chunk, return */
 		if (!strncmp(name, chunk, 4))
@@ -102,10 +101,32 @@ static int WAV_FindRIFFChunk(FILE *f, const char *chunk)
 		len = ((len + 1) & ~1);	/* pad by 2 . */
 
 		/* Not the right chunk - skip it */
-		fseek(f, len, SEEK_CUR);
+		fseek(fh->file, len, SEEK_CUR);
 	}
 
 	return -1;
+}
+
+/*
+ =================
+ WAV_FindRIFFChunk
+ 
+ Returns the length of the data in the chunk, or -1 if not found
+ =================
+ */
+static int WAV_FindRIFFChunk(const fshandle_t *fh, const char *chunk)
+{
+	int length;
+	int last = ftell(fh->file);
+	
+	fseek(fh->file, fh->start + 12, SEEK_SET);
+	
+	if ((length = WAV_FindNextRIFFChunk(fh, chunk)) < 0)
+	{
+		fseek(fh->file, last, SEEK_SET);
+		return length;
+	}
+	return length;
 }
 
 /*
@@ -113,14 +134,14 @@ static int WAV_FindRIFFChunk(FILE *f, const char *chunk)
 WAV_ReadRIFFHeader
 =================
 */
-static qboolean WAV_ReadRIFFHeader(const char *name, FILE *file, snd_info_t *info)
+static qboolean WAV_ReadRIFFHeader(const char *name, const fshandle_t *fh, snd_info_t *info)
 {
 	char dump[16];
 	int wav_format;
 	int bits;
 	int fmtlen = 0;
 
-	if (fread(dump, 1, 12, file) < 12 ||
+	if (fread(dump, 1, 12, fh->file) < 12 ||
 	    strncmp(dump, "RIFF", 4) != 0 ||
 	    strncmp(&dump[8], "WAVE", 4) != 0)
 	{
@@ -129,7 +150,7 @@ static qboolean WAV_ReadRIFFHeader(const char *name, FILE *file, snd_info_t *inf
 	}
 
 	/* Scan for the format chunk */
-	if ((fmtlen = WAV_FindRIFFChunk(file, "fmt ")) < 0)
+	if ((fmtlen = WAV_FindRIFFChunk(fh, "fmt ")) < 0)
 	{
 		Con_Printf("%s is missing fmt chunk\n", name);
 		return false;
@@ -158,21 +179,53 @@ static qboolean WAV_ReadRIFFHeader(const char *name, FILE *file, snd_info_t *inf
 	info->width = bits / 8;
 	info->dataofs = 0;
 
-	/* Skip the rest of the format chunk if required */
-	if (fmtlen > 16)
+	/* Scan for the cue chunk */
+	if ((info->size = WAV_FindRIFFChunk(fh, "cue ")) < 0)
 	{
-		fmtlen -= 16;
-		fseek(file, fmtlen, SEEK_CUR);
+		info->loopstart = -1;
 	}
-
+	else
+	{
+		fseek(fh->file, 24, SEEK_CUR);
+		info->loopstart = GetLittleLong();
+		//	Con_Printf("loopstart=%d\n", info->loopstart);
+		
+		// if the next chunk is a LIST chunk, look for a cue length marker
+		if (WAV_FindNextRIFFChunk ("LIST") >= 0)
+		{
+			fseek(fh->file, 20, SEEK_CUR);
+			char marker[4];
+			memset(marker, 0, 4);
+			fread(marker, 4, 4, fh->file);
+			
+			if (!strncmp(marker, "mark", 4))
+			{	// this is not a proper parse, but it works with cooledit...
+				fseek(fh->file, -8, SEEK_CUR);
+				int i = GetLittleLong();	// samples in loop
+				info->samples = info->loopstart + i;
+				//		Con_Printf("looped length: %i\n", i);
+			}
+		}
+	}
+		
 	/* Scan for the data chunk */
-	if ((info->size = WAV_FindRIFFChunk(file, "data")) < 0)
+	if ((info->size = WAV_FindRIFFChunk(fh, "data")) < 0)
 	{
 		Con_Printf("%s is missing data chunk\n", name);
 		return false;
 	}
 
-	info->samples = (info->size / info->width) / info->channels;
+	int samples = (info->size / info->width) / info->channels;
+	if (info->samples)
+	{
+		if (samples < info.samples)
+			Sys_Error ("%s has a bad loop length", name);
+	}
+	else
+	{
+		info->samples = samples;
+	}
+	
 	if (info->samples == 0)
 	{
 		Con_Printf("%s has zero samples\n", name);
@@ -202,7 +255,7 @@ snd_stream_t *S_WAV_CodecOpenStream(const char *filename)
 	/* The file reads are sequential, therefore no need
 	 * for the FS_*() functions: We will manipulate the
 	 * file by ourselves from now on. */
-	if (!WAV_ReadRIFFHeader(filename, stream->fh.file, &stream->info))
+	if (!WAV_ReadRIFFHeader(filename, &stream->fh, &stream->info))
 	{
 		S_CodecUtilClose(&stream);
 		return NULL;

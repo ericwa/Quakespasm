@@ -34,6 +34,7 @@ typedef struct snd_info_s
 	int samples;
 	int size;
 	int dataofs;
+	int loopstart; // -1 if not looped
 } snd_info_t;
 
 typedef enum {

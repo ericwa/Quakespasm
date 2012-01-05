@@ -246,6 +246,7 @@ snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)
 	stream->fh.pos = 0;
 	stream->fh.length = length;
 	stream->fh.pak = stream->pak = pak;
+	stream->info.loopstart = -1;
 	return stream;
 }
 
