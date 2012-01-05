@@ -220,6 +220,30 @@ int S_CodecReadStream (snd_stream_t *stream, int bytes, void *buffer)
 	return stream->codec->codec_read(stream, bytes, buffer);
 }
 
+byte *S_CodecLoad(const char *filename, snd_info_t *info)
+{
+	snd_stream_t *stream;
+	
+	if ((stream = S_CodecOpenStreamAny(filename)))
+	{	
+		*info = stream->info;
+		
+		byte *data = (byte *)Z_Malloc(stream->info.size);
+		
+		if (stream->info.size != S_CodecReadStream(stream, stream->info.size, data))
+		{
+			Con_Printf("Error occurred while loading %s\n", filename);
+			Z_Free(data);
+			return NULL;
+		}
+			
+		S_CodecCloseStream(stream);
+		
+		return data;
+	}
+	return NULL;
+}
+
 /* Util functions (used by codecs) */
 
 snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec)

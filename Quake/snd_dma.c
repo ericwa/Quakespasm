@@ -191,14 +191,14 @@ void S_Init (void)
 	if (sound_started == 0)
 		return;
 
+	S_CodecInit ();
+	
 // provides a tick sound until washed clean
 //	if (shm->buffer)
 //		shm->buffer[4] = shm->buffer[5] = 0x7f;	// force a pop for debugging
 
 	ambient_sfx[AMBIENT_WATER] = S_PrecacheSound ("ambience/water1.wav");
 	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
-
-	S_CodecInit ();
 
 	S_StopAllSounds (true);
 }

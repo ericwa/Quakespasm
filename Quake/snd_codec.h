@@ -78,6 +78,13 @@ void S_CodecCloseStream (snd_stream_t *stream);
 int S_CodecReadStream (snd_stream_t *stream, int bytes, void *buffer);
 int S_CodecRewindStream (snd_stream_t *stream);
 
+/* Loads the entire file using S_CodecOpenStreamAny and
+ * returns a buffer containing the audio samples, which the 
+ * caller is responsible for freeing with Z_Free. Returns
+ * NULL if an error occurrs.
+ */
+byte *S_CodecLoad(const char *filename, snd_info_t *info);
+
 snd_stream_t *S_CodecUtilOpen(const char *filename, snd_codec_t *codec);
 void S_CodecUtilClose(snd_stream_t **stream);
 

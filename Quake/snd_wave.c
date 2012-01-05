@@ -68,11 +68,11 @@ static int WAV_ReadChunkInfo(const fshandle_t *fh, char *name)
 
 	name[4] = 0;
 
-	r = fread(name, 1, 4, f);
+	r = fread(name, 1, 4, fh->file);
 	if (r != 4)
 		return -1;
 
-	len = FGetLittleLong(f);
+	len = FGetLittleLong(fh->file);
 	if (len < 0 || (ftell(fh->file) + len) > (fh->start + fh->length))
 	{
 		return -1;
@@ -157,18 +157,18 @@ static qboolean WAV_ReadRIFFHeader(const char *name, const fshandle_t *fh, snd_i
 	}
 
 	/* Save the parameters */
-	wav_format = FGetLittleShort(file);
+	wav_format = FGetLittleShort(fh->file);
 	if (wav_format != WAV_FORMAT_PCM)
 	{
 		Con_Printf("%s is not Microsoft PCM format\n", name);
 		return false;
 	}
 
-	info->channels = FGetLittleShort(file);
-	info->rate = FGetLittleLong(file);
-	FGetLittleLong(file);
-	FGetLittleShort(file);
-	bits = FGetLittleShort(file);
+	info->channels = FGetLittleShort(fh->file);
+	info->rate = FGetLittleLong(fh->file);
+	FGetLittleLong(fh->file);
+	FGetLittleShort(fh->file);
+	bits = FGetLittleShort(fh->file);
 
 	if (bits != 8 && bits != 16)
 	{
@@ -180,28 +180,28 @@ static qboolean WAV_ReadRIFFHeader(const char *name, const fshandle_t *fh, snd_i
 	info->dataofs = 0;
 
 	/* Scan for the cue chunk */
-	if ((info->size = WAV_FindRIFFChunk(fh, "cue ")) < 0)
+	if (WAV_FindRIFFChunk(fh, "cue ") < 0)
 	{
 		info->loopstart = -1;
 	}
 	else
 	{
 		fseek(fh->file, 24, SEEK_CUR);
-		info->loopstart = GetLittleLong();
+		info->loopstart = FGetLittleLong(fh->file);
 		//	Con_Printf("loopstart=%d\n", info->loopstart);
 		
 		// if the next chunk is a LIST chunk, look for a cue length marker
-		if (WAV_FindNextRIFFChunk ("LIST") >= 0)
+		if (WAV_FindNextRIFFChunk (fh, "LIST") >= 0)
 		{
 			fseek(fh->file, 20, SEEK_CUR);
 			char marker[4];
 			memset(marker, 0, 4);
-			fread(marker, 4, 4, fh->file);
+			fread(marker, 1, 4, fh->file);
 			
 			if (!strncmp(marker, "mark", 4))
 			{	// this is not a proper parse, but it works with cooledit...
 				fseek(fh->file, -8, SEEK_CUR);
-				int i = GetLittleLong();	// samples in loop
+				int i = FGetLittleLong(fh->file);	// samples in loop
 				info->samples = info->loopstart + i;
 				//		Con_Printf("looped length: %i\n", i);
 			}
@@ -218,7 +218,7 @@ static qboolean WAV_ReadRIFFHeader(const char *name, const fshandle_t *fh, snd_i
 	int samples = (info->size / info->width) / info->channels;
 	if (info->samples)
 	{
-		if (samples < info.samples)
+		if (samples < info->samples)
 			Sys_Error ("%s has a bad loop length", name);
 	}
 	else
