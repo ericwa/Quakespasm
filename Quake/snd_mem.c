@@ -115,7 +115,7 @@ void ResamplerConvert(int inrate, int incount, int inwidth, void *indata,
 		// linearly interpolate between the two closest source samples.
 		// this alone sounds much better than id's method
 		
-		for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
+		/*for (i = 0, samplefrac = 0; i < outcount; i++, samplefrac += stepscale)
 		{	
 			int srcsample1 = CLAMP(0, floor(samplefrac), incount - 1);
 			int srcsample2 = CLAMP(0, ceil(samplefrac), incount - 1);				
@@ -127,14 +127,43 @@ void ResamplerConvert(int inrate, int incount, int inwidth, void *indata,
 			int sample = ((1 - mu) * getsamplefromfile(indata, inwidth, srcsample1))
 			                 + (mu * getsamplefromfile(indata, inwidth, srcsample2));
 			putsample(outdata, outwidth, i, sample);
+		}*/
+		
+		float inpos; 
+		int outpos;
+		for (outpos = 0, inpos = 0; outpos < outcount; outpos++, inpos += stepscale)
+		{
+			int inpos_int = (int)inpos;
+			float inpos_frac = inpos - inpos_int;
+
+			// Cubic interpollation
+			// Olli Niemitalo, musicdsp.org
+			
+			int xm1 = getsamplefromfile(indata, inwidth, CLAMP(0, inpos_int - 1, incount - 1));
+			int x0  = getsamplefromfile(indata, inwidth, CLAMP(0, inpos_int + 0, incount - 1));
+			int x1  = getsamplefromfile(indata, inwidth, CLAMP(0, inpos_int + 1, incount - 1));
+			int x2  = getsamplefromfile(indata, inwidth, CLAMP(0, inpos_int + 2, incount - 1));
+			
+			int a = (3 * (x0-x1) - xm1 + x2) / 2;
+			int b = 2*x1 + xm1 - (5*x0 + x2) / 2;
+			int c = (x1 - xm1) / 2;
+			int sample = (((a * inpos_frac) + b) * inpos_frac + c) * inpos_frac + x0;
+			
+			// clip
+			if (sample > 0x7fff)
+				sample = 0x7fff;
+			else if (sample < (short)0x8000)
+				sample = (short)0x8000;
+			
+			putsample(outdata, outwidth, outpos, sample);
 		}
 		
 		// box filter to filter out garbage high frequencies produced by the upsampling
 		
 		// for 44100Hz output, a box width of 5 seems to sound the best
-		const int boxwidth = CLAMP(0, (outrate / 11025) + 1, 4);
+		//const int boxwidth = CLAMP(0, (outrate / 11025) + 1, 4);
 		
-		BoxFilter(boxwidth, outcount, outwidth, outdata);
+		//BoxFilter(boxwidth, outcount, outwidth, outdata);
 	}
 	else
 	{
