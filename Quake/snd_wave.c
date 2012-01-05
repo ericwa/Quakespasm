@@ -68,13 +68,24 @@ static int WAV_ReadChunkInfo(const fshandle_t *fh, char *name)
 
 	name[4] = 0;
 
+	if (ftell(fh->file) >= (fh->start + fh->length))
+	{
+		return -1; /* End of WAV file */
+	}
+	
 	r = fread(name, 1, 4, fh->file);
 	if (r != 4)
 		return -1;
 
 	len = FGetLittleLong(fh->file);
-	if (len < 0 || (ftell(fh->file) + len) > (fh->start + fh->length))
+	if (len < 0)
 	{
+		//Con_Printf("WAV: Negative chunk length\n");
+		return -1;
+	}
+	if ((ftell(fh->file) + len) > (fh->start + fh->length))
+	{
+		//Con_Printf("WAV: Chunk extends past end of file\n");
 		return -1;
 	}
 
