@@ -807,7 +807,13 @@ static void GL_CheckExtensions (void)
 	{
 		Con_Warning ("vertical sync not supported (SDL_GL_SetAttribute failed)\n");
 	}
-#if !defined(USE_SDL2)
+#if defined(USE_SDL2)
+	else if ((swap_control = SDL_GL_GetSwapInterval()) == -1)
+	{
+		gl_swap_control = false;
+		Con_Warning ("vertical sync not supported (SDL_GL_GetSwapInterval failed)\n");
+	}
+#else
 	else if (SDL_GL_GetAttribute(SDL_GL_SWAP_CONTROL, &swap_control) == -1)
 	{
 		gl_swap_control = false;
