@@ -21,12 +21,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "arch_def.h"
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
+#if defined(USE_SDL2)
+#include <SDL2/SDL.h>
+#else
 #include <SDL/SDL.h>
+#endif
 #else
 #include "SDL.h"
 #endif
 #include <stdio.h>
+
+#if defined(USE_SDL2)
+
+/* need at least SDL_2.0.0 */
+#define SDL_MIN_X	2
+#define SDL_MIN_Y	0
+#define SDL_MIN_Z	0
+#define SDL_REQUIREDVERSION	(SDL_VERSIONNUM(SDL_MIN_X,SDL_MIN_Y,SDL_MIN_Z))
+#define SDL_NEW_VERSION_REJECT	(SDL_VERSIONNUM(6,6,6))
+
+#else
 
 /* need at least SDL_1.2.10 */
 #define SDL_MIN_X	1
@@ -36,9 +52,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /* reject 1.3.0 and newer at runtime. */
 #define SDL_NEW_VERSION_REJECT	(SDL_VERSIONNUM(1,3,0))
 
+#endif
+
 static void Sys_CheckSDL (void)
 {
+#if defined(USE_SDL2)
+	SDL_version v;
+	SDL_version *sdl_version = &v;
+	SDL_GetVersion(&v);
+#else
 	const SDL_version *sdl_version = SDL_Linked_Version();
+#endif
 
 	Sys_Printf("Found SDL version %i.%i.%i\n",sdl_version->major,sdl_version->minor,sdl_version->patch);
 	if (SDL_VERSIONNUM(sdl_version->major,sdl_version->minor,sdl_version->patch) < SDL_REQUIREDVERSION)
@@ -59,7 +83,11 @@ static void Sys_CheckSDL (void)
 #endif
 
 static quakeparms_t	parms;
-static Uint8		appState;
+
+// FIXME: Not sure why this is necessary
+#if defined(USE_SDL2) && defined(PLATFORM_OSX)
+#define main SDL_main
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -128,14 +156,13 @@ int main(int argc, char *argv[])
 	else
 	while (1)
 	{
-		appState = SDL_GetAppState();
 		/* If we have no input focus at all, sleep a bit */
-		if ( !(appState & (SDL_APPMOUSEFOCUS | SDL_APPINPUTFOCUS)) || cl.paused)
+		if ( !VID_HasMouseOrInputFocus() || cl.paused)
 		{
 			SDL_Delay(16);
 		}
 		/* If we're minimised, sleep a bit more */
-		if ( !(appState & SDL_APPACTIVE) )
+		if ( !VID_GetWindowVisible() )
 		{
 			scr_skipupdate = 1;
 			SDL_Delay(32);
