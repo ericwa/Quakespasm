@@ -22,6 +22,7 @@
  */
 
 #include "quakedef.h"
+#include "arch_def.h"
 
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
 #if defined(USE_SDL2)
@@ -88,6 +89,11 @@ qboolean SNDDMA_Init (dma_t *dma)
 		Con_Printf("Couldn't init SDL audio: %s\n", SDL_GetError());
 		return false;
 	}
+
+#if defined(USE_SDL2) && defined(PLATFORM_WINDOWS)
+	/* Workaround for https://bugzilla.libsdl.org/show_bug.cgi?id=2551 */
+	SDL_AudioInit("directsound");
+#endif
 
 	/* Set up the desired format */
 	desired.freq = tmp = sndspeed.value;
@@ -156,16 +162,11 @@ qboolean SNDDMA_Init (dma_t *dma)
 			obtained.freq, obtained.samples, obtained.channels);
 #if defined(USE_SDL2)
 	{
-		const char *drivername_temp = SDL_GetAudioDeviceName(0, SDL_FALSE);
-		if (drivername_temp == NULL)
-		{
-			strcpy(drivername, "(UNKNOWN)");
-		}
-		else
-		{
-			strncpy(drivername, drivername_temp, sizeof(drivername) - 1);
-			drivername[sizeof(drivername) - 1] = '\0';
-		}
+		const char *driver = SDL_GetCurrentAudioDriver();
+		const char *device = SDL_GetAudioDeviceName(0, SDL_FALSE);
+		q_snprintf(drivername, sizeof(drivername), "%s - %s", 
+			driver != NULL ? driver : "(UNKNOWN)",
+			device != NULL ? device : "(UNKNOWN)");
 	}
 #else
 	if (SDL_AudioDriverName(drivername, sizeof(drivername)) == NULL)
