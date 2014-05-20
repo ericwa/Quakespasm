@@ -526,10 +526,10 @@ void Sky_ProcessTextureChains (void)
 	{
 		t = cl.worldmodel->textures[i];
 
-		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWSKY))
+		if (!t || !t->texturechains[CHAINTYPE_WORLD] || !(t->texturechains[CHAINTYPE_WORLD]->flags & SURF_DRAWSKY))
 			continue;
 
-		for (s = t->texturechain; s; s = s->texturechain)
+		for (s = t->texturechains[CHAINTYPE_WORLD]; s; s = s->texturechains[CHAINTYPE_WORLD])
 			if (!s->culled)
 				Sky_ProcessPoly (s->polys);
 	}

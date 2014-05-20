@@ -72,8 +72,8 @@ int fgetLittleShort (FILE *f)
 {
 	byte	b1, b2;
 
-	b1 = fgetc(f);
-	b2 = fgetc(f);
+	b1 = getc_unlocked(f);
+	b2 = getc_unlocked(f);
 
 	return (short)(b1 + b2*256);
 }
@@ -82,10 +82,10 @@ int fgetLittleLong (FILE *f)
 {
 	byte	b1, b2, b3, b4;
 
-	b1 = fgetc(f);
-	b2 = fgetc(f);
-	b3 = fgetc(f);
-	b4 = fgetc(f);
+	b1 = getc_unlocked(f);
+	b2 = getc_unlocked(f);
+	b3 = getc_unlocked(f);
+	b4 = getc_unlocked(f);
 
 	return b1 + (b2<<8) + (b3<<16) + (b4<<24);
 }
@@ -152,19 +152,19 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 	int				realrow; //johnfitz -- fix for upside-down targas
 	qboolean		upside_down; //johnfitz -- fix for upside-down targas
 
-	targa_header.id_length = fgetc(fin);
-	targa_header.colormap_type = fgetc(fin);
-	targa_header.image_type = fgetc(fin);
+	targa_header.id_length = getc_unlocked(fin);
+	targa_header.colormap_type = getc_unlocked(fin);
+	targa_header.image_type = getc_unlocked(fin);
 
 	targa_header.colormap_index = fgetLittleShort(fin);
 	targa_header.colormap_length = fgetLittleShort(fin);
-	targa_header.colormap_size = fgetc(fin);
+	targa_header.colormap_size = getc_unlocked(fin);
 	targa_header.x_origin = fgetLittleShort(fin);
 	targa_header.y_origin = fgetLittleShort(fin);
 	targa_header.width = fgetLittleShort(fin);
 	targa_header.height = fgetLittleShort(fin);
-	targa_header.pixel_size = fgetc(fin);
-	targa_header.attributes = fgetc(fin);
+	targa_header.pixel_size = getc_unlocked(fin);
+	targa_header.attributes = getc_unlocked(fin);
 
 	if (targa_header.image_type!=2 && targa_header.image_type!=10)
 		Sys_Error ("Image_LoadTGA: %s is not a type 2 or type 10 targa\n", loadfilename);
@@ -196,19 +196,19 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 				switch (targa_header.pixel_size)
 				{
 				case 24:
-					blue = getc(fin);
-					green = getc(fin);
-					red = getc(fin);
+					blue = getc_unlocked(fin);
+					green = getc_unlocked(fin);
+					red = getc_unlocked(fin);
 					*pixbuf++ = red;
 					*pixbuf++ = green;
 					*pixbuf++ = blue;
 					*pixbuf++ = 255;
 					break;
 				case 32:
-					blue = getc(fin);
-					green = getc(fin);
-					red = getc(fin);
-					alphabyte = getc(fin);
+					blue = getc_unlocked(fin);
+					green = getc_unlocked(fin);
+					red = getc_unlocked(fin);
+					alphabyte = getc_unlocked(fin);
 					*pixbuf++ = red;
 					*pixbuf++ = green;
 					*pixbuf++ = blue;
@@ -229,23 +229,23 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 			//johnfitz
 			for(column=0; column<columns; )
 			{
-				packetHeader=getc(fin);
+				packetHeader=getc_unlocked(fin);
 				packetSize = 1 + (packetHeader & 0x7f);
 				if (packetHeader & 0x80) // run-length packet
 				{
 					switch (targa_header.pixel_size)
 					{
 					case 24:
-						blue = getc(fin);
-						green = getc(fin);
-						red = getc(fin);
+						blue = getc_unlocked(fin);
+						green = getc_unlocked(fin);
+						red = getc_unlocked(fin);
 						alphabyte = 255;
 						break;
 					case 32:
-						blue = getc(fin);
-						green = getc(fin);
-						red = getc(fin);
-						alphabyte = getc(fin);
+						blue = getc_unlocked(fin);
+						green = getc_unlocked(fin);
+						red = getc_unlocked(fin);
+						alphabyte = getc_unlocked(fin);
 						break;
 					default: /* avoid compiler warnings */
 						blue = red = green = alphabyte = 0;
@@ -279,19 +279,19 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 						switch (targa_header.pixel_size)
 						{
 						case 24:
-							blue = getc(fin);
-							green = getc(fin);
-							red = getc(fin);
+							blue = getc_unlocked(fin);
+							green = getc_unlocked(fin);
+							red = getc_unlocked(fin);
 							*pixbuf++ = red;
 							*pixbuf++ = green;
 							*pixbuf++ = blue;
 							*pixbuf++ = 255;
 							break;
 						case 32:
-							blue = getc(fin);
-							green = getc(fin);
-							red = getc(fin);
-							alphabyte = getc(fin);
+							blue = getc_unlocked(fin);
+							green = getc_unlocked(fin);
+							red = getc_unlocked(fin);
+							alphabyte = getc_unlocked(fin);
 							*pixbuf++ = red;
 							*pixbuf++ = green;
 							*pixbuf++ = blue;
@@ -319,7 +319,6 @@ byte *Image_LoadTGA (FILE *fin, int *width, int *height)
 			breakOut:;
 		}
 	}
-
 	fclose(fin);
 
 	*width = (int)(targa_header.width);
@@ -397,12 +396,12 @@ byte *Image_LoadPCX (FILE *f, int *width, int *height)
 
 		for (x=0; x<(pcx.bytes_per_line); ) //read the extra padding byte if necessary
 		{
-			readbyte = fgetc(f);
+			readbyte = getc_unlocked(f);
 
 			if(readbyte >= 0xC0)
 			{
 				runlength = readbyte & 0x3F;
-				readbyte = fgetc(f);
+				readbyte = getc_unlocked(f);
 			}
 			else
 				runlength = 1;

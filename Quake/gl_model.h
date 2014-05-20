@@ -74,6 +74,15 @@ typedef struct mplane_s
 	byte	pad[2];
 } mplane_t;
 
+// ericw -- each texture has two types of chains, and each surface can be a part of either or both independently.
+// this is done because we draw the world, the brush models, and then parts of the world (transparent water) again,
+// so we can build and clear each of the brush model chains without affecting the world chains.
+typedef enum
+{
+	CHAINTYPE_WORLD = 0,
+	CHAINTYPE_MODEL = 1
+} texchaintype;
+
 typedef struct texture_s
 {
 	char				name[16];
@@ -82,7 +91,7 @@ typedef struct texture_s
 	struct gltexture_s	*fullbright; //johnfitz -- fullbright mask texture
 	struct gltexture_s	*warpimage; //johnfitz -- for water animation
 	qboolean			update_warp; //johnfitz -- update warp this frame
-	struct msurface_s	*texturechain;	// for texture chains
+	struct msurface_s	*texturechains[2];	// ericw -- CHAINTYPE_WORLD and CHAINTYPE_MODEL
 	int					anim_total;				// total tenths in sequence ( 0 = no)
 	int					anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s	*anim_next;		// in the animation sequence
@@ -144,7 +153,7 @@ typedef struct msurface_s
 	int			light_s, light_t;	// gl lightmap coordinates
 
 	glpoly_t	*polys;				// multiple if warped
-	struct	msurface_s	*texturechain;
+	struct	msurface_s	*texturechains[2]; // ericw -- CHAINTYPE_WORLD and CHAINTYPE_MODEL
 
 	mtexinfo_t	*texinfo;
 
