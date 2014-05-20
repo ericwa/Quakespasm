@@ -412,6 +412,38 @@ static qboolean VID_ValidMode (int width, int height, int bpp, qboolean fullscre
 #endif
 }
 
+#if defined(USE_SDL2)
+/*
+================
+VID_SDL2_GetDisplayMode
+
+Returns a pointer to a statically allocated SDL_DisplayMode structure
+if there is one with the requested params on the default display.
+Otherwise returns NULL.
+
+This is passed to SDL_SetWindowDisplayMode to specify a pixel format
+with the requested bpp. If we didn't care about bpp we could just pass NULL.
+================
+*/
+static SDL_DisplayMode *VID_SDL2_GetDisplayMode(int width, int height, int bpp)
+{
+	static SDL_DisplayMode mode;
+	const int sdlmodes = SDL_GetNumDisplayModes(0);
+	int i;
+
+	for (i = 0; i < sdlmodes; i++)
+	{
+		if (SDL_GetDisplayMode(0, i, &mode) == 0
+			&& mode.w == width && mode.h == height
+			&& SDL_BITSPERPIXEL(mode.format) == bpp)
+		{
+			return &mode;
+		}
+	}
+	return NULL;
+}
+#endif
+
 /*
 ================
 VID_SetMode
@@ -433,41 +465,42 @@ static int VID_SetMode (int width, int height, int bpp, qboolean fullscreen)
 	q_snprintf(caption, sizeof(caption), "QuakeSpasm %1.2f.%d", (float)FITZQUAKE_VERSION, QUAKESPASM_VER_PATCH);
 	
 #if defined(USE_SDL2)
-	if (!window) // Create a new window
+	/* Create the window if needed, hidden */
+	if (!window)
 	{
-		flags = SDL_WINDOW_OPENGL;
-		if (fullscreen)
-			flags |= SDL_WINDOW_FULLSCREEN;
-		
-		window = SDL_CreateWindow(caption,
-								  SDL_WINDOWPOS_CENTERED,
-								  SDL_WINDOWPOS_CENTERED,
-								  width, height, flags);
+		window = SDL_CreateWindow (caption, 
+			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+			width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+
 		if (!window)
 			Sys_Error ("Couldn't set video mode");
-		
-		draw_context = SDL_GL_CreateContext(window);
-	}
-	else // A window already exists
-	{
-		if (VID_GetFullscreen())
-		{
-			if (SDL_SetWindowFullscreen(window, 0) != 0)
-				Sys_Error ("Couldn't set fullscreen state mode");
-		}
-							
-		SDL_SetWindowSize(window, width, height);
-		SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-		if (fullscreen)
-		{
-			if (SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN) != 0)
-				Sys_Error ("Couldn't set fullscreen state mode");
-		}
+		draw_context = SDL_GL_CreateContext (window);
+	}
+
+	/* Ensure the window is not fullscreen */
+	if (VID_GetFullscreen ())
+	{
+		if (SDL_SetWindowFullscreen (window, 0) != 0)
+			Sys_Error("Couldn't set fullscreen state mode");
 	}
 	
+	/* Set window size and display mode */
+	SDL_SetWindowSize (window, width, height);
+	SDL_SetWindowPosition (window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+	SDL_SetWindowDisplayMode (window, VID_SDL2_GetDisplayMode(width, height, bpp));
+
+	/* Make window fullscreen if needed, and show the window */
+	if (fullscreen)
+	{
+		if (SDL_SetWindowFullscreen (window, SDL_WINDOW_FULLSCREEN) != 0)
+			Sys_Error ("Couldn't set fullscreen state mode");
+	}
+
+	SDL_ShowWindow (window);
+	
 	gl_swap_control = true;
-	if (SDL_GL_SetSwapInterval((vid_vsync.value) ? 1 : 0) == -1)
+	if (SDL_GL_SetSwapInterval ((vid_vsync.value) ? 1 : 0) == -1)
 		gl_swap_control = false;
 #else
 	flags = DEFAULT_SDL_FLAGS;
