@@ -40,11 +40,12 @@ typedef struct glRect_s {
 	unsigned char l,t,w,h;
 } glRect_t;
 
-glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
+glpoly_t	*lightmap_polys_by_chaintype[2][MAX_LIGHTMAPS];
 qboolean	lightmap_modified[MAX_LIGHTMAPS];
 glRect_t	lightmap_rectchange[MAX_LIGHTMAPS];
 
 int			allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
+int			last_lightmap_allocated; //ericw -- optimization: remember the index of the last lightmap AllocBlock stored a surf in
 
 // the lightmap texture data needs to be kept in
 // main memory so texsubimage can update properly
@@ -132,6 +133,7 @@ void DrawGLTriangleFan (glpoly_t *p)
 =============================================================
 */
 
+#if 0
 /*
 ================
 R_DrawSequentialPoly -- johnfitz -- rewritten
@@ -492,7 +494,7 @@ fullbrights:
 		rs_brushpasses++;
 	}
 }
-
+#endif
 /*
 =================
 R_DrawBrushModel
@@ -559,12 +561,7 @@ void R_DrawBrushModel (entity_t *e)
 	}
 	e->angles[0] = -e->angles[0];	// stupid quake bug
 
-	//
-	// draw it
-	//
-	if (r_drawflat_cheatsafe) //johnfitz
-		glDisable(GL_TEXTURE_2D);
-
+	R_ClearTextureChains (clmodel, CHAINTYPE_MODEL);
 	for (i=0 ; i<clmodel->nummodelsurfaces ; i++, psurf++)
 	{
 		pplane = psurf->plane;
@@ -572,15 +569,17 @@ void R_DrawBrushModel (entity_t *e)
 		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
-			R_DrawSequentialPoly (psurf);
+			R_ChainSurface (psurf, CHAINTYPE_MODEL);
 			rs_brushpolys++;
 		}
 	}
 
-	if (r_drawflat_cheatsafe) //johnfitz
-		glEnable(GL_TEXTURE_2D);
+	//
+	// draw it
+	//
 
-	GL_DisableMultitexture(); // selects TEXTURE0
+	R_DrawTextureChains (clmodel, e, CHAINTYPE_MODEL);
+	R_DrawTextureChains_Water (clmodel, e, CHAINTYPE_MODEL);
 
 	glPopMatrix ();
 }
@@ -660,7 +659,7 @@ R_RenderDynamicLightmaps
 called during rendering
 ================
 */
-void R_RenderDynamicLightmaps (msurface_t *fa)
+void R_RenderDynamicLightmaps (msurface_t *fa, texchaintype chaintype)
 {
 	byte		*base;
 	int			maps;
@@ -671,8 +670,8 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 		return;
 
 	// add to lightmap chain
-	fa->polys->chain = lightmap_polys[fa->lightmaptexturenum];
-	lightmap_polys[fa->lightmaptexturenum] = fa->polys;
+	fa->polys->chain = lightmap_polys_by_chaintype[chaintype][fa->lightmaptexturenum];
+	lightmap_polys_by_chaintype[chaintype][fa->lightmaptexturenum] = fa->polys;
 
 	// check for lightmap modification
 	for (maps=0; maps < MAXLIGHTMAPS && fa->styles[maps] != 255; maps++)
@@ -721,7 +720,12 @@ int AllocBlock (int w, int h, int *x, int *y)
 	int		best, best2;
 	int		texnum;
 
-	for (texnum=0 ; texnum<MAX_LIGHTMAPS ; texnum++)
+	// ericw -- rather than searching starting at lightmap 0 every time,
+	// start at the last lightmap we allocated a surface in.
+	// This makes AllocBlock much faster on large levels (can shave off 3+ seconds
+	// of load time on a level with 180 lightmaps), at a cost of not quite packing
+	// lightmaps as tightly vs. not doing this (uses ~5% more lightmaps)
+	for (texnum=last_lightmap_allocated ; texnum<MAX_LIGHTMAPS ; texnum++, last_lightmap_allocated++)
 	{
 		best = BLOCK_HEIGHT;
 
@@ -870,7 +874,8 @@ void GL_BuildLightmaps (void)
 	qmodel_t	*m;
 
 	memset (allocated, 0, sizeof(allocated));
-
+	last_lightmap_allocated = 0;
+	
 	r_framecount = 1; // no dlightcache
 
 	//johnfitz -- null out array (the gltexture objects themselves were already freed by Mod_ClearAll)

@@ -271,7 +271,7 @@ void R_DrawAliasModel (entity_t *e);
 void R_DrawBrushModel (entity_t *e);
 void R_DrawSpriteModel (entity_t *e);
 
-void R_DrawTextureChains_Water (void);
+void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchaintype chaintype);
 
 void R_RenderDlights (void);
 void GL_BuildLightmaps (void);
@@ -281,10 +281,10 @@ int R_LightPoint (vec3_t p);
 
 void GL_SubdivideSurface (msurface_t *fa);
 void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
-void R_RenderDynamicLightmaps (msurface_t *fa);
+void R_RenderDynamicLightmaps (msurface_t *fa, texchaintype chaintype);
 void R_UploadLightmap (int lmap);
 
-void R_DrawTextureChains_ShowTris (void);
+void R_DrawWorld_ShowTris (void);
 void R_DrawBrushModel_ShowTris (entity_t *e);
 void R_DrawAliasModel_ShowTris (entity_t *e);
 void R_DrawParticles_ShowTris (void);
@@ -302,6 +302,11 @@ void Sky_LoadTexture (texture_t *mt);
 void Sky_LoadSkyBox (const char *name);
 
 void TexMgr_RecalcWarpImageSize (void);
+
+void R_ClearTextureChains (qmodel_t *mod, texchaintype chaintype);
+void R_ChainSurface (msurface_t *surf, texchaintype chaintype);
+void R_DrawTextureChains (qmodel_t *model, entity_t *ent, texchaintype chaintype);
+void R_DrawWorld_Water ();
 
 #endif	/* __GLQUAKE_H */
 

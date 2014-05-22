@@ -643,7 +643,7 @@ void R_ShowTris (void)
 
 	if (r_drawworld.value)
 	{
-		R_DrawTextureChains_ShowTris ();
+		R_DrawWorld_ShowTris ();
 	}
 
 	if (r_drawentities.value)
@@ -750,7 +750,7 @@ void R_RenderScene (void)
 
 	R_DrawEntitiesOnList (false); //johnfitz -- false means this is the pass for nonalpha entities
 
-	R_DrawTextureChains_Water (); //johnfitz -- drawn here since they might have transparency
+	R_DrawWorld_Water (); //johnfitz -- drawn here since they might have transparency
 
 	R_DrawEntitiesOnList (true); //johnfitz -- true means this is the pass for alpha entities
 

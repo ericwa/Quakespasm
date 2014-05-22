@@ -26,6 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if defined(_WIN32)
 #ifdef _MSC_VER
+/* We use this POSIX function in image.c, in MSC it is called _getc_nolock */
+#define getc_unlocked _getc_nolock
 #  pragma warning(disable:4244)
 	/* 'argument'	: conversion from 'type1' to 'type2',
 			  possible loss of data */
@@ -42,6 +44,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define fmin q_min
 #endif
 #endif	/* _MSC_VER */
+
+#ifndef _MSC_VER /* i.e., mingw */
+/* mingw doesn't have getc_unlocked, just use getc */
+#define getc_unlocked getc
+#endif
 #endif	/* _WIN32 */
 
 #undef	min
