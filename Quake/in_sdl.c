@@ -370,6 +370,12 @@ void IN_UpdateForKeydest (void)
 }
 
 #if defined(USE_SDL2)
+
+static qboolean IN_SDL2_QuakeKeyHandledAsTextInput(int qkey)
+{
+	return (qkey >= 32 && qkey <= 126) && qkey != '`';
+}
+
 static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 {
 	switch (scancode)
@@ -517,7 +523,23 @@ void IN_SendKeyEvents (void)
 				else	S_BlockSound();
 			}
 			break;
-
+#endif
+#if defined(USE_SDL2)
+		case SDL_TEXTINPUT:
+			{
+				char *ch;
+				for (ch = event.text.text; *ch != '\0'; ch++)
+				{
+					int qkey = *ch;
+					
+					if (IN_SDL2_QuakeKeyHandledAsTextInput(qkey) && !gamekey)
+					{
+						Key_Event (qkey, SDL_PRESSED, false);
+						Key_Event (qkey, SDL_RELEASED, false);
+					}
+				}
+			}
+			break;
 #endif
  		case SDL_KEYDOWN:
 			if ((event.key.keysym.sym == SDLK_RETURN) &&
@@ -536,10 +558,14 @@ void IN_SendKeyEvents (void)
 		case SDL_KEYUP:
 #if defined(USE_SDL2)
 			sym = IN_SDL2_ScancodeToQuakeKey(event.key.keysym.scancode);
-			state = event.key.state;
-			modstate = SDL_GetModState();
-							
-			Key_Event (sym, state);
+			
+			if (gamekey || !IN_SDL2_QuakeKeyHandledAsTextInput(sym))
+			{
+				state = event.key.state;
+								
+				Key_Event (sym, state, true);
+			}
+			break;
 #else
 			sym = event.key.keysym.sym;
 			state = event.key.state;
@@ -766,10 +792,9 @@ void IN_SendKeyEvents (void)
 					sym = 0;
 				break;
 			}
-			Key_Event (sym, state);
-#endif
+			Key_Event (sym, state, true);
 			break;
-
+#endif
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
 			if (event.button.button < 1 ||
@@ -779,20 +804,20 @@ void IN_SendKeyEvents (void)
 							event.button.button);
 				break;
 			}
-			Key_Event(buttonremap[event.button.button - 1], event.button.state == SDL_PRESSED);
+			Key_Event(buttonremap[event.button.button - 1], event.button.state == SDL_PRESSED, true);
 			break;
 
 #if defined(USE_SDL2)
 		case SDL_MOUSEWHEEL:
 			if (event.wheel.y > 0)
 			{
-				Key_Event(K_MWHEELUP, false);
-				Key_Event(K_MWHEELUP, true);
+				Key_Event(K_MWHEELUP, false, true);
+				Key_Event(K_MWHEELUP, true, true);
 			}
 			else if (event.wheel.y < 0)
 			{
-				Key_Event(K_MWHEELDOWN, false);
-				Key_Event(K_MWHEELDOWN, true);
+				Key_Event(K_MWHEELDOWN, false, true);
+				Key_Event(K_MWHEELDOWN, true, true);
 			}
 			break;
 #endif
