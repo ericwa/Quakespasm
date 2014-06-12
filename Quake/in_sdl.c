@@ -365,6 +365,11 @@ void IN_UpdateForKeydest (void)
 		Key_ClearStates();
 #if !defined(USE_SDL2)
 		SDL_EnableUNICODE(!gamekey);
+#else
+		if (gamekey)
+			SDL_StopTextInput();
+		else
+			SDL_StartTextInput();
 #endif
 	}
 }
