@@ -76,6 +76,7 @@ cvar_t		precache = {"precache", "1", CVAR_NONE};
 cvar_t		loadas8bit = {"loadas8bit", "0", CVAR_NONE};
 
 cvar_t		sndspeed = {"sndspeed", "11025", CVAR_NONE};
+cvar_t		snd_mixspeed = {"snd_mixspeed", "44100", CVAR_NONE};
 
 static	cvar_t	nosound = {"nosound", "0", CVAR_NONE};
 static	cvar_t	ambient_level = {"ambient_level", "0.3", CVAR_NONE};
@@ -161,6 +162,7 @@ void S_Init (void)
 	Cvar_RegisterVariable(&snd_show);
 	Cvar_RegisterVariable(&_snd_mixahead);
 	Cvar_RegisterVariable(&sndspeed);
+	Cvar_RegisterVariable(&snd_mixspeed);
 
 	if (safemode || COM_CheckParm("-nosound"))
 		return;
@@ -177,6 +179,12 @@ void S_Init (void)
 	if (i && i < com_argc-1)
 	{
 		Cvar_SetQuick (&sndspeed, com_argv[i+1]);
+	}
+	
+	i = COM_CheckParm("-mixspeed");
+	if (i && i < com_argc-1)
+	{
+		Cvar_SetQuick (&snd_mixspeed, com_argv[i+1]);
 	}
 
 	if (host_parms->memsize < 0x800000)

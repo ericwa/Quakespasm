@@ -149,6 +149,128 @@ static void S_TransferPaintBuffer (int endtime)
 	}
 }
 
+/*
+==============
+S_MakeBlackmanWindowKernel
+
+Based on equation 16-4 from
+"The Scientist and Engineer's Guide to Digital Signal Processing"
+
+kernel has room for M+1 floats,
+f_c is the filter cutoff frequency, as a fraction of the samplerate
+==============
+*/
+static void S_MakeBlackmanWindowKernel(float *kernel, int M, float f_c)
+{
+	int i;
+	for (i = 0; i <= M; i++)
+	{
+		if (i == M/2)
+		{
+			kernel[i] = 2 * M_PI * f_c;
+		}
+		else
+		{
+			kernel[i] = ( sin(2 * M_PI * f_c * (i - M/2.0)) / (i - (M/2.0)) )
+				* (0.42 - 0.5*cos(2 * M_PI * i / (double)M)
+				   + 0.08*cos(4 * M_PI * i / (double)M) );
+		}
+	}
+	
+// normalize the kernel so all of the values sum to 1
+	{
+		float sum = 0;
+		for (i = 0; i <= M; i++)
+		{
+			sum += kernel[i];
+		}
+		
+		for (i = 0; i <= M; i++)
+		{
+			kernel[i] /= sum;
+		}
+	}
+}
+
+// must be divisible by 4
+#define FILTER_KERNEL_SIZE 48
+
+/*
+==============
+S_LowpassFilter
+
+lowpass filters 24-bit integer samples in 'data' (stored in 32-bit ints).
+
+f_c is the filter cutoff frequency, as a fraction of the samplerate
+memory must be an array of FILTER_KERNEL_SIZE floats
+==============
+*/
+static void S_LowpassFilter(float f_c, int *data, int stride, int count,
+							float *memory)
+{
+	int i;
+	
+// M is the "kernel size" parameter for makekernel() - must be even.
+// FILTER_KERNEL_SIZE size is M+1, rounded up to be divisible by 4
+	const int M = FILTER_KERNEL_SIZE - 2;
+	
+	float input[FILTER_KERNEL_SIZE + count];
+	
+	static float kernel[FILTER_KERNEL_SIZE];
+	static float kernel_fc;
+	
+	if (f_c <= 0 || f_c > 0.5)
+		return;
+	
+	if (count < FILTER_KERNEL_SIZE)
+	{
+		Con_Warning("S_LowpassFilter: not enough samples");
+		return;
+	}
+
+// prepare the kernel
+	
+	if (kernel_fc != f_c)
+	{
+		S_MakeBlackmanWindowKernel(kernel, M, f_c);
+		kernel_fc = f_c;
+	}
+	
+// set up the input buffer
+// memory holds the previous FILTER_KERNEL_SIZE samples of input.
+
+	for (i=0; i<FILTER_KERNEL_SIZE; i++)
+	{
+		input[i] = memory[i];
+	}
+	for (i=0; i<count; i++)
+	{
+		input[FILTER_KERNEL_SIZE+i] = data[i * stride] / (32768.0 * 256.0);
+	}
+	
+// copy out the last FILTER_KERNEL_SIZE samples to 'memory' for next time
+	
+	memcpy(memory, input + count, FILTER_KERNEL_SIZE * sizeof(float));
+	
+// apply the filter
+	
+	for (i=0; i<count; i++)
+	{
+		float val[4] = {0, 0, 0, 0};
+		
+		int j;
+		for (j=0; j<=M; j+=4)
+		{
+			val[0] += kernel[j] * input[M + i - j];
+			val[1] += kernel[j+1] * input[M + i - (j+1)];
+			val[2] += kernel[j+2] * input[M + i - (j+2)];
+			val[3] += kernel[j+3] * input[M + i - (j+3)];
+		}
+		
+		data[i * stride] = (val[0] + val[1] + val[2] + val[3])
+		* (32768.0 * 256.0);
+	}
+}
 
 /*
 ===============================================================================
@@ -178,32 +300,7 @@ void S_PaintChannels (int endtime)
 			end = paintedtime + PAINTBUFFER_SIZE;
 
 	// clear the paint buffer
-		if (s_rawend < paintedtime)
-		{	// clear
-			memset(paintbuffer, 0, (end - paintedtime) * sizeof(portable_samplepair_t));
-		}
-		else
-		{	// copy from the streaming sound source
-			int		s;
-			int		stop;
-
-			stop = (end < s_rawend) ? end : s_rawend;
-
-			for (i = paintedtime; i < stop; i++)
-			{
-				s = i & (MAX_RAW_SAMPLES - 1);
-				paintbuffer[i - paintedtime] = s_rawsamples[s];
-			}
-		//	if (i != end)
-		//		Con_Printf ("partial stream\n");
-		//	else
-		//		Con_Printf ("full stream\n");
-			for ( ; i < end; i++)
-			{
-				paintbuffer[i - paintedtime].left =
-				paintbuffer[i - paintedtime].right = 0;
-			}
-		}
+		memset(paintbuffer, 0, (end - paintedtime) * sizeof(portable_samplepair_t));
 
 	// paint in the channels.
 		ch = snd_channels;
@@ -255,6 +352,48 @@ void S_PaintChannels (int endtime)
 			}
 		}
 
+	// clip each sample to 0dB, then reduce by 6dB (to leave some headroom for
+	// the lowpass filter and the music). the lowpass will smooth out the
+	// clipping
+		for (i=0; i<end-paintedtime; i++)
+		{
+			paintbuffer[i].left = CLAMP(-32768 << 8, paintbuffer[i].left, 32767 << 8) >> 1;
+			paintbuffer[i].right = CLAMP(-32768 << 8, paintbuffer[i].right, 32767 << 8) >> 1;
+		}
+		
+	// apply a lowpass filter
+		if (sndspeed.value < shm->speed)
+		{
+			static float memory_l[FILTER_KERNEL_SIZE];
+			static float memory_r[FILTER_KERNEL_SIZE];
+			
+			const float cutoff_freq = (sndspeed.value * 0.45) / shm->speed;
+			
+			S_LowpassFilter(cutoff_freq, (int *)paintbuffer,       2, end - paintedtime, memory_l);
+			S_LowpassFilter(cutoff_freq, ((int *)paintbuffer) + 1, 2, end - paintedtime, memory_r);
+		}
+		
+	// paint in the music
+		if (s_rawend >= paintedtime)
+		{	// copy from the streaming sound source
+			int		s;
+			int		stop;
+			
+			stop = (end < s_rawend) ? end : s_rawend;
+			
+			for (i = paintedtime; i < stop; i++)
+			{
+				s = i & (MAX_RAW_SAMPLES - 1);
+			// lower music by 6db to match sfx
+				paintbuffer[i - paintedtime].left += s_rawsamples[s].left >> 1;
+				paintbuffer[i - paintedtime].right += s_rawsamples[s].right >> 1;
+			}
+			//	if (i != end)
+			//		Con_Printf ("partial stream\n");
+			//	else
+			//		Con_Printf ("full stream\n");
+		}
+		
 	// transfer out according to DMA format
 		S_TransferPaintBuffer(end);
 		paintedtime = end;
