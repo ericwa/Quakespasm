@@ -193,7 +193,7 @@ static void S_MakeBlackmanWindowKernel(float *kernel, int M, float f_c)
 }
 
 // must be divisible by 4
-#define FILTER_KERNEL_SIZE 48
+#define FILTER_KERNEL_SIZE 384
 
 /*
 ==============
@@ -252,6 +252,13 @@ static void S_LowpassFilter(float f_c, int *data, int stride, int count,
 	
 	memcpy(memory, input + count, FILTER_KERNEL_SIZE * sizeof(float));
 	
+// zero out samples
+	for (i=0; i<count+FILTER_KERNEL_SIZE; i++)
+	{
+		if (i % 4 != 0)
+			input[i] = 0;
+	}
+	
 // apply the filter
 	
 	for (i=0; i<count; i++)
@@ -269,6 +276,8 @@ static void S_LowpassFilter(float f_c, int *data, int stride, int count,
 		
 		data[i * stride] = (val[0] + val[1] + val[2] + val[3])
 		* (32768.0 * 256.0);
+		
+		data[i * stride] = data[i * stride] << 2; //fixme: calc correct volume
 	}
 }
 
@@ -367,7 +376,7 @@ void S_PaintChannels (int endtime)
 			static float memory_l[FILTER_KERNEL_SIZE];
 			static float memory_r[FILTER_KERNEL_SIZE];
 			
-			const float cutoff_freq = (sndspeed.value * 0.45) / shm->speed;
+			const float cutoff_freq = (sndspeed.value * 0.5 * 0.96) / shm->speed;
 			
 			S_LowpassFilter(cutoff_freq, (int *)paintbuffer,       2, end - paintedtime, memory_l);
 			S_LowpassFilter(cutoff_freq, ((int *)paintbuffer) + 1, 2, end - paintedtime, memory_r);
