@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>9B8B3A85-F6C1-4D37-B6BC-7F34FBF23BF8</string>
+	<key>IDESourceControlProjectName</key>
+	<string>QuakeSpasm</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>2BD2BDEE-EFDD-4965-A751-0185457382EC</key>
+		<string>https://github.com/ericwa/Quakespasm</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>MacOSX/QuakeSpasm.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>2BD2BDEE-EFDD-4965-A751-0185457382EC</key>
+		<string>../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/ericwa/Quakespasm</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>2BD2BDEE-EFDD-4965-A751-0185457382EC</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>2BD2BDEE-EFDD-4965-A751-0185457382EC</string>
+			<key>IDESourceControlWCCName</key>
+			<string>quakespasm</string>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -156,6 +156,7 @@ S_MakeBlackmanWindowKernel
 Based on equation 16-4 from
 "The Scientist and Engineer's Guide to Digital Signal Processing"
 
+M must be even
 kernel has room for M+1 floats,
 f_c is the filter cutoff frequency, as a fraction of the samplerate
 ==============
@@ -192,94 +193,123 @@ static void S_MakeBlackmanWindowKernel(float *kernel, int M, float f_c)
 	}
 }
 
-// must be divisible by 4
-#define FILTER_KERNEL_SIZE 384
+typedef struct {
+	float *memory;  // kernelsize floats
+	float *kernel;  // kernelsize floats
+	int kernelsize; // M+1, padded to be a multiple of 16
+	int M;
+	int parity; // 0-3
+	float f_c;
+} filter_t;
+
+static void S_UpdateFilter(filter_t *filter, int M, float f_c)
+{
+	if (filter->f_c != f_c || filter->M != M)
+	{
+		if (filter->memory != NULL) free(filter->memory);
+		if (filter->kernel != NULL) free(filter->kernel);
+		
+		filter->M = M;
+		filter->f_c = f_c;
+		
+		filter->parity = 0;
+		if ((M + 1) % 16 == 0)
+			filter->kernelsize = (M + 1);
+		else
+			filter->kernelsize = (M + 1) + 16 - ((M + 1) % 16);
+		filter->memory = calloc(filter->kernelsize, sizeof(float));
+		filter->kernel = calloc(filter->kernelsize, sizeof(float));
+		
+		S_MakeBlackmanWindowKernel(filter->kernel, M, f_c);
+	}
+}
+
+static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
+{
+	int i, j;
+	float *input;
+	const int kernelsize = filter->kernelsize;
+	const float *kernel = filter->kernel;
+	int parity = 0;
+	
+	input = malloc(sizeof(float) * (filter->kernelsize + count));
+	
+// set up the input buffer
+// memory holds the previous filter->kernelsize samples of input.
+	
+	memcpy(input, filter->memory, filter->kernelsize * sizeof(float));
+
+	for (i=0; i<count; i++)
+	{
+		input[filter->kernelsize+i] = data[i * stride] / (32768.0 * 256.0);
+	}
+	
+// copy out the last filter->kernelsize samples to 'memory' for next time
+	
+	memcpy(filter->memory, input + count, filter->kernelsize * sizeof(float));
+	
+// apply the filter
+
+	for (i=0; i<count; i++)
+	{
+		float val[4] = {0, 0, 0, 0};
+		const float *inputptr = input + i;
+		
+		parity = i % 4;
+		
+		for (j = parity; j < kernelsize; j+=16)
+		{
+			val[0] += kernel[j] * inputptr[j];
+			val[1] += kernel[j + 4] * inputptr[j + 4];
+			val[2] += kernel[j + 8] * inputptr[j + 8];
+			val[3] += kernel[j + 12] * inputptr[j + 12];
+		}
+		
+		// 4.0 is to increase volume by 12 dB; this is to make up the
+		// volume drop caused by the zero-filling this filter does.
+		data[i * stride] = (val[0] + val[1] + val[2] + val[3])
+			* (32768.0 * 256.0 * 4.0);
+	}
+	
+	filter->parity = parity;
+
+	free(input);
+}
 
 /*
 ==============
 S_LowpassFilter
 
 lowpass filters 24-bit integer samples in 'data' (stored in 32-bit ints).
-
-f_c is the filter cutoff frequency, as a fraction of the samplerate
 memory must be an array of FILTER_KERNEL_SIZE floats
 ==============
 */
-static void S_LowpassFilter(float f_c, int *data, int stride, int count,
-							float *memory)
+static void S_LowpassFilter(int *data, int stride, int count,
+							filter_t *memory)
 {
-	int i;
+	int M;
+	float bw;
 	
-// M is the "kernel size" parameter for makekernel() - must be even.
-// FILTER_KERNEL_SIZE size is M+1, rounded up to be divisible by 4
-	const int M = FILTER_KERNEL_SIZE - 2;
-	
-	float input[FILTER_KERNEL_SIZE + count];
-	
-	static float kernel[FILTER_KERNEL_SIZE];
-	static float kernel_fc;
-	
-	if (f_c <= 0 || f_c > 0.5)
-		return;
-	
-	if (count < FILTER_KERNEL_SIZE)
+	if (snd_filterquality.value == 0)
 	{
-		Con_Warning("S_LowpassFilter: not enough samples");
-		return;
+		M = 126;
+		bw = 0.90;
+	}
+	else
+	{
+		M = 222;
+		bw = 0.96;
 	}
 
-// prepare the kernel
+	float f_c = (bw * 11025 / 2.0) / 44100.0;
 	
-	if (kernel_fc != f_c)
-	{
-		S_MakeBlackmanWindowKernel(kernel, M, f_c);
-		kernel_fc = f_c;
-	}
+	S_UpdateFilter(memory, M, f_c);
 	
-// set up the input buffer
-// memory holds the previous FILTER_KERNEL_SIZE samples of input.
-
-	for (i=0; i<FILTER_KERNEL_SIZE; i++)
-	{
-		input[i] = memory[i];
-	}
-	for (i=0; i<count; i++)
-	{
-		input[FILTER_KERNEL_SIZE+i] = data[i * stride] / (32768.0 * 256.0);
-	}
-	
-// copy out the last FILTER_KERNEL_SIZE samples to 'memory' for next time
-	
-	memcpy(memory, input + count, FILTER_KERNEL_SIZE * sizeof(float));
-	
-// zero out samples
-	for (i=0; i<count+FILTER_KERNEL_SIZE; i++)
-	{
-		if (i % 4 != 0)
-			input[i] = 0;
-	}
-	
-// apply the filter
-	
-	for (i=0; i<count; i++)
-	{
-		float val[4] = {0, 0, 0, 0};
-		
-		int j;
-		for (j=0; j<=M; j+=4)
-		{
-			val[0] += kernel[j] * input[M + i - j];
-			val[1] += kernel[j+1] * input[M + i - (j+1)];
-			val[2] += kernel[j+2] * input[M + i - (j+2)];
-			val[3] += kernel[j+3] * input[M + i - (j+3)];
-		}
-		
-		data[i * stride] = (val[0] + val[1] + val[2] + val[3])
-		* (32768.0 * 256.0);
-		
-		data[i * stride] = data[i * stride] << 2; //fixme: calc correct volume
-	}
+	S_ApplyFilter(memory, data, stride, count);
 }
+
+
+
 
 /*
 ===============================================================================
@@ -371,15 +401,11 @@ void S_PaintChannels (int endtime)
 		}
 		
 	// apply a lowpass filter
-		if (sndspeed.value < shm->speed)
+		if (sndspeed.value == 11025 && shm->speed == 44100)
 		{
-			static float memory_l[FILTER_KERNEL_SIZE];
-			static float memory_r[FILTER_KERNEL_SIZE];
-			
-			const float cutoff_freq = (sndspeed.value * 0.5 * 0.96) / shm->speed;
-			
-			S_LowpassFilter(cutoff_freq, (int *)paintbuffer,       2, end - paintedtime, memory_l);
-			S_LowpassFilter(cutoff_freq, ((int *)paintbuffer) + 1, 2, end - paintedtime, memory_r);
+			static filter_t memory_l, memory_r;
+			S_LowpassFilter((int *)paintbuffer,       2, end - paintedtime, &memory_l);
+			S_LowpassFilter(((int *)paintbuffer) + 1, 2, end - paintedtime, &memory_r);
 		}
 		
 	// paint in the music
