@@ -118,6 +118,14 @@ static void SND_Callback_sfxvolume (cvar_t *var)
 	SND_InitScaletable ();
 }
 
+static void SND_Callback_snd_filterquality (cvar_t *var)
+{
+	if (snd_filterquality.value < 1 || snd_filterquality.value > 5)
+	{
+		Con_Printf ("snd_filterquality must be between 1 and 5\n");
+		Cvar_SetQuick (&snd_filterquality, SND_FILTERQUALITY_DEFAULT);
+	}
+}
 
 /*
 ================
@@ -204,6 +212,7 @@ void S_Init (void)
 	}
 
 	Cvar_SetCallback(&sfxvolume, SND_Callback_sfxvolume);
+	Cvar_SetCallback(&snd_filterquality, &SND_Callback_snd_filterquality);
 
 	SND_InitScaletable ();
 
