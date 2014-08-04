@@ -213,10 +213,8 @@ static void S_UpdateFilter(filter_t *filter, int M, float f_c)
 		filter->f_c = f_c;
 		
 		filter->parity = 0;
-		if ((M + 1) % 16 == 0)
-			filter->kernelsize = (M + 1);
-		else
-			filter->kernelsize = (M + 1) + 16 - ((M + 1) % 16);
+		// M + 1 rounded up to the next multiple of 16
+		filter->kernelsize = (M + 1) + 16 - ((M + 1) % 16);
 		filter->memory = calloc(filter->kernelsize, sizeof(float));
 		filter->kernel = calloc(filter->kernelsize, sizeof(float));
 		
@@ -230,7 +228,7 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 	float *input;
 	const int kernelsize = filter->kernelsize;
 	const float *kernel = filter->kernel;
-	int parity = 0;
+	int parity;
 	
 	input = malloc(sizeof(float) * (filter->kernelsize + count));
 	
@@ -250,25 +248,22 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 	
 // apply the filter
 
+	parity = filter->parity;
+	
 	for (i=0; i<count; i++)
 	{
-		float val[4] = {0, 0, 0, 0};
-		const float *inputptr = input + i;
+		float val = 0;
 		
-		parity = i % 4;
-		
-		for (j = parity; j < kernelsize; j+=16)
+		for (j = 4 - parity; j < kernelsize; j+=4)
 		{
-			val[0] += kernel[j] * inputptr[j];
-			val[1] += kernel[j + 4] * inputptr[j + 4];
-			val[2] += kernel[j + 8] * inputptr[j + 8];
-			val[3] += kernel[j + 12] * inputptr[j + 12];
+			val += kernel[j] * input[i+j];
 		}
 		
 		// 4.0 is to increase volume by 12 dB; this is to make up the
 		// volume drop caused by the zero-filling this filter does.
-		data[i * stride] = (val[0] + val[1] + val[2] + val[3])
-			* (32768.0 * 256.0 * 4.0);
+		data[i * stride] = val * (32768.0 * 256.0 * 4.0);
+		
+		parity = (parity + 1) % 4;
 	}
 	
 	filter->parity = parity;
@@ -290,15 +285,19 @@ static void S_LowpassFilter(int *data, int stride, int count,
 	int M;
 	float bw;
 	
-	if (snd_filterquality.value == 0)
+	switch ((int)snd_filterquality.value)
 	{
-		M = 126;
-		bw = 0.90;
-	}
-	else
-	{
-		M = 222;
-		bw = 0.96;
+		case 1:
+			M = 126; bw = 0.900; break;
+		case 2:
+			M = 150; bw = 0.915; break;
+		case 3:
+			M = 174; bw = 0.930; break;
+		case 4:
+			M = 198; bw = 0.945; break;
+		case 5:
+		default:
+			M = 222; bw = 0.960; break;
 	}
 
 	float f_c = (bw * 11025 / 2.0) / 44100.0;
