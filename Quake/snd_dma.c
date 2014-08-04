@@ -77,7 +77,7 @@ cvar_t		loadas8bit = {"loadas8bit", "0", CVAR_NONE};
 
 cvar_t		sndspeed = {"sndspeed", "11025", CVAR_NONE};
 cvar_t		snd_mixspeed = {"snd_mixspeed", "44100", CVAR_NONE};
-cvar_t		snd_filterquality = {"snd_filterquality", "1", CVAR_NONE};
+cvar_t		snd_filterquality = {"snd_filterquality", "5", CVAR_NONE};
 
 static	cvar_t	nosound = {"nosound", "0", CVAR_NONE};
 static	cvar_t	ambient_level = {"ambient_level", "0.3", CVAR_NONE};
