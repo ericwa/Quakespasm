@@ -153,11 +153,11 @@ static void S_TransferPaintBuffer (int endtime)
 ==============
 S_MakeBlackmanWindowKernel
 
-Based on equation 16-4 from
-"The Scientist and Engineer's Guide to Digital Signal Processing"
+Makes a lowpass filter kernel, from equation 16-4 in
+"The Scientist and Engineer's Guide to Digital Signal Processing",
 
-M must be even
-kernel has room for M+1 floats,
+M is the kernel size (doesn't count the center point), must be even
+kernel has room for M+1 floats
 f_c is the filter cutoff frequency, as a fraction of the samplerate
 ==============
 */
@@ -196,10 +196,10 @@ static void S_MakeBlackmanWindowKernel(float *kernel, int M, float f_c)
 typedef struct {
 	float *memory;  // kernelsize floats
 	float *kernel;  // kernelsize floats
-	int kernelsize; // M+1, padded to be a multiple of 16
-	int M;
-	int parity; // 0-3
-	float f_c;
+	int kernelsize; // M+1, rounded up to be a multiple of 16
+	int M;			// M value used to make kernel, even
+	int parity;		// 0-3
+	float f_c;		// cutoff frequency, [0..1], fraction of sample rate
 } filter_t;
 
 static void S_UpdateFilter(filter_t *filter, int M, float f_c)
@@ -213,7 +213,7 @@ static void S_UpdateFilter(filter_t *filter, int M, float f_c)
 		filter->f_c = f_c;
 		
 		filter->parity = 0;
-		// M + 1 rounded up to the next multiple of 16
+	// M + 1 rounded up to the next multiple of 16
 		filter->kernelsize = (M + 1) + 16 - ((M + 1) % 16);
 		filter->memory = calloc(filter->kernelsize, sizeof(float));
 		filter->kernel = calloc(filter->kernelsize, sizeof(float));
@@ -252,16 +252,21 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 	
 	for (i=0; i<count; i++)
 	{
-		float val = 0;
+		const float *input_plus_i = input + i;
+		float val[4] = {0, 0, 0, 0};
 		
-		for (j = 4 - parity; j < kernelsize; j+=4)
+		for (j = (4 - parity) % 4; j < kernelsize; j+=16)
 		{
-			val += kernel[j] * input[i+j];
+			val[0] += kernel[j] * input_plus_i[j];
+			val[1] += kernel[j+4] * input_plus_i[j+4];
+			val[2] += kernel[j+8] * input_plus_i[j+8];
+			val[3] += kernel[j+12] * input_plus_i[j+12];
 		}
 		
-		// 4.0 is to increase volume by 12 dB; this is to make up the
-		// volume drop caused by the zero-filling this filter does.
-		data[i * stride] = val * (32768.0 * 256.0 * 4.0);
+	// 4.0 factor is to increase volume by 12 dB; this is to make up the
+	// volume drop caused by the zero-filling this filter does.
+		data[i * stride] = (val[0] + val[1] + val[2] + val[3])
+			* (32768.0 * 256.0 * 4.0);
 		
 		parity = (parity + 1) % 4;
 	}
@@ -276,14 +281,15 @@ static void S_ApplyFilter(filter_t *filter, int *data, int stride, int count)
 S_LowpassFilter
 
 lowpass filters 24-bit integer samples in 'data' (stored in 32-bit ints).
-memory must be an array of FILTER_KERNEL_SIZE floats
+assumes 44100Hz sample rate, and lowpasses at around 5kHz
+memory should be a zero-filled filter_t struct
 ==============
 */
 static void S_LowpassFilter(int *data, int stride, int count,
 							filter_t *memory)
 {
 	int M;
-	float bw;
+	float bw, f_c;
 	
 	switch ((int)snd_filterquality.value)
 	{
@@ -300,15 +306,11 @@ static void S_LowpassFilter(int *data, int stride, int count,
 			M = 222; bw = 0.960; break;
 	}
 
-	float f_c = (bw * 11025 / 2.0) / 44100.0;
+	f_c = (bw * 11025 / 2.0) / 44100.0;
 	
 	S_UpdateFilter(memory, M, f_c);
-	
 	S_ApplyFilter(memory, data, stride, count);
 }
-
-
-
 
 /*
 ===============================================================================
