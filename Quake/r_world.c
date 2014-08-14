@@ -463,6 +463,36 @@ void R_DrawTextureChains_TextureOnly (void)
 
 /*
 ================
+R_BeginAlphaForWaterSurface -- ericw
+================
+*/
+static qboolean R_BeginAlphaForWaterSurface (msurface_t *s)
+{
+	float liquidalpha;
+	
+	liquidalpha = GL_WaterAlphaForSurface (s);
+
+	if (liquidalpha < 1.0f)
+	{
+		glDepthMask(GL_FALSE);
+		glEnable (GL_BLEND);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glColor4f (1,1,1,liquidalpha);
+		return true;
+	}
+	return false;
+}
+
+static void R_EndAlphaForWaterSurface (void)
+{
+	glDepthMask(GL_TRUE);
+	glDisable (GL_BLEND);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	glColor3f (1,1,1);
+}
+
+/*
+================
 R_DrawTextureChains_Water -- johnfitz
 ================
 */
@@ -472,18 +502,10 @@ void R_DrawTextureChains_Water (void)
 	msurface_t	*s;
 	texture_t	*t;
 	glpoly_t	*p;
-	qboolean	bound;
-
+	qboolean	bound, usedalpha;
+	
 	if (r_drawflat_cheatsafe || r_lightmap_cheatsafe || !r_drawworld_cheatsafe)
 		return;
-
-	if (r_wateralpha.value < 1.0)
-	{
-		glDepthMask(GL_FALSE);
-		glEnable (GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glColor4f (1,1,1,r_wateralpha.value);
-	}
 
 	if (r_oldwater.value)
 	{
@@ -493,11 +515,13 @@ void R_DrawTextureChains_Water (void)
 			if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWTURB))
 				continue;
 			bound = false;
+			usedalpha = false;
 			for (s = t->texturechain; s; s = s->texturechain)
 				if (!s->culled)
 				{
 					if (!bound) //only bind once we are sure we need this texture
 					{
+						usedalpha = R_BeginAlphaForWaterSurface (s);
 						GL_Bind (t->gltexture);
 						bound = true;
 					}
@@ -507,6 +531,8 @@ void R_DrawTextureChains_Water (void)
 						rs_brushpasses++;
 					}
 				}
+			if (usedalpha)
+				R_EndAlphaForWaterSurface ();
 		}
 	}
 	else
@@ -517,26 +543,23 @@ void R_DrawTextureChains_Water (void)
 			if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWTURB))
 				continue;
 			bound = false;
+			usedalpha = false;
 			for (s = t->texturechain; s; s = s->texturechain)
 				if (!s->culled)
 				{
 					if (!bound) //only bind once we are sure we need this texture
 					{
+						usedalpha = R_BeginAlphaForWaterSurface (s);
 						GL_Bind (t->warpimage);
 						bound = true;
 					}
 					DrawGLPoly (s->polys);
 					rs_brushpasses++;
 				}
-		}
-	}
+			if (usedalpha)
+				R_EndAlphaForWaterSurface ();
 
-	if (r_wateralpha.value < 1.0)
-	{
-		glDepthMask(GL_TRUE);
-		glDisable (GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glColor3f (1,1,1);
+		}
 	}
 }
 
