@@ -73,7 +73,7 @@ interface from being ambiguous.
 #define	CVAR_LOCKED		(1U << 8)	// locked temporarily
 #define	CVAR_REGISTERED		(1U << 10)	// the var is added to the list of variables
 #define	CVAR_CALLBACK		(1U << 16)	// var has a callback
-
+#define	CVAR_CALLBACK_IF_UNCHANGED		(1U << 17)	// invoke the callback when the cvar is set, even if setting it to the same value
 
 typedef void (*cvarcallback_t) (struct cvar_s *);
 

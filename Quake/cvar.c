@@ -396,7 +396,12 @@ void Cvar_SetQuick (cvar_t *var, const char *value)
 		int	len;
 
 		if (!strcmp(var->string, value))
+		{
+			if (var->flags & CVAR_CALLBACK_IF_UNCHANGED && var->callback)
+				var->callback (var);
+				
 			return;	// no change
+		}
 
 		var->flags |= CVAR_CHANGED;
 		len = Q_strlen (value);
