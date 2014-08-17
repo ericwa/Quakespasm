@@ -102,9 +102,9 @@ extern cvar_t	r_vfog;
 //johnfitz
 
 cvar_t	gl_zfix = {"gl_zfix", "1", CVAR_ARCHIVE}; // QuakeSpasm z-fighting fix
-cvar_t	r_lavaalpha = {"r_lavaalpha","0",CVAR_NONE | CVAR_CALLBACK_IF_UNCHANGED};
-cvar_t	r_telealpha = {"r_telealpha","0",CVAR_NONE | CVAR_CALLBACK_IF_UNCHANGED};
-cvar_t	r_slimealpha = {"r_slimealpha","0",CVAR_NONE | CVAR_CALLBACK_IF_UNCHANGED};
+cvar_t	r_lavaalpha = {"r_lavaalpha","-1",CVAR_NONE | CVAR_CALLBACK_IF_UNCHANGED};
+cvar_t	r_telealpha = {"r_telealpha","-1",CVAR_NONE | CVAR_CALLBACK_IF_UNCHANGED};
+cvar_t	r_slimealpha = {"r_slimealpha","-1",CVAR_NONE | CVAR_CALLBACK_IF_UNCHANGED};
 
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
