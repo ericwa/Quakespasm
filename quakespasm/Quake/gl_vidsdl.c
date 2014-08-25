@@ -106,7 +106,7 @@ cvar_t		vid_gamma = {"gamma", "1", CVAR_ARCHIVE}; //johnfitz -- moved here from 
 //
 //==========================================================================
 
-#define	USE_GAMMA_RAMPS			0
+#define	USE_GAMMA_RAMPS			1
 
 #if USE_GAMMA_RAMPS
 static unsigned short vid_gamma_red[256];
