@@ -888,9 +888,12 @@ Key_Event
 
 Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
+
+If interpret_shift is true, and the shift key is currently down, handles
+mapping to the shifted version of a key. e.g. '5' -> '%'
 ===================
 */
-void Key_Event (int key, qboolean down)
+void Key_Event (int key, qboolean down, qboolean interpret_shift)
 {
 	char	*kb;
 	char	cmd[1024];
@@ -1001,7 +1004,7 @@ void Key_Event (int key, qboolean down)
 	if (!down)
 		return;		// other systems only care about key down events
 
-	if (shift_down)
+	if (shift_down && interpret_shift)
 		key = keyshift[key];
 
 	switch (key_dest)
@@ -1034,7 +1037,7 @@ void Key_ClearStates (void)
 	for (i = 0; i < 256; i++)
 	{
 		if (keydown[i])
-			Key_Event (i, false);
+			Key_Event (i, false, true);
 	}
 }
 

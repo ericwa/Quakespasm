@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		002F39FA09D0881F00EBEB88 /* SDL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002F39F909D0881F00EBEB88 /* SDL.framework */; };
 		002F3A0009D0884600EBEB88 /* SDL.framework in Copy Frameworks */ = {isa = PBXBuildFile; fileRef = 002F39F909D0881F00EBEB88 /* SDL.framework */; };
 		002F3A2E09D0888800EBEB88 /* SDLMain.m in Sources */ = {isa = PBXBuildFile; fileRef = 002F3A2C09D0888800EBEB88 /* SDLMain.m */; };
 		002F3C0109D093BD00EBEB88 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 002F3C0009D093BD00EBEB88 /* OpenGL.framework */; };
@@ -106,12 +105,44 @@
 		48E2EC8815FB516600B8D476 /* libvorbis.dylib in Copy Libraries */ = {isa = PBXBuildFile; fileRef = 48E2EC7B15FB507A00B8D476 /* libvorbis.dylib */; };
 		48E2EC8915FB516600B8D476 /* libvorbisfile.dylib in Copy Libraries */ = {isa = PBXBuildFile; fileRef = 48E2EC7C15FB507A00B8D476 /* libvorbisfile.dylib */; };
 		48FE585B0D3A82C8006BB491 /* QuakeArguments.m in Sources */ = {isa = PBXBuildFile; fileRef = 48FE585A0D3A82C8006BB491 /* QuakeArguments.m */; };
+		66CF3DA0199F0A0D004CF1D9 /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 66CF3D94199F09C6004CF1D9 /* SDL2.framework */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		A4E3AF2A05D43FCC000F1B47 /* libmikmod.dylib in Copy Libraries */ = {isa = PBXBuildFile; fileRef = F5F5DE80017CB4370103A810 /* libmikmod.dylib */; };
 		A4E3AF6205D43FCC000F1B47 /* libmikmod.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = F5F5DE80017CB4370103A810 /* libmikmod.dylib */; };
 		B021C20914A5FF7E003F18D6 /* cfgfile.c in Sources */ = {isa = PBXBuildFile; fileRef = B021C20714A5FF7E003F18D6 /* cfgfile.c */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		66CF3D93199F09C6004CF1D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = BECDF66C0761BA81005FE872;
+			remoteInfo = Framework;
+		};
+		66CF3D95199F09C6004CF1D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = BECDF6B30761BA81005FE872;
+			remoteInfo = "Static Library";
+		};
+		66CF3D97199F09C6004CF1D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = DB31407717554B71006C0E22;
+			remoteInfo = "Shared Library";
+		};
+		66CF3D99199F09C6004CF1D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = BECDF6BE0761BA81005FE872;
+			remoteInfo = "Standard DMG";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		002F39FD09D0883400EBEB88 /* Copy Frameworks */ = {
@@ -302,6 +333,7 @@
 		48E2EC7C15FB507A00B8D476 /* libvorbisfile.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libvorbisfile.dylib; path = codecs/lib/libvorbisfile.dylib; sourceTree = "<group>"; };
 		48FE58590D3A82C8006BB491 /* QuakeArguments.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = QuakeArguments.h; sourceTree = "<group>"; };
 		48FE585A0D3A82C8006BB491 /* QuakeArguments.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = QuakeArguments.m; sourceTree = "<group>"; };
+		663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = SDL.xcodeproj; path = ../../../SDL/Xcode/SDL/SDL.xcodeproj; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* QuakeSpasm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuakeSpasm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B021C20714A5FF7E003F18D6 /* cfgfile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cfgfile.c; path = ../Quake/cfgfile.c; sourceTree = SOURCE_ROOT; };
@@ -314,6 +346,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				66CF3DA0199F0A0D004CF1D9 /* SDL2.framework in Frameworks */,
 				482812FD179C3EF4004E1D61 /* libFLAC.dylib in Frameworks */,
 				4885A84F179740CA000EC703 /* libopus.dylib in Frameworks */,
 				4885A850179740CA000EC703 /* libopusfile.dylib in Frameworks */,
@@ -323,7 +356,6 @@
 				48E2EC8015FB507A00B8D476 /* libvorbisfile.dylib in Frameworks */,
 				A4E3AF6205D43FCC000F1B47 /* libmikmod.dylib in Frameworks */,
 				48E2EC7815FB500400B8D476 /* IOKit.framework in Frameworks */,
-				002F39FA09D0881F00EBEB88 /* SDL.framework in Frameworks */,
 				002F3C6109D0951E00EBEB88 /* GLUT.framework in Frameworks */,
 				8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */,
 				002F3C0109D093BD00EBEB88 /* OpenGL.framework in Frameworks */,
@@ -396,6 +428,7 @@
 		29B97323FDCFA39411CA2CEA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */,
 				1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */,
 				1058C7A2FEA54F0111CA2CBB /* Other Frameworks */,
 			);
@@ -637,6 +670,17 @@
 			name = Headers;
 			sourceTree = "<group>";
 		};
+		66CF3D8D199F09C6004CF1D9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				66CF3D94199F09C6004CF1D9 /* SDL2.framework */,
+				66CF3D96199F09C6004CF1D9 /* libSDL2.a */,
+				66CF3D98199F09C6004CF1D9 /* libSDL2.dylib */,
+				66CF3D9A199F09C6004CF1D9 /* Standard DMG */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -680,12 +724,49 @@
 			);
 			mainGroup = 29B97314FDCFA39411CA2CEA /* QuakeSpasm */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 66CF3D8D199F09C6004CF1D9 /* Products */;
+					ProjectRef = 663C8CA01991FD32006AEEC4 /* SDL.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				8D1107260486CEB800E47090 /* QuakeSpasm */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		66CF3D94199F09C6004CF1D9 /* SDL2.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = SDL2.framework;
+			remoteRef = 66CF3D93199F09C6004CF1D9 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		66CF3D96199F09C6004CF1D9 /* libSDL2.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libSDL2.a;
+			remoteRef = 66CF3D95199F09C6004CF1D9 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		66CF3D98199F09C6004CF1D9 /* libSDL2.dylib */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.dylib";
+			path = libSDL2.dylib;
+			remoteRef = 66CF3D97199F09C6004CF1D9 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		66CF3D9A199F09C6004CF1D9 /* Standard DMG */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = "Standard DMG";
+			remoteRef = 66CF3D99199F09C6004CF1D9 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		8D1107290486CEB800E47090 /* Resources */ = {
@@ -826,7 +907,10 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = SDL_FRAMEWORK;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					SDL_FRAMEWORK,
+					USE_SDL2,
+				);
 				GCC_VERSION = com.apple.compilers.llvmgcc42;
 				HEADER_SEARCH_PATHS = (
 					codecs/include,
@@ -928,9 +1012,9 @@
 					"$(HEADER_SEARCH_PATHS)",
 				);
 				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 10.4;
-				"MACOSX_DEPLOYMENT_TARGET[arch=i386]" = 10.4;
-				"MACOSX_DEPLOYMENT_TARGET[arch=ppc]" = 10.4;
+				MACOSX_DEPLOYMENT_TARGET = 10.6;
+				"MACOSX_DEPLOYMENT_TARGET[arch=i386]" = 10.6;
+				"MACOSX_DEPLOYMENT_TARGET[arch=ppc]" = 10.6;
 				"MACOSX_DEPLOYMENT_TARGET[arch=x86_64]" = 10.6;
 				ONLY_ACTIVE_ARCH = NO;
 				PREBINDING = NO;
@@ -974,9 +1058,9 @@
 					"$(HEADER_SEARCH_PATHS)",
 				);
 				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 10.4;
-				"MACOSX_DEPLOYMENT_TARGET[arch=i386]" = 10.4;
-				"MACOSX_DEPLOYMENT_TARGET[arch=ppc]" = 10.4;
+				MACOSX_DEPLOYMENT_TARGET = 10.6;
+				"MACOSX_DEPLOYMENT_TARGET[arch=i386]" = 10.6;
+				"MACOSX_DEPLOYMENT_TARGET[arch=ppc]" = 10.6;
 				"MACOSX_DEPLOYMENT_TARGET[arch=x86_64]" = 10.6;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CFLAGS = "";

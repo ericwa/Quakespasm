@@ -83,5 +83,9 @@ void VID_SyncCvars (void);
 
 void VID_Toggle (void);
 
+qboolean VID_HasMouseOrInputFocus (void);
+qboolean VID_GetWindowVisible (void);
+void *VID_GetWindow (void);
+
 #endif	/* __VID_DEFS_H */
 
