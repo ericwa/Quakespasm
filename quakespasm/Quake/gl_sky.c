@@ -526,10 +526,10 @@ void Sky_ProcessTextureChains (void)
 	{
 		t = cl.worldmodel->textures[i];
 
-		if (!t || !t->texturechain || !(t->texturechain->flags & SURF_DRAWSKY))
+		if (!t || !t->texturechains[chain_world] || !(t->texturechains[chain_world]->flags & SURF_DRAWSKY))
 			continue;
 
-		for (s = t->texturechain; s; s = s->texturechain)
+		for (s = t->texturechains[chain_world]; s; s = s->texturechain)
 			if (!s->culled)
 				Sky_ProcessPoly (s->polys);
 	}
@@ -800,9 +800,9 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 8, &s, &t);
-			GL_MTexCoord2fFunc (TEXTURE0, s, t);
+			GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, s, t);
 			Sky_GetTexCoord (v, 16, &s, &t);
-			GL_MTexCoord2fFunc (TEXTURE1, s, t);
+			GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, s, t);
 			glVertex3fv (v);
 		}
 		glEnd ();

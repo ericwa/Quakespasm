@@ -133,6 +133,7 @@ void DrawGLTriangleFan (glpoly_t *p)
 =============================================================
 */
 
+#if 0
 /*
 ================
 R_DrawSequentialPoly -- johnfitz -- rewritten
@@ -338,8 +339,8 @@ void R_DrawSequentialPoly (msurface_t *s)
 			v = s->polys->verts[0];
 			for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
 			{
-				GL_MTexCoord2fFunc (TEXTURE0, v[3], v[4]);
-				GL_MTexCoord2fFunc (TEXTURE1, v[5], v[6]);
+				GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, v[3], v[4]);
+				GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, v[5], v[6]);
 				glVertex3fv (v);
 			}
 			glEnd ();
@@ -413,8 +414,8 @@ void R_DrawSequentialPoly (msurface_t *s)
 			v = s->polys->verts[0];
 			for (i=0 ; i<s->polys->numverts ; i++, v+= VERTEXSIZE)
 			{
-				GL_MTexCoord2fFunc (TEXTURE0, v[3], v[4]);
-				GL_MTexCoord2fFunc (TEXTURE1, v[5], v[6]);
+				GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, v[3], v[4]);
+				GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, v[5], v[6]);
 				glVertex3fv (v);
 			}
 			glEnd ();
@@ -484,41 +485,6 @@ void R_DrawSequentialPoly (msurface_t *s)
 		glDisable (GL_ALPHA_TEST); // Flip alpha test back off
 	
 fullbrights:
-	return; // ericw - optimization: moved to a separate pass through the polys
-			// so we're not constantly thrashing the texture bound in TEXTURE0
-}
-
-/*
-================
-R_DrawSequentialPoly_Fullbrights -- ericw - moved from R_DrawSequentialPoly
-================
-*/
-void R_DrawSequentialPoly_Fullbrights (msurface_t *s)
-{
-	texture_t	*t;
-	float		entalpha;
-
-	t = R_TextureAnimation (s->texinfo->texture, currententity->frame);
-	entalpha = ENTALPHA_DECODE(currententity->alpha);
-
-// drawflat
-	if (r_drawflat_cheatsafe)
-		return;
-
-// fullbright
-	if ((r_fullbright_cheatsafe) && !(s->flags & SURF_DRAWTILED))
-		goto fullbrights;
-
-// other cases
-	if (r_lightmap_cheatsafe
-		|| s->flags & SURF_DRAWSKY
-		|| s->flags & SURF_DRAWTURB
-		|| s->flags & SURF_NOTEXTURE)
-		return;
-
-// lightmapped poly
-
-fullbrights:
 	if (gl_fullbrights.value && t->fullbright)
 	{
 		glDepthMask (GL_FALSE);
@@ -538,7 +504,7 @@ fullbrights:
 		rs_brushpasses++;
 	}
 }
-
+#endif
 /*
 =================
 R_DrawBrushModel
@@ -605,12 +571,7 @@ void R_DrawBrushModel (entity_t *e)
 	}
 	e->angles[0] = -e->angles[0];	// stupid quake bug
 
-	//
-	// draw it
-	//
-	if (r_drawflat_cheatsafe) //johnfitz
-		glDisable(GL_TEXTURE_2D);
-
+	R_ClearTextureChains (clmodel, chain_model);
 	for (i=0 ; i<clmodel->nummodelsurfaces ; i++, psurf++)
 	{
 		pplane = psurf->plane;
@@ -618,29 +579,13 @@ void R_DrawBrushModel (entity_t *e)
 		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
 			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
 		{
-			R_DrawSequentialPoly (psurf);
+			R_ChainSurface (psurf, chain_model);
 			rs_brushpolys++;
 		}
 	}
 
-// ericw -- second pass to draw the fullbrights
-
-	psurf = &clmodel->surfaces[clmodel->firstmodelsurface];
-	for (i=0 ; i<clmodel->nummodelsurfaces ; i++, psurf++)
-	{
-		pplane = psurf->plane;
-		dot = DotProduct (modelorg, pplane->normal) - pplane->dist;
-		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
-			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
-		{
-			R_DrawSequentialPoly_Fullbrights (psurf);
-		}
-	}
-
-	if (r_drawflat_cheatsafe) //johnfitz
-		glEnable(GL_TEXTURE_2D);
-
-	GL_DisableMultitexture(); // selects TEXTURE0
+	R_DrawTextureChains (clmodel, e, chain_model);
+	R_DrawTextureChains_Water (clmodel, e, chain_model);
 
 	glPopMatrix ();
 }

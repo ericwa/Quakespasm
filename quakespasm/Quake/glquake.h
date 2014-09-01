@@ -152,24 +152,17 @@ extern	float	r_world_matrix[16];
 // Multitexture
 extern	qboolean	mtexenabled;
 extern	qboolean	gl_mtexable;
-#define	TEXTURE0_SGIS				0x835E
-#define	TEXTURE1_SGIS				0x835F
-//johnfitz -- modified multitexture support
 extern PFNGLMULTITEXCOORD2FARBPROC  GL_MTexCoord2fFunc;
 extern PFNGLACTIVETEXTUREARBPROC    GL_SelectTextureFunc;
-extern GLenum TEXTURE0, TEXTURE1;
-//johnfitz
 
 //johnfitz -- anisotropic filtering
 #define	GL_TEXTURE_MAX_ANISOTROPY_EXT		0x84FE
 #define	GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT	0x84FF
 extern	float		gl_max_anisotropy;
 extern	qboolean	gl_anisotropy_able;
-//johnfitz
 
 //ericw -- NPOT texture support
 extern	qboolean	gl_texture_NPOT;
-//ericw
 
 //johnfitz -- polygon offset
 #define OFFSET_BMODEL 1
@@ -178,7 +171,6 @@ extern	qboolean	gl_texture_NPOT;
 #define OFFSET_FOG -2
 #define OFFSET_SHOWTRIS -3
 void GL_PolygonOffset (int);
-//johnfitz
 
 //johnfitz -- GL_EXT_texture_env_combine
 //the values for GL_ARB_ are identical
@@ -195,13 +187,11 @@ void GL_PolygonOffset (int);
 #define GL_SOURCE1_ALPHA_EXT	0x8589
 extern qboolean gl_texture_env_combine;
 extern qboolean gl_texture_env_add; // for GL_EXT_texture_env_add
-//johnfitz
 
 //johnfitz -- rendering statistics
 extern int rs_brushpolys, rs_aliaspolys, rs_skypolys, rs_particles, rs_fogpolys;
 extern int rs_dynamiclightmaps, rs_brushpasses, rs_aliaspasses, rs_skypasses;
 extern float rs_megatexels;
-//johnfitz
 
 //johnfitz -- track developer statistics that vary every frame
 extern cvar_t devstats;
@@ -215,7 +205,6 @@ typedef struct {
 	int		dlights;
 } devstats_t;
 extern devstats_t dev_stats, dev_peakstats;
-//johnfitz
 
 //ohnfitz -- reduce overflow warning spam
 typedef struct {
@@ -225,13 +214,11 @@ typedef struct {
 } overflowtimes_t;
 extern overflowtimes_t dev_overflows; //this stores the last time overflow messages were displayed, not the last time overflows occured
 #define CONSOLE_RESPAM_TIME 3 // seconds between repeated warning messages
-//johnfitz
 
 //johnfitz -- moved here from r_brush.c
 extern int gl_lightmap_format, lightmap_bytes;
 #define MAX_LIGHTMAPS 256 //johnfitz -- was 64
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
-//johnfitz
 
 extern int gl_warpimagesize; //johnfitz -- for water warp
 
@@ -248,7 +235,6 @@ void Fog_StopAdditive (void);
 void Fog_SetupFrame (void);
 void Fog_NewMap (void);
 void Fog_Init (void);
-//johnfitz
 
 void R_NewGame (void);
 
@@ -275,7 +261,7 @@ void R_DrawAliasModel (entity_t *e);
 void R_DrawBrushModel (entity_t *e);
 void R_DrawSpriteModel (entity_t *e);
 
-void R_DrawTextureChains_Water (void);
+void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain);
 
 void R_RenderDlights (void);
 void GL_BuildLightmaps (void);
@@ -288,7 +274,7 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride);
 void R_RenderDynamicLightmaps (msurface_t *fa);
 void R_UploadLightmaps (void);
 
-void R_DrawTextureChains_ShowTris (void);
+void R_DrawWorld_ShowTris (void);
 void R_DrawBrushModel_ShowTris (entity_t *e);
 void R_DrawAliasModel_ShowTris (entity_t *e);
 void R_DrawParticles_ShowTris (void);
@@ -306,6 +292,11 @@ void Sky_LoadTexture (texture_t *mt);
 void Sky_LoadSkyBox (const char *name);
 
 void TexMgr_RecalcWarpImageSize (void);
+
+void R_ClearTextureChains (qmodel_t *mod, texchain_t chain);
+void R_ChainSurface (msurface_t *surf, texchain_t chain);
+void R_DrawTextureChains (qmodel_t *model, entity_t *ent, texchain_t chain);
+void R_DrawWorld_Water (void);
 
 #endif	/* __GLQUAKE_H */
 
