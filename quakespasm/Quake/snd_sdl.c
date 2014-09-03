@@ -158,7 +158,7 @@ qboolean SNDDMA_Init (dma_t *dma)
 	{
 		const char *driver = SDL_GetCurrentAudioDriver();
 		const char *device = SDL_GetAudioDeviceName(0, SDL_FALSE);
-		q_snprintf(drivername, sizeof(drivername), "%s - %s", 
+		q_snprintf(drivername, sizeof(drivername), "%s - %s",
 			driver != NULL ? driver : "(UNKNOWN)",
 			device != NULL ? device : "(UNKNOWN)");
 	}

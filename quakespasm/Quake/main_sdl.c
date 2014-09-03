@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
-#include "arch_def.h"
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
 #if defined(USE_SDL2)
 #include <SDL2/SDL.h>
@@ -40,7 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define SDL_MIN_Y	0
 #define SDL_MIN_Z	0
 #define SDL_REQUIREDVERSION	(SDL_VERSIONNUM(SDL_MIN_X,SDL_MIN_Y,SDL_MIN_Z))
-#define SDL_NEW_VERSION_REJECT	(SDL_VERSIONNUM(6,6,6))
+#define SDL_NEW_VERSION_REJECT	(SDL_VERSIONNUM(3,0,0))
 
 #else
 
@@ -84,8 +83,9 @@ static void Sys_CheckSDL (void)
 
 static quakeparms_t	parms;
 
-// FIXME: Not sure why this is necessary
-#if defined(USE_SDL2) && defined(PLATFORM_OSX)
+// On OS X we call SDL_main from the launcher, but SDL2 doesn't redefine main
+// as SDL_main on OS X anymore, so we do it ourselves.
+#if defined(USE_SDL2) && defined(__APPLE__)
 #define main SDL_main
 #endif
 
@@ -157,12 +157,12 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		/* If we have no input focus at all, sleep a bit */
-		if ( !VID_HasMouseOrInputFocus() || cl.paused)
+		if ( !VID_HasMouseAndInputFocus() || cl.paused)
 		{
 			SDL_Delay(16);
 		}
 		/* If we're minimised, sleep a bit more */
-		if ( !VID_GetWindowVisible() )
+		if ( VID_IsMinimized() )
 		{
 			scr_skipupdate = 1;
 			SDL_Delay(32);

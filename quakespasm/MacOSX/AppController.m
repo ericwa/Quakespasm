@@ -65,17 +65,19 @@ NSString *FQPrefScreenModeKey = @"ScreenMode";
         return self;
     
 #if defined(USE_SDL2)
-	const int sdlmodes = SDL_GetNumDisplayModes(0);
-	for (i = 0; i < sdlmodes; i++)
-	{
-		SDL_DisplayMode mode;
-		if (SDL_GetDisplayMode(0, i, &mode) == 0)
-		{
-			info = [[ScreenInfo alloc] initWithWidth:mode.w height:mode.h bpp:SDL_BITSPERPIXEL(mode.format)];
-            [screenModes addObject:info];
-            [info release];
-		}
-	}
+    {
+        const int sdlmodes = SDL_GetNumDisplayModes(0);
+        for (i = 0; i < sdlmodes; i++)
+        {
+            SDL_DisplayMode mode;
+            if (SDL_GetDisplayMode(0, i, &mode) == 0)
+            {
+                info = [[ScreenInfo alloc] initWithWidth:mode.w height:mode.h bpp:SDL_BITSPERPIXEL(mode.format)];
+                [screenModes addObject:info];
+                [info release];
+            }
+        }
+    }
 #else
     flags = SDL_OPENGL | SDL_FULLSCREEN;
     format.palette = NULL;

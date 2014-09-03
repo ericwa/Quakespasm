@@ -80,15 +80,7 @@ static int FilterMouseEvents (const SDL_Event *event)
 
 static int FilterMouseEvents_SDL2 (void *userdata, SDL_Event *event)
 {
-	switch (event->type)
-	{
-		case SDL_MOUSEMOTION:
-			// case SDL_MOUSEBUTTONDOWN:
-			// case SDL_MOUSEBUTTONUP:
-			return 0;
-	}
-	
-	return 1;
+	return FilterMouseEvents (event);
 }
 
 static void IN_BeginIgnoringMouseEvents()
@@ -222,7 +214,7 @@ void IN_Activate (void)
 #endif
 
 	IN_EndIgnoringMouseEvents();
-	
+
 	total_dx = 0;
 	total_dy = 0;
 }
@@ -265,7 +257,7 @@ void IN_Deactivate (qboolean free_cursor)
 void IN_Init (void)
 {
 	prev_gamekey = ((key_dest == key_game && !con_forcedup) || m_keys_bind_grab);
-	
+
 #if !defined(USE_SDL2)
 	SDL_EnableUNICODE (!prev_gamekey);
 	if (SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL) == -1)
@@ -390,7 +382,7 @@ static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 		case SDL_SCANCODE_RETURN2: return K_ENTER;
 		case SDL_SCANCODE_ESCAPE: return K_ESCAPE;
 		case SDL_SCANCODE_SPACE: return K_SPACE;
-			
+
 		case SDL_SCANCODE_A: return 'a';
 		case SDL_SCANCODE_B: return 'b';
 		case SDL_SCANCODE_C: return 'c';
@@ -417,7 +409,7 @@ static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 		case SDL_SCANCODE_X: return 'x';
 		case SDL_SCANCODE_Y: return 'y';
 		case SDL_SCANCODE_Z: return 'z';
-			
+
 		case SDL_SCANCODE_1: return '1';
 		case SDL_SCANCODE_2: return '2';
 		case SDL_SCANCODE_3: return '3';
@@ -428,7 +420,7 @@ static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 		case SDL_SCANCODE_8: return '8';
 		case SDL_SCANCODE_9: return '9';
 		case SDL_SCANCODE_0: return '0';
-			
+
 		case SDL_SCANCODE_MINUS: return '-';
 		case SDL_SCANCODE_EQUALS: return '=';
 		case SDL_SCANCODE_LEFTBRACKET: return '[';
@@ -442,20 +434,20 @@ static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 		case SDL_SCANCODE_PERIOD: return '.';
 		case SDL_SCANCODE_SLASH: return '/';
 		case SDL_SCANCODE_NONUSBACKSLASH: return '\\';
-			
+
 		case SDL_SCANCODE_BACKSPACE: return K_BACKSPACE;
 		case SDL_SCANCODE_UP: return K_UPARROW;
 		case SDL_SCANCODE_DOWN: return K_DOWNARROW;
 		case SDL_SCANCODE_LEFT: return K_LEFTARROW;
 		case SDL_SCANCODE_RIGHT: return K_RIGHTARROW;
-			
+
 		case SDL_SCANCODE_LALT: return K_ALT;
 		case SDL_SCANCODE_RALT: return K_ALT;
 		case SDL_SCANCODE_LCTRL: return K_CTRL;
 		case SDL_SCANCODE_RCTRL: return K_CTRL;
 		case SDL_SCANCODE_LSHIFT: return K_SHIFT;
 		case SDL_SCANCODE_RSHIFT: return K_SHIFT;
-			
+
 		case SDL_SCANCODE_F1: return K_F1;
 		case SDL_SCANCODE_F2: return K_F2;
 		case SDL_SCANCODE_F3: return K_F3;
@@ -474,7 +466,7 @@ static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 		case SDL_SCANCODE_PAGEUP: return K_PGUP;
 		case SDL_SCANCODE_HOME: return K_HOME;
 		case SDL_SCANCODE_END: return K_END;
-			
+
 		case SDL_SCANCODE_NUMLOCKCLEAR: return K_KP_NUMLOCK;
 		case SDL_SCANCODE_KP_DIVIDE: return K_KP_SLASH;
 		case SDL_SCANCODE_KP_MULTIPLY: return K_KP_STAR;
@@ -492,12 +484,12 @@ static inline int IN_SDL2_ScancodeToQuakeKey(SDL_Scancode scancode)
 		case SDL_SCANCODE_KP_ENTER: return K_KP_ENTER;
 		case SDL_SCANCODE_KP_0: return K_KP_INS;
 		case SDL_SCANCODE_KP_PERIOD: return K_KP_DEL;
-			
+
 		case SDL_SCANCODE_LGUI: return K_COMMAND;
 		case SDL_SCANCODE_RGUI: return K_COMMAND;
-			
+
 		case SDL_SCANCODE_PAUSE: return K_PAUSE;
-		
+
 		default: return 0;
 	}
 }
@@ -536,7 +528,7 @@ void IN_SendKeyEvents (void)
 				for (ch = event.text.text; *ch != '\0'; ch++)
 				{
 					int qkey = *ch;
-					
+
 					if (IN_SDL2_QuakeKeyHandledAsTextInput(qkey) && !gamekey)
 					{
 						Key_Event (qkey, SDL_PRESSED, false);
@@ -546,7 +538,7 @@ void IN_SendKeyEvents (void)
 			}
 			break;
 #endif
- 		case SDL_KEYDOWN:
+		case SDL_KEYDOWN:
 			if ((event.key.keysym.sym == SDLK_RETURN) &&
 			    (event.key.keysym.mod & KMOD_ALT))
 			{
@@ -563,11 +555,11 @@ void IN_SendKeyEvents (void)
 		case SDL_KEYUP:
 #if defined(USE_SDL2)
 			sym = IN_SDL2_ScancodeToQuakeKey(event.key.keysym.scancode);
-			
+
 			if (gamekey || !IN_SDL2_QuakeKeyHandledAsTextInput(sym))
 			{
 				state = event.key.state;
-								
+
 				Key_Event (sym, state, true);
 			}
 			break;
@@ -575,7 +567,7 @@ void IN_SendKeyEvents (void)
 			sym = event.key.keysym.sym;
 			state = event.key.state;
 			modstate = SDL_GetModState();
-			
+
 			if (event.key.keysym.unicode != 0)
 			{
 				if ((event.key.keysym.unicode & 0xFF80) == 0)
@@ -826,7 +818,7 @@ void IN_SendKeyEvents (void)
 			}
 			break;
 #endif
-				
+
 		case SDL_MOUSEMOTION:
 			IN_MouseMove(event.motion.xrel, event.motion.yrel);
 			break;

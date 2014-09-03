@@ -890,7 +890,9 @@ Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
 
 If interpret_shift is true, and the shift key is currently down, handles
-mapping to the shifted version of a key. e.g. '5' -> '%'
+mapping to the shifted version of a key following the US keyboard layout
+(e.g. '5' -> '%'). We pass false for SDL_TEXTINPUT events; SDL has already
+processed the shift mapping for these.
 ===================
 */
 void Key_Event (int key, qboolean down, qboolean interpret_shift)
