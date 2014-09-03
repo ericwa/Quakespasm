@@ -299,7 +299,7 @@ static qboolean VID_GetFullscreen (void)
 #if defined(USE_SDL2)
 	return (SDL_GetWindowFlags(draw_context) & SDL_WINDOW_FULLSCREEN);
 #else
-	return (draw_context->flags & SDL_FULLSCREEN);
+	return (draw_context->flags & SDL_FULLSCREEN) != 0;
 #endif
 }
 
