@@ -83,6 +83,7 @@ void VID_SyncCvars (void);
 
 void VID_Toggle (void);
 
+void *VID_GetWindow (void);
 qboolean VID_HasMouseAndInputFocus (void);
 qboolean VID_IsMinimized (void);
 

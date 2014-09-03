@@ -322,6 +322,22 @@ static qboolean VID_GetVSync (void)
 
 /*
 ====================
+VID_GetWindow
+
+used by pl_win.c
+====================
+*/
+void *VID_GetWindow (void)
+{
+#if defined(USE_SDL2)
+	return draw_context;
+#else
+	return NULL;
+#endif
+}
+
+/*
+====================
 VID_HasMouseAndInputFocus
 ====================
 */
