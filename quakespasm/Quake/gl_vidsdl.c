@@ -244,14 +244,14 @@ static void VID_Gamma_Init (void)
 
 /*
 ======================
-VID_GetCurrentContextWidth
+VID_GetCurrentWidth
 ======================
 */
-static int VID_GetCurrentContextWidth (void)
+static int VID_GetCurrentWidth (void)
 {
 #if defined(USE_SDL2)
 	int w = 0, h = 0;
-	SDL_GL_GetDrawableSize(draw_context, &w, &h);
+	SDL_GetWindowSize(draw_context, &w, &h);
 	return w;
 #else
 	return draw_context->w;
@@ -260,14 +260,14 @@ static int VID_GetCurrentContextWidth (void)
 
 /*
 =======================
-VID_GetCurrentContextHeight
+VID_GetCurrentHeight
 =======================
 */
-static int VID_GetCurrentContextHeight (void)
+static int VID_GetCurrentHeight (void)
 {
 #if defined(USE_SDL2)
 	int w=0, h=0;
-	SDL_GL_GetDrawableSize(draw_context, &w, &h);
+	SDL_GetWindowSize(draw_context, &w, &h);
 	return h;
 #else
 	return draw_context->h;
@@ -550,9 +550,8 @@ static int VID_SetMode (int width, int height, int bpp, qboolean fullscreen)
 	SDL_WM_SetCaption(caption, caption);
 #endif
 
-// these may differ from the window size on a high-dpi display
-	vid.width = VID_GetCurrentContextWidth();
-	vid.height = VID_GetCurrentContextHeight();
+	vid.width = VID_GetCurrentWidth();
+	vid.height = VID_GetCurrentHeight();
 	vid.conwidth = vid.width & 0xFFFFFFF8;
 	vid.conheight = vid.conwidth * vid.height / vid.width;
 	vid.numpages = 2;
@@ -575,8 +574,8 @@ static int VID_SetMode (int width, int height, int bpp, qboolean fullscreen)
 	ClearAllStates ();
 
 	Con_SafePrintf ("Video mode %dx%dx%d (%d-bit z-buffer, %dx FSAA) initialized\n",
-				VID_GetCurrentContextWidth(),
-				VID_GetCurrentContextHeight(),
+				VID_GetCurrentWidth(),
+				VID_GetCurrentHeight(),
 				VID_GetCurrentBPP(),
 				depthbits,
 				fsaa_obtained);
@@ -674,8 +673,8 @@ static void VID_Test (void)
 //
 // now try the switch
 //
-	old_width = VID_GetCurrentContextWidth();
-	old_height = VID_GetCurrentContextHeight();
+	old_width = VID_GetCurrentWidth();
+	old_height = VID_GetCurrentHeight();
 	old_bpp = VID_GetCurrentBPP();
 	old_fullscreen = VID_GetFullscreen() ? true : false;
 
@@ -1075,8 +1074,8 @@ static void VID_DescribeCurrentMode_f (void)
 {
 	if (draw_context)
 		Con_Printf("%dx%dx%d %s\n",
-			VID_GetCurrentContextWidth(),
-			VID_GetCurrentContextHeight(),
+			VID_GetCurrentWidth(),
+			VID_GetCurrentHeight(),
 			VID_GetCurrentBPP(),
 			VID_GetFullscreen() ? "fullscreen" : "windowed");
 }
@@ -1426,8 +1425,8 @@ void VID_SyncCvars (void)
 {
 	if (draw_context)
 	{
-		Cvar_SetValueQuick (&vid_width, VID_GetCurrentContextWidth());
-		Cvar_SetValueQuick (&vid_height, VID_GetCurrentContextHeight());
+		Cvar_SetValueQuick (&vid_width, VID_GetCurrentWidth());
+		Cvar_SetValueQuick (&vid_height, VID_GetCurrentHeight());
 		Cvar_SetValueQuick (&vid_bpp, VID_GetCurrentBPP());
 		Cvar_SetQuick (&vid_fullscreen, VID_GetFullscreen() ? "1" : "0");
 		Cvar_SetQuick (&vid_vsync, VID_GetVSync() ? "1" : "0");
