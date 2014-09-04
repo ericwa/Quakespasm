@@ -338,10 +338,10 @@ void *VID_GetWindow (void)
 
 /*
 ====================
-VID_HasMouseAndInputFocus
+VID_HasMouseOrInputFocus
 ====================
 */
-qboolean VID_HasMouseAndInputFocus (void)
+qboolean VID_HasMouseOrInputFocus (void)
 {
 #if defined(USE_SDL2)
 	return (SDL_GetWindowFlags(draw_context) & (SDL_WINDOW_MOUSE_FOCUS | SDL_WINDOW_INPUT_FOCUS)) != 0;

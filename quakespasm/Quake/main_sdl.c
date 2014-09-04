@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		/* If we have no input focus at all, sleep a bit */
-		if ( !VID_HasMouseAndInputFocus() || cl.paused)
+		if ( !VID_HasMouseOrInputFocus() || cl.paused)
 		{
 			SDL_Delay(16);
 		}
