@@ -523,6 +523,9 @@ void IN_SendKeyEvents (void)
 #endif
 #if defined(USE_SDL2)
 		case SDL_TEXTINPUT:
+		// SDL2: We use SDL_TEXTINPUT for typing in the console / chat.
+		// SDL2 uses the local keyboard layout and handles modifiers
+		// (shift for uppercase, etc.) for us.
 			{
 				char *ch;
 				for (ch = event.text.text; *ch != '\0'; ch++)
@@ -554,6 +557,9 @@ void IN_SendKeyEvents (void)
 		/* fallthrough */
 		case SDL_KEYUP:
 #if defined(USE_SDL2)
+		// SDL2: in gamekey mode, we interpret the keyboard as the US
+		// layout, so keybindings are based on key position, not the label
+		// on the key cap.
 			sym = IN_SDL2_ScancodeToQuakeKey(event.key.keysym.scancode);
 
 			if (gamekey || !IN_SDL2_QuakeKeyHandledAsTextInput(sym))
