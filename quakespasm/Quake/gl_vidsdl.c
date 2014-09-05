@@ -478,20 +478,21 @@ static int VID_SetMode (int width, int height, int bpp, qboolean fullscreen)
 	{
 		flags = SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN;
 		draw_context = SDL_CreateWindow (caption, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, flags);
-
-		if (!draw_context) { // scale back fsaa
+		if (!draw_context)
+			Sys_Error ("Couldn't create window");
+		
+		gl_context = SDL_GL_CreateContext (draw_context);
+		if (!gl_context) { // scale back fsaa
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
-			draw_context = SDL_CreateWindow (caption, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, flags);
+			gl_context = SDL_GL_CreateContext (draw_context);
 		}
-		if (!draw_context) { // scale back SDL_GL_DEPTH_SIZE
+		if (!gl_context) { // scale back SDL_GL_DEPTH_SIZE
 			SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
-			draw_context = SDL_CreateWindow (caption, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, flags);
-			if (!draw_context)
-				Sys_Error ("Couldn't set video mode");
+			gl_context = SDL_GL_CreateContext (draw_context);
+			if (!gl_context)
+				Sys_Error ("Couldn't craete GL context");
 		}
-
-		gl_context = SDL_GL_CreateContext (draw_context);
 	}
 
 	/* Ensure the window is not fullscreen */
