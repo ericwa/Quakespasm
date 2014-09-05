@@ -531,8 +531,8 @@ void IN_SendKeyEvents (void)
 
 					if (IN_SDL2_QuakeKeyHandledAsTextInput(qkey) && !gamekey)
 					{
-						Key_Event (qkey, SDL_PRESSED, false);
-						Key_Event (qkey, SDL_RELEASED, false);
+						Key_Event (qkey, true, false);
+						Key_Event (qkey, false, false);
 					}
 				}
 			}
