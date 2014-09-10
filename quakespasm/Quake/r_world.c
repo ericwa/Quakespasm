@@ -70,6 +70,20 @@ void R_ChainSurface (msurface_t *surf, texchain_t chain)
 	surf->texinfo->texture->texturechains[chain] = surf;
 }
 
+#if 0
+
+/*
+
+-clear lightmap chains
+-R_StoreEfrags
+vis_changed = false;
+	r_visframecount++;
+	r_oldviewleaf = r_viewleaf;
+-set surface visframe = r_visframecount;
+-chain surfaces
+
+*/
+
 /*
 ===============
 R_MarkSurfaces -- johnfitz -- mark surfaces based on PVS and rebuild texture chains
@@ -163,6 +177,7 @@ void R_MarkSurfaces (void)
 	}
 #endif
 }
+#endif
 
 /*
 ================

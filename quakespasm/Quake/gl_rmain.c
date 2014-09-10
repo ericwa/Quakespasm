@@ -424,7 +424,7 @@ void R_SetupView (void)
 
 	R_SetFrustum (r_fovx, r_fovy); //johnfitz -- use r_fov* vars
 
-	R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
+	//R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
 
 	//R_CullSurfaces (); //johnfitz -- do after R_SetFrustum and R_MarkSurfaces
 
