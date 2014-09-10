@@ -70,6 +70,176 @@ void R_ChainSurface (msurface_t *surf, texchain_t chain)
 	surf->texinfo->texture->texturechains[chain] = surf;
 }
 
+/*
+================
+R_RecursiveWorldNode
+================
+*/
+void R_RecursiveWorldNode (mnode_t *node)
+{
+	int			i, c, side, *pindex;
+	vec3_t		acceptpt, rejectpt;
+	mplane_t	*plane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		d, dot;
+	vec3_t		mins, maxs;
+
+	if (node->contents == CONTENTS_SOLID)
+		return;		// solid
+	if (node->visframe != r_visframecount)
+		return;
+	if (R_CullBox (node->minmaxs, node->minmaxs+3))
+		return;
+	
+// if a leaf node, draw stuff
+	if (node->contents < 0)
+	{
+		pleaf = (mleaf_t *)node;
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				(*mark)->visframe = r_framecount;
+				mark++;
+			} while (--c);
+		}
+
+	// deal with model fragments in this leaf
+		if (pleaf->efrags)
+			R_StoreEfrags (&pleaf->efrags);
+
+		return;
+	}
+
+// node is just a decision point, so go down the apropriate sides
+
+// find which side of the node we are on
+	plane = node->plane;
+
+	switch (plane->type)
+	{
+	case PLANE_X:
+		dot = modelorg[0] - plane->dist;
+		break;
+	case PLANE_Y:
+		dot = modelorg[1] - plane->dist;
+		break;
+	case PLANE_Z:
+		dot = modelorg[2] - plane->dist;
+		break;
+	default:
+		dot = DotProduct (modelorg, plane->normal) - plane->dist;
+		break;
+	}
+
+	if (dot >= 0)
+		side = 0;
+	else
+		side = 1;
+
+// recurse down the children, front side first
+	R_RecursiveWorldNode (node->children[side]);
+
+// draw stuff
+	c = node->numsurfaces;
+
+	if (c)
+	{
+		surf = cl.worldmodel->surfaces + node->firstsurface;
+
+		if (dot < 0 -BACKFACE_EPSILON)
+			side = SURF_PLANEBACK;
+		else if (dot > BACKFACE_EPSILON)
+			side = 0;
+		{
+			for ( ; c ; c--, surf++)
+			{
+				if (surf->visframe != r_framecount)
+					continue;
+
+				// johnfitz -- now we can backface cull underwater surfaces, becuase they don't warp
+				if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
+					continue;		// wrong side
+
+				// if sorting by texture, just store it out
+				R_ChainSurface(surf, chain_world);
+			}
+		}
+	}
+
+// recurse down the back side
+	R_RecursiveWorldNode (node->children[!side]);
+}
+
+void R_MarkLeaves (void)
+{
+	byte		*vis;
+	mnode_t		*node;
+	msurface_t	**surf;
+	int			i, nearwaterportal;
+
+	//check this leaf for water portals
+	nearwaterportal = false;
+	for (i=0, surf = r_viewleaf->firstmarksurface; i < r_viewleaf->nummarksurfaces; i++, surf++)
+		if ((*surf)->flags & SURF_DRAWTURB)
+			nearwaterportal = true;
+
+
+	if (r_oldviewleaf == r_viewleaf && !vis_changed && !nearwaterportal)
+		return;
+
+	vis_changed = true;
+	r_visframecount++;
+	r_oldviewleaf = r_viewleaf;
+
+	if (r_novis.value || r_viewleaf->contents == CONTENTS_SOLID || r_viewleaf->contents == CONTENTS_SKY)
+	//draw all nodes
+	{
+		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+		{
+			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+			do
+			{	
+				if (node->visframe == r_visframecount)
+					break;
+
+				if (node->contents == CONTENTS_SKY) break; //johnfitz -- skip sky leaves
+
+				node->visframe = r_visframecount;
+				node = node->parent;
+			} while (node);
+		}
+	}
+	else
+	//draw only PVS nodes
+	{
+		if (nearwaterportal)
+			vis = SV_FatPVS (r_origin, cl.worldmodel);
+		else
+			vis = Mod_LeafPVS (r_viewleaf, cl.worldmodel);
+
+		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+		{
+			if (vis[i>>3] & (1<<(i&7)))
+			{
+				node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+				do
+				{	
+					if (node->visframe == r_visframecount)
+						break;
+					node->visframe = r_visframecount;
+					node = node->parent;
+				} while (node);
+			}
+		}
+	}
+}
+
 #if 0
 
 /*
