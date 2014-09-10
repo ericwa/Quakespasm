@@ -195,6 +195,15 @@ qboolean R_BackFaceCull (msurface_t *surf)
 	return false;
 }
 
+#if 0
+
+/*
+Things this does for world polys
+rs_brushpolys++; //count wpolys here
+if (s->texinfo->texture->warpimage)
+	s->texinfo->texture->update_warp = true;
+*/
+
 /*
 ================
 R_CullSurfaces -- johnfitz
@@ -232,6 +241,7 @@ void R_CullSurfaces (void)
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -312,7 +322,7 @@ void R_DrawTextureChains_ShowTris (qmodel_t *model, texchain_t chain)
 		if (r_oldwater.value && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
 		{
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
-				if (!s->culled)
+				if (true)
 					for (p = s->polys->next; p; p = p->next)
 					{
 						DrawGLTriangleFan (p);
@@ -321,7 +331,7 @@ void R_DrawTextureChains_ShowTris (qmodel_t *model, texchain_t chain)
 		else
 		{
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
-				if (!s->culled)
+				if (true)
 				{
 					DrawGLTriangleFan (s->polys);
 				}
@@ -350,7 +360,7 @@ void R_DrawTextureChains_Drawflat (qmodel_t *model, texchain_t chain)
 		if (r_oldwater.value && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
 		{
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
-				if (!s->culled)
+				if (true)
 					for (p = s->polys->next; p; p = p->next)
 					{
 						srand((unsigned int) (uintptr_t) p);
@@ -362,7 +372,7 @@ void R_DrawTextureChains_Drawflat (qmodel_t *model, texchain_t chain)
 		else
 		{
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
-				if (!s->culled)
+				if (true)
 				{
 					srand((unsigned int) (uintptr_t) s->polys);
 					glColor3f (rand()%256/255.0, rand()%256/255.0, rand()%256/255.0);
@@ -398,7 +408,7 @@ void R_DrawTextureChains_Glow (qmodel_t *model, entity_t *ent, texchain_t chain)
 		bound = false;
 
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (!s->culled)
+			if (true)
 			{
 				if (!bound) //only bind once we are sure we need this texture
 				{
@@ -571,7 +581,7 @@ void R_DrawTextureChains_NoTexture (qmodel_t *model, texchain_t chain)
 		bound = false;
 
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (!s->culled)
+			if (true)
 			{
 				if (!bound) //only bind once we are sure we need this texture
 				{
@@ -606,7 +616,7 @@ void R_DrawTextureChains_TextureOnly (qmodel_t *model, entity_t *ent, texchain_t
 		bound = false;
 
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (!s->culled)
+			if (true)
 			{
 				if (!bound) //only bind once we are sure we need this texture
 				{
@@ -660,7 +670,7 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 				continue;
 			bound = false;
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
-				if (!s->culled)
+				if (true)
 				{
 					if (!bound) //only bind once we are sure we need this texture
 					{
@@ -684,7 +694,7 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 				continue;
 			bound = false;
 			for (s = t->texturechains[chain]; s; s = s->texturechain)
-				if (!s->culled)
+				if (true)
 				{
 					if (!bound) //only bind once we are sure we need this texture
 					{
@@ -729,7 +739,7 @@ void R_DrawTextureChains_White (qmodel_t *model, texchain_t chain)
 			continue;
 
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (!s->culled)
+			if (true)
 			{
 				DrawGLPoly (s->polys);
 				rs_brushpasses++;
@@ -847,7 +857,7 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 		bound = false;
 		lastlightmap = 0; // avoid compiler warning
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (!s->culled)
+			if (true)
 			{
 				if (!bound) //only bind once we are sure we need this texture
 				{
