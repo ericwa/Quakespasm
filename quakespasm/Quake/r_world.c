@@ -192,8 +192,9 @@ void R_MarkLeaves (void)
 
 	if (r_oldviewleaf == r_viewleaf && !vis_changed && !nearwaterportal)
 		return;
-
-	vis_changed = true;
+		
+// FIXME: WTF? Not in RMQE
+	//vis_changed = true;
 	r_visframecount++;
 	r_oldviewleaf = r_viewleaf;
 
