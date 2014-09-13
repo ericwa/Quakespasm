@@ -153,6 +153,7 @@ typedef struct msurface_s
 
 	glpoly_t	*polys;				// multiple if warped
 	struct	msurface_s	*texturechain;
+	struct	msurface_s	*lightmapchain;		// ericw -- used for sorting by lightmap
 
 	mtexinfo_t	*texinfo;
 
