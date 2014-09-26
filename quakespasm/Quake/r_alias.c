@@ -50,7 +50,7 @@ float	r_avertexnormal_dots[SHADEDOT_QUANT][256] =
 extern	vec3_t			lightspot;
 
 float	*shadedots = r_avertexnormal_dots[0];
-
+vec3_t	shadevector;
 float	entalpha; //johnfitz
 
 qboolean	overbright; //johnfitz
@@ -66,6 +66,23 @@ typedef struct {
 	vec3_t angles;
 } lerpdata_t;
 //johnfitz
+
+extern GLuint r_meshvbo;
+extern GLuint r_meshindexesvbo;
+
+void *GLARB_GetXYZOffset (aliashdr_t *hdr, int pose)
+{
+	meshxyz_t dummy;
+	int xyzoffs = ((char*)&dummy.xyz - (char*)&dummy);
+	return (void *) (hdr->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
+}
+
+void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
+{
+	meshxyz_t dummy;
+	int normaloffs = ((char*)&dummy.normal - (char*)&dummy);
+	return (void *) (hdr->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
+}
 
 /*
 =============
@@ -105,6 +122,165 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	vertcolor[3] = entalpha; //never changes, so there's no need to put this inside the loop
 
+// ericw -- shader
+
+	static GLuint shader;
+	static GLuint program;
+	static GLuint blendLoc;
+	static GLuint shadevectorLoc;
+	static GLuint lightColorLoc;
+	
+	static GLint pose1VertexAttrIndex;
+	static GLint pose1NormalAttrIndex;
+	static GLint pose2VertexAttrIndex;
+	static GLint pose2NormalAttrIndex;
+		
+	if (shader == 0)
+	{
+		const GLchar *source = \
+		"uniform float Blend;\n"
+		"uniform vec3 ShadeVector;\n"
+		"uniform vec4 LightColor;\n"
+		"attribute vec4 Pose1Vert;\n"
+		"attribute vec3 Pose1Normal;\n"
+		"attribute vec4 Pose2Vert;\n"
+		"attribute vec3 Pose2Normal;\n"
+		"float r_avertexnormal_dot(vec3 vertexnormal)\n"
+		"{\n"
+		"        float dot = dot(vertexnormal, ShadeVector);\n"
+		"        // wtf - this reproduces anorm_dots within as reasonable a degree of tolerance as the >= 0 case\n"
+		"        if (dot < 0.0)\n"
+		"            return 1.0 + dot * (13.0 / 44.0);\n"
+		"        else\n"
+		"            return 1.0 + dot;\n"
+		"}\n"
+		"void main()\n"
+		"{\n"
+		"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
+		"	gl_TexCoord[1]  = gl_MultiTexCoord0;\n"
+		"	gl_Position = gl_ModelViewProjectionMatrix * mix(Pose1Vert, Pose2Vert, Blend);\n"
+		"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
+		"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
+		"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
+		"}\n"
+		;
+		shader = GL_CreateShaderFunc(GL_VERTEX_SHADER);
+		GL_ShaderSourceFunc(shader, 1, &source, NULL);
+		GL_CompileShaderFunc(shader);
+		
+		GLint status;
+		GL_GetShaderivFunc(shader, GL_COMPILE_STATUS, &status);
+		
+		if (status != GL_TRUE)
+		{
+			static char infolog[65536];
+			GL_GetShaderInfoLogFunc (shader, 65536, NULL, infolog);
+
+			printf("Shader info log: %s\n", infolog);
+			Sys_Error("Shader failed to compile");
+		}
+		
+		// create program
+		program = GL_CreateProgramFunc();
+		GL_AttachShaderFunc(program, shader);
+		GL_LinkProgramFunc(program);
+		
+		GL_GetProgramivFunc(program, GL_LINK_STATUS, &status);
+		
+		if (status != GL_TRUE)
+		{
+			Sys_Error("Program failed to link");
+		}
+		
+		// get uniform location
+		
+		blendLoc = GL_GetUniformLocationFunc(program, "Blend");
+		if (blendLoc == -1)
+		{
+			Sys_Error("GL_GetUniformLocationFunc Blend failed");
+		}
+		
+		shadevectorLoc = GL_GetUniformLocationFunc(program, "ShadeVector");
+		if (shadevectorLoc == -1)
+		{
+			Sys_Error("GL_GetUniformLocationFunc shadevector failed");
+		}
+		
+		lightColorLoc = GL_GetUniformLocationFunc(program, "LightColor");
+		if (lightColorLoc == -1)
+		{
+			Sys_Error("GL_GetUniformLocationFunc LightColor failed");
+		}
+		
+		// get attributes
+
+		pose1VertexAttrIndex = GL_GetAttribLocationFunc(program, "Pose1Vert");
+		pose1NormalAttrIndex = GL_GetAttribLocationFunc(program, "Pose1Normal");
+		
+		pose2VertexAttrIndex = GL_GetAttribLocationFunc(program, "Pose2Vert");
+		pose2NormalAttrIndex = GL_GetAttribLocationFunc(program, "Pose2Normal");
+	}
+	
+	GL_UseProgramFunc(program);
+	
+// ericw --
+
+
+
+// ericw -- bind it and stuff
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
+	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
+	
+	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
+	GL_EnableVertexAttribArrayFunc (pose1VertexAttrIndex);
+		
+	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
+	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
+	
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glTexCoordPointer (2, GL_FLOAT, 0, (void *) paliashdr->vbostofs);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	
+	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+		
+	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+	GL_EnableVertexAttribArrayFunc (pose1NormalAttrIndex);
+		
+	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
+
+	// Uniform
+	
+	GL_Uniform1fFunc(blendLoc, blend);
+	GL_Uniform3fFunc(shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
+	GL_Uniform4fFunc(lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+		
+//
+// ericw -- bind it and stuff
+
+//	GL_SelectTexture (GL_TEXTURE0_ARB);
+//	glEnable(GL_TEXTURE_2D);
+	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)paliashdr->vboindexofs);
+	
+	
+	glDisableClientState (GL_VERTEX_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState (GL_NORMAL_ARRAY);
+	
+	GL_UseProgramFunc(0);
+	
+	return;
+	
+	
 	while (1)
 	{
 		// get the vertex count and primitive type
@@ -374,8 +550,17 @@ void R_SetupAliasLighting (entity_t	*e)
 			lightcolor[1] = 256.0f;
 			lightcolor[2] = 256.0f;
 		}
+		
+	int quantangle = ((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1);
 
-	shadedots = r_avertexnormal_dots[((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1)];
+	float radAngle = (quantangle / 16.0) * 2.0 * 3.14159;
+	shadevector[0] = cos(-radAngle);
+	shadevector[1] = sin(-radAngle);
+	shadevector[2] = 1;
+	VectorNormalize(shadevector);
+
+	shadedots = r_avertexnormal_dots[quantangle];
+	
 	VectorScale(lightcolor, 1.0f / 200.0f, lightcolor);
 }
 

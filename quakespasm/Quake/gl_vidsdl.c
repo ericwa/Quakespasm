@@ -95,6 +95,7 @@ qboolean gl_anisotropy_able = false; //johnfitz
 float gl_max_anisotropy; //johnfitz
 qboolean gl_texture_NPOT = false; //ericw
 qboolean gl_vbo_able = false; //ericw
+qboolean gl_glsl_able = false; //ericw
 GLint gl_max_texture_units = 0; //ericw
 
 PFNGLMULTITEXCOORD2FARBPROC GL_MTexCoord2fFunc = NULL; //johnfitz
@@ -102,8 +103,29 @@ PFNGLACTIVETEXTUREARBPROC GL_SelectTextureFunc = NULL; //johnfitz
 PFNGLCLIENTACTIVETEXTUREARBPROC GL_ClientActiveTextureFunc = NULL; //ericw
 PFNGLBINDBUFFERARBPROC GL_BindBufferFunc = NULL; //ericw
 PFNGLBUFFERDATAARBPROC GL_BufferDataFunc = NULL; //ericw
+PFNGLBUFFERSUBDATAARBPROC GL_BufferSubDataFunc = NULL; //ericw
 PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
 PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
+
+PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
+PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc = NULL; //ericw
+PFNGLCOMPILESHADERPROC GL_CompileShaderFunc = NULL; //ericw
+PFNGLGETSHADERIVPROC GL_GetShaderivFunc = NULL; //ericw
+PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc = NULL; //ericw
+PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc = NULL; //ericw
+PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc = NULL; //ericw
+PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc = NULL; //ericw
+PFNGLATTACHSHADERPROC GL_AttachShaderFunc = NULL; //ericw
+PFNGLLINKPROGRAMPROC GL_LinkProgramFunc = NULL; //ericw
+PFNGLUSEPROGRAMPROC GL_UseProgramFunc = NULL; //ericw
+PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc = NULL; //ericw
+PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc = NULL; //ericw
+PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc = NULL; //ericw
+PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc = NULL; //ericw
+PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc = NULL; //ericw
+PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
+PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
+PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
 
 //====================================
 
@@ -654,6 +676,7 @@ static void VID_Restart (void)
 	GL_Init ();
 	TexMgr_ReloadImages ();
 	GL_BuildVBOs ();
+	GLMesh_LoadVertexBuffers ();
 	GL_SetupState ();
 
 	//warpimages needs to be recalculated
@@ -819,9 +842,10 @@ static void GL_CheckExtensions (void)
 	{
 		GL_BindBufferFunc = (PFNGLBINDBUFFERARBPROC) SDL_GL_GetProcAddress("glBindBufferARB");
 		GL_BufferDataFunc = (PFNGLBUFFERDATAARBPROC) SDL_GL_GetProcAddress("glBufferDataARB");
+		GL_BufferSubDataFunc = (PFNGLBUFFERSUBDATAARBPROC) SDL_GL_GetProcAddress("glBufferSubDataARB");
 		GL_DeleteBuffersFunc = (PFNGLDELETEBUFFERSARBPROC) SDL_GL_GetProcAddress("glDeleteBuffersARB");
 		GL_GenBuffersFunc = (PFNGLGENBUFFERSARBPROC) SDL_GL_GetProcAddress("glGenBuffersARB");
-		if (GL_BindBufferFunc && GL_BufferDataFunc && GL_DeleteBuffersFunc && GL_GenBuffersFunc)
+		if (GL_BindBufferFunc && GL_BufferDataFunc && GL_BufferSubDataFunc && GL_DeleteBuffersFunc && GL_GenBuffersFunc)
 		{
 			Con_Printf("FOUND: ARB_vertex_buffer_object\n");
 			gl_vbo_able = true;
@@ -988,6 +1012,61 @@ static void GL_CheckExtensions (void)
 	else
 	{
 		Con_Warning ("texture_non_power_of_two not supported\n");
+	}
+	
+	// GLSL
+	//
+	if (COM_CheckParm("-noglsl"))
+		Con_Warning ("GLSL disabled at command line\n");
+	else
+	{
+		GL_CreateShaderFunc = (PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
+		GL_ShaderSourceFunc = (PFNGLSHADERSOURCEPROC) SDL_GL_GetProcAddress("glShaderSource");
+		GL_CompileShaderFunc = (PFNGLCOMPILESHADERPROC) SDL_GL_GetProcAddress("glCompileShader");
+		GL_GetShaderivFunc = (PFNGLGETSHADERIVPROC) SDL_GL_GetProcAddress("glGetShaderiv");
+		GL_GetShaderInfoLogFunc = (PFNGLGETSHADERINFOLOGPROC) SDL_GL_GetProcAddress("glGetShaderInfoLog");
+		GL_GetProgramivFunc = (PFNGLGETPROGRAMIVPROC) SDL_GL_GetProcAddress("glGetProgramiv");
+		GL_GetProgramInfoLogFunc = (PFNGLGETPROGRAMINFOLOGPROC) SDL_GL_GetProcAddress("glGetProgramInfoLog");
+		GL_CreateProgramFunc = (PFNGLCREATEPROGRAMPROC) SDL_GL_GetProcAddress("glCreateProgram");
+		GL_AttachShaderFunc = (PFNGLATTACHSHADERPROC) SDL_GL_GetProcAddress("glAttachShader");
+		GL_LinkProgramFunc = (PFNGLLINKPROGRAMPROC) SDL_GL_GetProcAddress("glLinkProgram");
+		GL_UseProgramFunc = (PFNGLUSEPROGRAMPROC) SDL_GL_GetProcAddress("glUseProgram");
+		GL_GetAttribLocationFunc = (PFNGLGETATTRIBLOCATIONPROC) SDL_GL_GetProcAddress("glGetAttribLocation");
+		GL_VertexAttribPointerFunc = (PFNGLVERTEXATTRIBPOINTERPROC) SDL_GL_GetProcAddress("glVertexAttribPointer");
+		GL_EnableVertexAttribArrayFunc = (PFNGLENABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glEnableVertexAttribArray");
+		GL_DisableVertexAttribArrayFunc = (PFNGLDISABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glDisableVertexAttribArray");
+		GL_GetUniformLocationFunc = (PFNGLGETUNIFORMLOCATIONPROC) SDL_GL_GetProcAddress("glGetUniformLocation");
+		GL_Uniform1fFunc = (PFNGLUNIFORM1FPROC) SDL_GL_GetProcAddress("glUniform1f");
+		GL_Uniform3fFunc = (PFNGLUNIFORM3FPROC) SDL_GL_GetProcAddress("glUniform3f");
+		GL_Uniform4fFunc = (PFNGLUNIFORM4FPROC) SDL_GL_GetProcAddress("glUniform4f");
+
+		if (GL_CreateShaderFunc &&
+			GL_ShaderSourceFunc &&
+			GL_CompileShaderFunc &&
+			GL_GetShaderivFunc &&
+			GL_GetShaderInfoLogFunc &&
+			GL_GetProgramivFunc &&
+			GL_GetProgramInfoLogFunc &&
+			GL_CreateProgramFunc &&
+			GL_AttachShaderFunc &&
+			GL_LinkProgramFunc &&
+			GL_UseProgramFunc &&
+			GL_GetAttribLocationFunc &&
+			GL_VertexAttribPointerFunc &&
+			GL_EnableVertexAttribArrayFunc &&
+			GL_DisableVertexAttribArrayFunc &&
+			GL_GetUniformLocationFunc &&
+			GL_Uniform1fFunc &&
+			GL_Uniform3fFunc &&
+			GL_Uniform4fFunc)
+		{
+			Con_Printf("FOUND: GLSL\n");
+			gl_glsl_able = true;
+		}
+		else
+		{
+			Con_Warning ("GLSL not available\n");
+		}
 	}
 }
 

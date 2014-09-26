@@ -274,6 +274,7 @@ void R_NewMap (void)
 
 	GL_BuildLightmaps ();
 	GL_BuildVBOs ();
+	GLMesh_LoadVertexBuffers ();
 	
 	r_framecount = 0; //johnfitz -- paranoid?
 	r_visframecount = 0; //johnfitz -- paranoid?

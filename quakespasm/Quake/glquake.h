@@ -167,10 +167,34 @@ extern	qboolean	gl_anisotropy_able;
 //ericw -- VBO
 extern PFNGLBINDBUFFERARBPROC  GL_BindBufferFunc;
 extern PFNGLBUFFERDATAARBPROC  GL_BufferDataFunc;
+extern PFNGLBUFFERSUBDATAARBPROC  GL_BufferSubDataFunc;
 extern PFNGLDELETEBUFFERSARBPROC  GL_DeleteBuffersFunc;
 extern PFNGLGENBUFFERSARBPROC  GL_GenBuffersFunc;
 extern	qboolean	gl_vbo_able;
 //ericw
+
+//ericw -- GLSL
+extern PFNGLCREATESHADERPROC GL_CreateShaderFunc;
+extern PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc;
+extern PFNGLCOMPILESHADERPROC GL_CompileShaderFunc;
+extern PFNGLGETSHADERIVPROC GL_GetShaderivFunc;
+extern PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc;
+extern PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc;
+extern PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc;
+extern PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc;
+extern PFNGLATTACHSHADERPROC GL_AttachShaderFunc;
+extern PFNGLLINKPROGRAMPROC GL_LinkProgramFunc;
+extern PFNGLUSEPROGRAMPROC GL_UseProgramFunc;
+extern PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc;
+extern PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc;
+extern PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc;
+extern PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc;
+extern PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc;
+extern PFNGLUNIFORM1FPROC GL_Uniform1fFunc;
+extern PFNGLUNIFORM3FPROC GL_Uniform3fFunc;
+extern PFNGLUNIFORM4FPROC GL_Uniform4fFunc;
+extern	qboolean	gl_glsl_able;
+// ericw --
 
 //ericw -- NPOT texture support
 extern	qboolean	gl_texture_NPOT;
@@ -277,6 +301,7 @@ void R_DrawTextureChains_Water (qmodel_t *model, entity_t *ent, texchain_t chain
 void R_RenderDlights (void);
 void GL_BuildLightmaps (void);
 void GL_BuildVBOs (void);
+void GLMesh_LoadVertexBuffers (void);
 void R_RebuildAllLightmaps (void);
 
 int R_LightPoint (vec3_t p);

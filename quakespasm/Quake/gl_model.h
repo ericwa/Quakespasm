@@ -282,6 +282,25 @@ Alias models are position independent, so the cache manager can move them.
 ==============================================================================
 */
 
+// split out to keep vertex sizes down
+typedef struct aliasmesh_s
+{
+	float st[2];
+	unsigned short vertindex;
+} aliasmesh_t;
+
+typedef struct meshxyz_s
+{
+	byte xyz[4];
+	float normal[3];
+} meshxyz_t;
+
+
+typedef struct meshst_s
+{
+	float st[2];
+} meshst_t;
+
 typedef struct
 {
 	int					firstpose;
@@ -326,11 +345,27 @@ typedef struct {
 	int			skinwidth;
 	int			skinheight;
 	int			numverts;
+	int			numverts_vbo;
 	int			numtris;
 	int			numframes;
 	synctype_t	synctype;
 	int			flags;
 	float		size;
+	
+	intptr_t		meshdesc;
+	intptr_t		indexes;
+	int			numindexes;
+	
+	// only shaders use this
+	intptr_t    vertindexes;
+
+	// only vbos use these
+	int			vboindexofs;
+	int			vboxyzofs;
+	int			vbostofs;
+
+	// offset to (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->vertsperframe * sizeof(trivertx_t))
+	intptr_t		vertexes;
 
 	int					numposes;
 	int					poseverts;

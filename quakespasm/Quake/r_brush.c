@@ -959,7 +959,7 @@ void GL_BuildLightmaps (void)
 =============================================================
 */
 
-static GLuint gl_bmodel_vbo = 0;
+GLuint gl_bmodel_vbo = 0;
 
 /*
 ==================

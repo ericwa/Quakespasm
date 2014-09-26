@@ -287,6 +287,7 @@ void BuildTris (void)
 	alltris += pheader->numtris;
 }
 
+void GL_MakeAliasModelDisplayLists_VBO (void);
 
 /*
 ================
@@ -346,5 +347,218 @@ void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr)
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<numorder ; j++)
 			*verts++ = poseverts[i][vertexorder[j]];
+			
+	// ericw
+	GL_MakeAliasModelDisplayLists_VBO ();
 }
 
+unsigned int r_meshindexbuffer = 0;
+unsigned int r_meshvertexbuffer = 0;
+
+void GL_MakeAliasModelDisplayLists_VBO (void)
+{
+	int i, j;
+	int maxverts_vbo;
+
+	// ericw -- first, copy the verts onto the hunk
+	trivertx_t *verts;
+	
+	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts * sizeof(trivertx_t));
+	paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
+	for (i=0 ; i<paliashdr->numposes ; i++)
+		for (j=0 ; j<paliashdr->numverts ; j++)
+			verts[i*paliashdr->numverts + j] = poseverts[i][j];
+	// ericw --
+	
+	// there can never be more than this number of verts and we just put them all on the hunk
+	maxverts_vbo = pheader->numtris * 3;
+	aliasmesh_t *desc = (aliasmesh_t *) Hunk_Alloc (sizeof (aliasmesh_t) * maxverts_vbo);
+	aliasmesh_t *mesh = (aliasmesh_t *) malloc (sizeof (aliasmesh_t) * maxverts_vbo);
+
+	// there will always be this number of indexes
+	unsigned short *indexes = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * maxverts_vbo);
+
+	pheader->indexes = (intptr_t) indexes - (intptr_t) pheader;
+	pheader->meshdesc = (intptr_t) desc - (intptr_t) pheader;
+	pheader->numindexes = 0;
+	pheader->numverts_vbo = 0;
+
+	for (i = 0; i < pheader->numtris; i++)
+	{
+		for (j = 0; j < 3; j++)
+		{
+			int v;
+
+			// index into hdr->vertexes
+			unsigned short vertindex = triangles[i].vertindex[j];
+
+			// basic s/t coords
+			int s = stverts[vertindex].s;
+			int t = stverts[vertindex].t;
+
+			// check for back side and adjust texcoord s
+			if (!triangles[i].facesfront && stverts[vertindex].onseam) s += pheader->skinwidth / 2;
+
+			// see does this vert already exist
+			for (v = 0; v < pheader->numverts_vbo; v++)
+			{
+				// it could use the same xyz but have different s and t
+				if (mesh[v].vertindex == vertindex && (int) mesh[v].st[0] == s && (int) mesh[v].st[1] == t)
+				{
+					// exists; emit an index for it
+					indexes[pheader->numindexes++] = v;
+
+					// no need to check any more
+					break;
+				}
+			}
+
+			if (v == pheader->numverts_vbo)
+			{
+				// doesn't exist; emit a new vert and index
+				indexes[pheader->numindexes++] = pheader->numverts_vbo;
+
+				mesh[pheader->numverts_vbo].vertindex = vertindex;
+				mesh[pheader->numverts_vbo].st[0] = s;
+				mesh[pheader->numverts_vbo++].st[1] = t;
+			}
+		}
+	}
+
+	memcpy(desc, mesh, sizeof (aliasmesh_t) * pheader->numverts_vbo);
+
+	// free our temp holding area for mesh verts
+	free (mesh);
+
+	// create a hunk buffer for the final mesh we'll actually use
+	{
+		// vertex/fragment programs interpolate on the GPU and need to access the data directly
+		unsigned short *hunkndx = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * pheader->numverts_vbo);
+
+		// move these to aliasmesh struct???
+		pheader->vertindexes = (intptr_t) hunkndx - (intptr_t) pheader;
+
+		for (i = 0; i < pheader->numverts_vbo; i++)
+		{
+			hunkndx[i] = desc[i].vertindex;
+		}
+	}
+}
+
+static char scratchbuf[65536];
+
+#define NUMVERTEXNORMALS	 162
+extern	float	r_avertexnormals[NUMVERTEXNORMALS][3];
+
+GLuint r_meshvbo = 0;
+GLuint r_meshindexesvbo = 0;
+
+void GLMesh_LoadVertexBuffers (void)
+{
+	int j;
+	qmodel_t *m;
+	int totalindexes = 0;
+	int totalvbosize = 0;
+	
+	// pass 1 - count the sizes we need
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		aliashdr_t *hdr;
+
+		if (!(m = cl.model_precache[j])) break;
+		if (m->type != mod_alias) continue;
+
+		hdr = Mod_Extradata (m);
+
+		hdr->vboindexofs = (totalindexes * sizeof (unsigned short));
+		totalindexes += hdr->numindexes;
+
+		hdr->vboxyzofs = totalvbosize;
+		totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_t)); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+
+		hdr->vbostofs = totalvbosize;
+		totalvbosize += (hdr->numverts_vbo * sizeof (meshst_t));
+	}
+
+	if (!totalindexes) return;
+	if (!totalvbosize) return;
+
+	// pass 2 - create the buffers
+	GL_DeleteBuffersFunc (1, &r_meshindexesvbo);
+	GL_GenBuffersFunc (1, &r_meshindexesvbo);
+	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
+	GL_BufferDataFunc (GL_ELEMENT_ARRAY_BUFFER, totalindexes * sizeof (unsigned short), NULL, GL_STATIC_DRAW);
+
+	GL_DeleteBuffersFunc (1, &r_meshvbo);
+	GL_GenBuffersFunc (1, &r_meshvbo);
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
+	GL_BufferDataFunc (GL_ARRAY_BUFFER, totalvbosize, NULL, GL_STATIC_DRAW);
+
+	// pass 3 - fill in the buffers
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		int f;
+		aliashdr_t *hdr;
+		aliasmesh_t *desc;
+		meshst_t *st;
+		float hscale, vscale;
+		
+		if (!(m = cl.model_precache[j])) break;
+		if (m->type != mod_alias) continue;
+
+		hdr = Mod_Extradata (m);
+		desc = (aliasmesh_t *) ((byte *) hdr + hdr->meshdesc);
+
+		//johnfitz -- padded skins
+		hscale = (float)hdr->skinwidth/(float)TexMgr_PadConditional(hdr->skinwidth);
+		vscale = (float)hdr->skinheight/(float)TexMgr_PadConditional(hdr->skinheight);
+		//johnfitz
+
+		GL_BufferSubDataFunc (GL_ELEMENT_ARRAY_BUFFER,
+			hdr->vboindexofs,
+			hdr->numindexes * sizeof (unsigned short),
+			((byte *) hdr + hdr->indexes));
+
+		for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+		{
+			int v;
+			meshxyz_t *xyz = (meshxyz_t *) scratchbuf; // FIXME - potentially unsafe here
+			trivertx_t *tv = (trivertx_t *) ((byte *) hdr + hdr->vertexes + (hdr->numverts * sizeof(trivertx_t) * f));
+
+			for (v = 0; v < hdr->numverts_vbo; v++)
+			{
+				trivertx_t trivert = tv[desc[v].vertindex];
+				
+				xyz[v].xyz[0] = trivert.v[0];
+				xyz[v].xyz[1] = trivert.v[1];
+				xyz[v].xyz[2] = trivert.v[2];
+				xyz[v].xyz[3] = 1;	// need w 1 for 4 byte vertex compression
+
+				xyz[v].normal[0] = r_avertexnormals[trivert.lightnormalindex][0];
+				xyz[v].normal[1] = r_avertexnormals[trivert.lightnormalindex][1];
+				xyz[v].normal[2] = r_avertexnormals[trivert.lightnormalindex][2];
+			}
+
+			GL_BufferSubDataFunc (GL_ARRAY_BUFFER,
+				hdr->vboxyzofs + (f * hdr->numverts_vbo * sizeof (meshxyz_t)),
+				hdr->numverts_vbo * sizeof (meshxyz_t),
+				xyz);
+		}
+
+		st = (meshst_t *) scratchbuf;
+
+		for (f = 0; f < hdr->numverts_vbo; f++)
+		{
+			st[f].st[0] = hscale * ((float) desc[f].st[0] + 0.5f) / (float) hdr->skinwidth;
+			st[f].st[1] = vscale * ((float) desc[f].st[1] + 0.5f) / (float) hdr->skinheight;
+		}
+
+		GL_BufferSubDataFunc (GL_ARRAY_BUFFER,
+			hdr->vbostofs,
+			hdr->numverts_vbo * sizeof (meshst_t),
+			st);
+	}
+
+	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0);
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, 0);
+}
