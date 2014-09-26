@@ -216,7 +216,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glTexCoordPointer (2, GL_FLOAT, 0, (void *) paliashdr->vbostofs);
+	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)paliashdr->vbostofs);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
@@ -242,7 +242,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 //	GL_SelectTexture (GL_TEXTURE0_ARB);
 //	glEnable(GL_TEXTURE_2D);
-	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)paliashdr->vboindexofs);
+	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)paliashdr->vboindexofs);
 	
 	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
 	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);

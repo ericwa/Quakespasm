@@ -373,7 +373,6 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 	// there can never be more than this number of verts and we just put them all on the hunk
 	maxverts_vbo = pheader->numtris * 3;
 	aliasmesh_t *desc = (aliasmesh_t *) Hunk_Alloc (sizeof (aliasmesh_t) * maxverts_vbo);
-	aliasmesh_t *mesh = (aliasmesh_t *) malloc (sizeof (aliasmesh_t) * maxverts_vbo);
 
 	// there will always be this number of indexes
 	unsigned short *indexes = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * maxverts_vbo);
@@ -403,7 +402,7 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 			for (v = 0; v < pheader->numverts_vbo; v++)
 			{
 				// it could use the same xyz but have different s and t
-				if (mesh[v].vertindex == vertindex && (int) mesh[v].st[0] == s && (int) mesh[v].st[1] == t)
+				if (desc[v].vertindex == vertindex && (int) desc[v].st[0] == s && (int) desc[v].st[1] == t)
 				{
 					// exists; emit an index for it
 					indexes[pheader->numindexes++] = v;
@@ -418,17 +417,12 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 				// doesn't exist; emit a new vert and index
 				indexes[pheader->numindexes++] = pheader->numverts_vbo;
 
-				mesh[pheader->numverts_vbo].vertindex = vertindex;
-				mesh[pheader->numverts_vbo].st[0] = s;
-				mesh[pheader->numverts_vbo++].st[1] = t;
+				desc[pheader->numverts_vbo].vertindex = vertindex;
+				desc[pheader->numverts_vbo].st[0] = s;
+				desc[pheader->numverts_vbo++].st[1] = t;
 			}
 		}
 	}
-
-	memcpy(desc, mesh, sizeof (aliasmesh_t) * pheader->numverts_vbo);
-
-	// free our temp holding area for mesh verts
-	free (mesh);
 
 	// create a hunk buffer for the final mesh we'll actually use
 	{
