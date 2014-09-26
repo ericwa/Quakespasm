@@ -266,16 +266,21 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 //	glEnable(GL_TEXTURE_2D);
 	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)paliashdr->vboindexofs);
 	
-	
-	glDisableClientState (GL_VERTEX_ARRAY);
-	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-	glDisableClientState (GL_NORMAL_ARRAY);
-	
+	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
+	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);
+
+	GL_ClientActiveTextureFunc(GL_TEXTURE0_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_ClientActiveTextureFunc(GL_TEXTURE1_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_ClientActiveTextureFunc(GL_TEXTURE2_ARB);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_DisableVertexAttribArrayFunc(pose1NormalAttrIndex);
+	GL_DisableVertexAttribArrayFunc(pose2NormalAttrIndex);
+
 	GL_UseProgramFunc(0);
 	
 	return;
