@@ -174,25 +174,47 @@ extern	qboolean	gl_vbo_able;
 //ericw
 
 //ericw -- GLSL
-extern PFNGLCREATESHADERPROC GL_CreateShaderFunc;
-extern PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc;
-extern PFNGLCOMPILESHADERPROC GL_CompileShaderFunc;
-extern PFNGLGETSHADERIVPROC GL_GetShaderivFunc;
-extern PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc;
-extern PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc;
-extern PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc;
-extern PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc;
-extern PFNGLATTACHSHADERPROC GL_AttachShaderFunc;
-extern PFNGLLINKPROGRAMPROC GL_LinkProgramFunc;
-extern PFNGLUSEPROGRAMPROC GL_UseProgramFunc;
-extern PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc;
-extern PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc;
-extern PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc;
-extern PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc;
-extern PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc;
-extern PFNGLUNIFORM1FPROC GL_Uniform1fFunc;
-extern PFNGLUNIFORM3FPROC GL_Uniform3fFunc;
-extern PFNGLUNIFORM4FPROC GL_Uniform4fFunc;
+
+// SDL 1.2 has a bug where it doesn't provide these typedefs on OS X!
+typedef GLuint (APIENTRYP QS_PFNGLCREATESHADERPROC) (GLenum type);
+typedef void (APIENTRYP QS_PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length);
+typedef void (APIENTRYP QS_PFNGLCOMPILESHADERPROC) (GLuint shader);
+typedef void (APIENTRYP QS_PFNGLGETSHADERIVPROC) (GLuint shader, GLenum pname, GLint *params);
+typedef void (APIENTRYP QS_PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef void (APIENTRYP QS_PFNGLGETPROGRAMIVPROC) (GLuint program, GLenum pname, GLint *params);
+typedef void (APIENTRYP QS_PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef GLuint (APIENTRYP QS_PFNGLCREATEPROGRAMPROC) (void);
+typedef void (APIENTRYP QS_PFNGLATTACHSHADERPROC) (GLuint program, GLuint shader);
+typedef void (APIENTRYP QS_PFNGLLINKPROGRAMPROC) (GLuint program);
+typedef void (APIENTRYP QS_PFNGLUSEPROGRAMPROC) (GLuint program);
+typedef GLint (APIENTRYP QS_PFNGLGETATTRIBLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void (APIENTRYP QS_PFNGLVERTEXATTRIBPOINTERPROC) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+typedef void (APIENTRYP QS_PFNGLENABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void (APIENTRYP QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef GLint (APIENTRYP QS_PFNGLGETUNIFORMLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void (APIENTRYP QS_PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
+typedef void (APIENTRYP QS_PFNGLUNIFORM3FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void (APIENTRYP QS_PFNGLUNIFORM4FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+
+extern QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc;
+extern QS_PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc;
+extern QS_PFNGLCOMPILESHADERPROC GL_CompileShaderFunc;
+extern QS_PFNGLGETSHADERIVPROC GL_GetShaderivFunc;
+extern QS_PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc;
+extern QS_PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc;
+extern QS_PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc;
+extern QS_PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc;
+extern QS_PFNGLATTACHSHADERPROC GL_AttachShaderFunc;
+extern QS_PFNGLLINKPROGRAMPROC GL_LinkProgramFunc;
+extern QS_PFNGLUSEPROGRAMPROC GL_UseProgramFunc;
+extern QS_PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc;
+extern QS_PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc;
+extern QS_PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc;
+extern QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc;
+extern QS_PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc;
+extern QS_PFNGLUNIFORM1FPROC GL_Uniform1fFunc;
+extern QS_PFNGLUNIFORM3FPROC GL_Uniform3fFunc;
+extern QS_PFNGLUNIFORM4FPROC GL_Uniform4fFunc;
 extern	qboolean	gl_glsl_able;
 // ericw --
 

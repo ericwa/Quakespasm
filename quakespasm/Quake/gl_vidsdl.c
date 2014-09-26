@@ -107,25 +107,25 @@ PFNGLBUFFERSUBDATAARBPROC GL_BufferSubDataFunc = NULL; //ericw
 PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
 PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
 
-PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
-PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc = NULL; //ericw
-PFNGLCOMPILESHADERPROC GL_CompileShaderFunc = NULL; //ericw
-PFNGLGETSHADERIVPROC GL_GetShaderivFunc = NULL; //ericw
-PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc = NULL; //ericw
-PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc = NULL; //ericw
-PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc = NULL; //ericw
-PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc = NULL; //ericw
-PFNGLATTACHSHADERPROC GL_AttachShaderFunc = NULL; //ericw
-PFNGLLINKPROGRAMPROC GL_LinkProgramFunc = NULL; //ericw
-PFNGLUSEPROGRAMPROC GL_UseProgramFunc = NULL; //ericw
-PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc = NULL; //ericw
-PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc = NULL; //ericw
-PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc = NULL; //ericw
-PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc = NULL; //ericw
-PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc = NULL; //ericw
-PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
-PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
-PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
+QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
+QS_PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc = NULL; //ericw
+QS_PFNGLCOMPILESHADERPROC GL_CompileShaderFunc = NULL; //ericw
+QS_PFNGLGETSHADERIVPROC GL_GetShaderivFunc = NULL; //ericw
+QS_PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc = NULL; //ericw
+QS_PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc = NULL; //ericw
+QS_PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc = NULL; //ericw
+QS_PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc = NULL; //ericw
+QS_PFNGLATTACHSHADERPROC GL_AttachShaderFunc = NULL; //ericw
+QS_PFNGLLINKPROGRAMPROC GL_LinkProgramFunc = NULL; //ericw
+QS_PFNGLUSEPROGRAMPROC GL_UseProgramFunc = NULL; //ericw
+QS_PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc = NULL; //ericw
+QS_PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc = NULL; //ericw
+QS_PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc = NULL; //ericw
+QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc = NULL; //ericw
+QS_PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc = NULL; //ericw
+QS_PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
+QS_PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
+QS_PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
 
 //====================================
 
@@ -1020,25 +1020,25 @@ static void GL_CheckExtensions (void)
 		Con_Warning ("GLSL disabled at command line\n");
 	else
 	{
-		GL_CreateShaderFunc = (PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
-		GL_ShaderSourceFunc = (PFNGLSHADERSOURCEPROC) SDL_GL_GetProcAddress("glShaderSource");
-		GL_CompileShaderFunc = (PFNGLCOMPILESHADERPROC) SDL_GL_GetProcAddress("glCompileShader");
-		GL_GetShaderivFunc = (PFNGLGETSHADERIVPROC) SDL_GL_GetProcAddress("glGetShaderiv");
-		GL_GetShaderInfoLogFunc = (PFNGLGETSHADERINFOLOGPROC) SDL_GL_GetProcAddress("glGetShaderInfoLog");
-		GL_GetProgramivFunc = (PFNGLGETPROGRAMIVPROC) SDL_GL_GetProcAddress("glGetProgramiv");
-		GL_GetProgramInfoLogFunc = (PFNGLGETPROGRAMINFOLOGPROC) SDL_GL_GetProcAddress("glGetProgramInfoLog");
-		GL_CreateProgramFunc = (PFNGLCREATEPROGRAMPROC) SDL_GL_GetProcAddress("glCreateProgram");
-		GL_AttachShaderFunc = (PFNGLATTACHSHADERPROC) SDL_GL_GetProcAddress("glAttachShader");
-		GL_LinkProgramFunc = (PFNGLLINKPROGRAMPROC) SDL_GL_GetProcAddress("glLinkProgram");
-		GL_UseProgramFunc = (PFNGLUSEPROGRAMPROC) SDL_GL_GetProcAddress("glUseProgram");
-		GL_GetAttribLocationFunc = (PFNGLGETATTRIBLOCATIONPROC) SDL_GL_GetProcAddress("glGetAttribLocation");
-		GL_VertexAttribPointerFunc = (PFNGLVERTEXATTRIBPOINTERPROC) SDL_GL_GetProcAddress("glVertexAttribPointer");
-		GL_EnableVertexAttribArrayFunc = (PFNGLENABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glEnableVertexAttribArray");
-		GL_DisableVertexAttribArrayFunc = (PFNGLDISABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glDisableVertexAttribArray");
-		GL_GetUniformLocationFunc = (PFNGLGETUNIFORMLOCATIONPROC) SDL_GL_GetProcAddress("glGetUniformLocation");
-		GL_Uniform1fFunc = (PFNGLUNIFORM1FPROC) SDL_GL_GetProcAddress("glUniform1f");
-		GL_Uniform3fFunc = (PFNGLUNIFORM3FPROC) SDL_GL_GetProcAddress("glUniform3f");
-		GL_Uniform4fFunc = (PFNGLUNIFORM4FPROC) SDL_GL_GetProcAddress("glUniform4f");
+		GL_CreateShaderFunc = (QS_PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
+		GL_ShaderSourceFunc = (QS_PFNGLSHADERSOURCEPROC) SDL_GL_GetProcAddress("glShaderSource");
+		GL_CompileShaderFunc = (QS_PFNGLCOMPILESHADERPROC) SDL_GL_GetProcAddress("glCompileShader");
+		GL_GetShaderivFunc = (QS_PFNGLGETSHADERIVPROC) SDL_GL_GetProcAddress("glGetShaderiv");
+		GL_GetShaderInfoLogFunc = (QS_PFNGLGETSHADERINFOLOGPROC) SDL_GL_GetProcAddress("glGetShaderInfoLog");
+		GL_GetProgramivFunc = (QS_PFNGLGETPROGRAMIVPROC) SDL_GL_GetProcAddress("glGetProgramiv");
+		GL_GetProgramInfoLogFunc = (QS_PFNGLGETPROGRAMINFOLOGPROC) SDL_GL_GetProcAddress("glGetProgramInfoLog");
+		GL_CreateProgramFunc = (QS_PFNGLCREATEPROGRAMPROC) SDL_GL_GetProcAddress("glCreateProgram");
+		GL_AttachShaderFunc = (QS_PFNGLATTACHSHADERPROC) SDL_GL_GetProcAddress("glAttachShader");
+		GL_LinkProgramFunc = (QS_PFNGLLINKPROGRAMPROC) SDL_GL_GetProcAddress("glLinkProgram");
+		GL_UseProgramFunc = (QS_PFNGLUSEPROGRAMPROC) SDL_GL_GetProcAddress("glUseProgram");
+		GL_GetAttribLocationFunc = (QS_PFNGLGETATTRIBLOCATIONPROC) SDL_GL_GetProcAddress("glGetAttribLocation");
+		GL_VertexAttribPointerFunc = (QS_PFNGLVERTEXATTRIBPOINTERPROC) SDL_GL_GetProcAddress("glVertexAttribPointer");
+		GL_EnableVertexAttribArrayFunc = (QS_PFNGLENABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glEnableVertexAttribArray");
+		GL_DisableVertexAttribArrayFunc = (QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glDisableVertexAttribArray");
+		GL_GetUniformLocationFunc = (QS_PFNGLGETUNIFORMLOCATIONPROC) SDL_GL_GetProcAddress("glGetUniformLocation");
+		GL_Uniform1fFunc = (QS_PFNGLUNIFORM1FPROC) SDL_GL_GetProcAddress("glUniform1f");
+		GL_Uniform3fFunc = (QS_PFNGLUNIFORM3FPROC) SDL_GL_GetProcAddress("glUniform3f");
+		GL_Uniform4fFunc = (QS_PFNGLUNIFORM4FPROC) SDL_GL_GetProcAddress("glUniform4f");
 
 		if (GL_CreateShaderFunc &&
 			GL_ShaderSourceFunc &&
