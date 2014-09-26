@@ -86,41 +86,21 @@ void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 
 /*
 =============
-GL_DrawAliasFrame -- johnfitz -- rewritten to support colored light, lerping, entalpha, multitexture, and r_drawflat
+GL_DrawAliasFrame_GLSL
 =============
 */
-void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
+void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 {
-	float	vertcolor[4];
-	trivertx_t *verts1, *verts2;
-	int		*commands;
-	int		count;
-	float	u,v;
-	float	blend, iblend;
-	qboolean lerping;
+	float	blend;
 
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{
-		lerping = true;
-		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
-		verts2  = verts1;
-		verts1 += lerpdata.pose1 * paliashdr->poseverts;
-		verts2 += lerpdata.pose2 * paliashdr->poseverts;
 		blend = lerpdata.blend;
-		iblend = 1.0f - blend;
 	}
 	else // poses the same means either 1. the entity has paused its animation, or 2. r_lerpmodels is disabled
 	{
-		lerping = false;
-		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
-		verts2  = verts1; // avoid bogus compiler warning
-		verts1 += lerpdata.pose1 * paliashdr->poseverts;
-		blend = iblend = 0; // avoid bogus compiler warning
+		blend = 0;
 	}
-
-	commands = (int *)((byte *)paliashdr + paliashdr->commands);
-
-	vertcolor[3] = entalpha; //never changes, so there's no need to put this inside the loop
 
 // ericw -- shader
 
@@ -138,32 +118,32 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	if (shader == 0)
 	{
 		const GLchar *source = \
-		"uniform float Blend;\n"
-		"uniform vec3 ShadeVector;\n"
-		"uniform vec4 LightColor;\n"
-		"attribute vec4 Pose1Vert;\n"
-		"attribute vec3 Pose1Normal;\n"
-		"attribute vec4 Pose2Vert;\n"
-		"attribute vec3 Pose2Normal;\n"
-		"float r_avertexnormal_dot(vec3 vertexnormal)\n"
-		"{\n"
-		"        float dot = dot(vertexnormal, ShadeVector);\n"
-		"        // wtf - this reproduces anorm_dots within as reasonable a degree of tolerance as the >= 0 case\n"
-		"        if (dot < 0.0)\n"
-		"            return 1.0 + dot * (13.0 / 44.0);\n"
-		"        else\n"
-		"            return 1.0 + dot;\n"
-		"}\n"
-		"void main()\n"
-		"{\n"
-		"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
-		"	gl_TexCoord[1]  = gl_MultiTexCoord0;\n"
-		"	gl_Position = gl_ModelViewProjectionMatrix * mix(Pose1Vert, Pose2Vert, Blend);\n"
-		"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
-		"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
-		"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
-		"}\n"
-		;
+			"uniform float Blend;\n"
+			"uniform vec3 ShadeVector;\n"
+			"uniform vec4 LightColor;\n"
+			"attribute vec4 Pose1Vert;\n"
+			"attribute vec3 Pose1Normal;\n"
+			"attribute vec4 Pose2Vert;\n"
+			"attribute vec3 Pose2Normal;\n"
+			"float r_avertexnormal_dot(vec3 vertexnormal)\n"
+			"{\n"
+			"        float dot = dot(vertexnormal, ShadeVector);\n"
+			"        // wtf - this reproduces anorm_dots within as reasonable a degree of tolerance as the >= 0 case\n"
+			"        if (dot < 0.0)\n"
+			"            return 1.0 + dot * (13.0 / 44.0);\n"
+			"        else\n"
+			"            return 1.0 + dot;\n"
+			"}\n"
+			"void main()\n"
+			"{\n"
+			"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
+			"	gl_TexCoord[1]  = gl_MultiTexCoord0;\n"
+			"	gl_Position = gl_ModelViewProjectionMatrix * mix(Pose1Vert, Pose2Vert, Blend);\n"
+			"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
+			"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
+			"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
+			"}\n";
+			
 		shader = GL_CreateShaderFunc(GL_VERTEX_SHADER);
 		GL_ShaderSourceFunc(shader, 1, &source, NULL);
 		GL_CompileShaderFunc(shader);
@@ -225,8 +205,6 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	
 // ericw --
 
-
-
 // ericw -- bind it and stuff
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
@@ -283,8 +261,49 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	GL_UseProgramFunc(0);
 	
+	rs_aliaspasses += paliashdr->numtris;
+}
+
+/*
+=============
+GL_DrawAliasFrame -- johnfitz -- rewritten to support colored light, lerping, entalpha, multitexture, and r_drawflat
+=============
+*/
+void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
+{
+	float	vertcolor[4];
+	trivertx_t *verts1, *verts2;
+	int		*commands;
+	int		count;
+	float	u,v;
+	float	blend, iblend;
+	qboolean lerping;
+
+	GL_DrawAliasFrame_GLSL(paliashdr, lerpdata);
 	return;
-	
+
+	if (lerpdata.pose1 != lerpdata.pose2)
+	{
+		lerping = true;
+		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
+		verts2  = verts1;
+		verts1 += lerpdata.pose1 * paliashdr->poseverts;
+		verts2 += lerpdata.pose2 * paliashdr->poseverts;
+		blend = lerpdata.blend;
+		iblend = 1.0f - blend;
+	}
+	else // poses the same means either 1. the entity has paused its animation, or 2. r_lerpmodels is disabled
+	{
+		lerping = false;
+		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
+		verts2  = verts1; // avoid bogus compiler warning
+		verts1 += lerpdata.pose1 * paliashdr->poseverts;
+		blend = iblend = 0; // avoid bogus compiler warning
+	}
+
+	commands = (int *)((byte *)paliashdr + paliashdr->commands);
+
+	vertcolor[3] = entalpha; //never changes, so there's no need to put this inside the look
 	
 	while (1)
 	{
