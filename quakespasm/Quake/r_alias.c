@@ -118,6 +118,8 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	if (shader == 0)
 	{
 		const GLchar *source = \
+			"#version 110\n"
+			"\n"
 			"uniform float Blend;\n"
 			"uniform vec3 ShadeVector;\n"
 			"uniform vec4 LightColor;\n"
@@ -138,10 +140,14 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 			"{\n"
 			"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
 			"	gl_TexCoord[1]  = gl_MultiTexCoord0;\n"
-			"	gl_Position = gl_ModelViewProjectionMatrix * mix(Pose1Vert, Pose2Vert, Blend);\n"
+			"	vec4 lerpedVert = mix(Pose1Vert, Pose2Vert, Blend);\n"
+			"	gl_Position = gl_ModelViewProjectionMatrix * lerpedVert;\n"
 			"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
 			"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
 			"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
+			"	// fog\n"
+			"	vec3 ecPosition = vec3(gl_ModelViewMatrix * lerpedVert);\n"
+			"	gl_FogFragCoord = abs(ecPosition.z);\n"
 			"}\n";
 			
 		shader = GL_CreateShaderFunc(GL_VERTEX_SHADER);
