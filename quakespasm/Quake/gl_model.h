@@ -282,6 +282,7 @@ Alias models are position independent, so the cache manager can move them.
 ==============================================================================
 */
 
+//-- from RMQEngine
 // split out to keep vertex sizes down
 typedef struct aliasmesh_s
 {
@@ -295,11 +296,11 @@ typedef struct meshxyz_s
 	float normal[3];
 } meshxyz_t;
 
-
 typedef struct meshst_s
 {
 	float st[2];
 } meshst_t;
+//--
 
 typedef struct
 {

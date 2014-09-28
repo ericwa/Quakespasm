@@ -355,6 +355,13 @@ void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr)
 unsigned int r_meshindexbuffer = 0;
 unsigned int r_meshvertexbuffer = 0;
 
+/*
+================
+GL_MakeAliasModelDisplayLists_VBO
+
+Original code by MH from RMQEngine
+================
+*/
 void GL_MakeAliasModelDisplayLists_VBO (void)
 {
 	int i, j;
@@ -450,6 +457,13 @@ extern	float	r_avertexnormals[NUMVERTEXNORMALS][3];
 GLuint r_meshvbo = 0;
 GLuint r_meshindexesvbo = 0;
 
+/*
+================
+GLMesh_LoadVertexBuffers
+
+Original code by MH from RMQEngine
+================
+*/
 void GLMesh_LoadVertexBuffers (void)
 {
 	int j;

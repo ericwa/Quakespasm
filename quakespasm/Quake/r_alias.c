@@ -86,7 +86,9 @@ void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 
 /*
 =============
-GL_DrawAliasFrame_GLSL
+GL_DrawAliasFrame_GLSL -- ericw
+
+Based on code by MH from RMQEngine
 =============
 */
 void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
@@ -127,7 +129,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 			"attribute vec3 Pose1Normal;\n"
 			"attribute vec4 Pose2Vert;\n"
 			"attribute vec3 Pose2Normal;\n"
-			"float r_avertexnormal_dot(vec3 vertexnormal)\n"
+			"float r_avertexnormal_dot(vec3 vertexnormal) // from MH \n"
 			"{\n"
 			"        float dot = dot(vertexnormal, ShadeVector);\n"
 			"        // wtf - this reproduces anorm_dots within as reasonable a degree of tolerance as the >= 0 case\n"
@@ -237,18 +239,17 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
 	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
 
-	// Uniform
+	// set uniforms
 	
 	GL_Uniform1fFunc(blendLoc, blend);
 	GL_Uniform3fFunc(shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
 	GL_Uniform4fFunc(lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
-		
-//
-// ericw -- bind it and stuff
 
-//	GL_SelectTexture (GL_TEXTURE0_ARB);
-//	glEnable(GL_TEXTURE_2D);
+	// draw
+
 	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)paliashdr->vboindexofs);
+
+	// clean up
 	
 	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
 	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);

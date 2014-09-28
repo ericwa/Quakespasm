@@ -2515,7 +2515,7 @@ void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 		Sys_Error ("model %s has too many vertices", mod->name);
 
 	pheader->numtris = LittleLong (pinmodel->numtris);
-	
+
 	if (pheader->numtris <= 0)
 		Sys_Error ("model %s has no triangles", mod->name);
 
