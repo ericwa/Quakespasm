@@ -360,6 +360,9 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 	int i, j;
 	int maxverts_vbo;
 
+	if (!gl_glsl_able)
+		return;
+
 	// ericw -- first, copy the verts onto the hunk
 	trivertx_t *verts;
 	
@@ -453,6 +456,9 @@ void GLMesh_LoadVertexBuffers (void)
 	qmodel_t *m;
 	int totalindexes = 0;
 	int totalvbosize = 0;
+	
+	if (!gl_glsl_able)
+		return;
 	
 	// pass 1 - count the sizes we need
 	for (j = 1; j < MAX_MODELS; j++)

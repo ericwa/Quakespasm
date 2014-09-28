@@ -285,8 +285,12 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	float	blend, iblend;
 	qboolean lerping;
 
-	GL_DrawAliasFrame_GLSL(paliashdr, lerpdata);
-	return;
+	// call fast path if possible
+	if (gl_glsl_able && !r_drawflat_cheatsafe && shading)
+	{
+		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata);
+		return;
+	}
 
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{
