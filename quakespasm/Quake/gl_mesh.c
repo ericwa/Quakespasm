@@ -366,12 +366,12 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 {
 	int i, j;
 	int maxverts_vbo;
+	trivertx_t *verts;
 
 	if (!gl_glsl_able)
 		return;
-
+	
 	// ericw -- first, copy the verts onto the hunk
-	trivertx_t *verts;
 	
 	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts * sizeof(trivertx_t));
 	paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
