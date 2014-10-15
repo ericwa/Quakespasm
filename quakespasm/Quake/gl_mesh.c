@@ -484,13 +484,16 @@ void GLMesh_LoadVertexBuffers (void)
 
 		hdr = Mod_Extradata (m);
 
-		hdr->vboindexofs = (totalindexes * sizeof (unsigned short));
+		// ericw -- RMQEngine stored these vbo*ofs values in aliashdr_t, but we must not
+		// mutate Mod_Extradata since it might be reloaded from disk, so I moved them to qmodel_t
+		// (test case: roman1.bsp from arwop, 64mb heap)
+		m->vboindexofs = (totalindexes * sizeof (unsigned short));
 		totalindexes += hdr->numindexes;
 
-		hdr->vboxyzofs = totalvbosize;
+		m->vboxyzofs = totalvbosize;
 		totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_t)); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 
-		hdr->vbostofs = totalvbosize;
+		m->vbostofs = totalvbosize;
 		totalvbosize += (hdr->numverts_vbo * sizeof (meshst_t));
 	}
 
@@ -529,7 +532,7 @@ void GLMesh_LoadVertexBuffers (void)
 		//johnfitz
 
 		GL_BufferSubDataFunc (GL_ELEMENT_ARRAY_BUFFER,
-			hdr->vboindexofs,
+			m->vboindexofs,
 			hdr->numindexes * sizeof (unsigned short),
 			((byte *) hdr + hdr->indexes));
 
@@ -554,7 +557,7 @@ void GLMesh_LoadVertexBuffers (void)
 			}
 
 			GL_BufferSubDataFunc (GL_ARRAY_BUFFER,
-				hdr->vboxyzofs + (f * hdr->numverts_vbo * sizeof (meshxyz_t)),
+				m->vboxyzofs + (f * hdr->numverts_vbo * sizeof (meshxyz_t)),
 				hdr->numverts_vbo * sizeof (meshxyz_t),
 				xyz);
 		}
@@ -568,7 +571,7 @@ void GLMesh_LoadVertexBuffers (void)
 		}
 
 		GL_BufferSubDataFunc (GL_ARRAY_BUFFER,
-			hdr->vbostofs,
+			m->vbostofs,
 			hdr->numverts_vbo * sizeof (meshst_t),
 			st);
 	}

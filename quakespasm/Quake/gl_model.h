@@ -360,11 +360,6 @@ typedef struct {
 	// only shaders use this
 	intptr_t    vertindexes;
 
-	// only vbos use these
-	int			vboindexofs;
-	int			vboxyzofs;
-	int			vbostofs;
-
 	// offset to (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->vertsperframe * sizeof(trivertx_t))
 	intptr_t		vertexes;
 
@@ -484,6 +479,15 @@ typedef struct qmodel_s
 	char		*entities;
 
 	int			bspversion;
+
+//
+// alias model
+//
+
+// only vbos use these
+	int			vboindexofs;
+	int			vboxyzofs;
+	int			vbostofs;
 
 //
 // additional model data

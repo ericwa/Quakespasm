@@ -74,14 +74,14 @@ void *GLARB_GetXYZOffset (aliashdr_t *hdr, int pose)
 {
 	meshxyz_t dummy;
 	int xyzoffs = ((char*)&dummy.xyz - (char*)&dummy);
-	return (void *) (hdr->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
+	return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
 }
 
 void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 {
 	meshxyz_t dummy;
 	int normaloffs = ((char*)&dummy.normal - (char*)&dummy);
-	return (void *) (hdr->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
+	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
 }
 
 /*
@@ -224,7 +224,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)paliashdr->vbostofs);
+	glTexCoordPointer(2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
@@ -247,7 +247,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	// draw
 
-	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)paliashdr->vboindexofs);
+	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
 	// clean up
 	
