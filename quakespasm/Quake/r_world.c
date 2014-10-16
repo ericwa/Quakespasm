@@ -710,7 +710,7 @@ void R_DrawTextureChains_Multitexture (qmodel_t *model, entity_t *ent, texchain_
 
 		bound = false;
 		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (!s->culled)
+			if (1)
 			{
 				if (!bound) //only bind once we are sure we need this texture
 				{
