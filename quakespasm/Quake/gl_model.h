@@ -356,9 +356,6 @@ typedef struct {
 	intptr_t		meshdesc;
 	intptr_t		indexes;
 	int			numindexes;
-	
-	// only shaders use this
-	intptr_t    vertindexes;
 
 	// offset to (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->vertsperframe * sizeof(trivertx_t))
 	intptr_t		vertexes;

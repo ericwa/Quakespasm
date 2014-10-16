@@ -433,20 +433,6 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 			}
 		}
 	}
-
-	// create a hunk buffer for the final mesh we'll actually use
-	{
-		// vertex/fragment programs interpolate on the GPU and need to access the data directly
-		unsigned short *hunkndx = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * pheader->numverts_vbo);
-
-		// move these to aliasmesh struct???
-		pheader->vertindexes = (intptr_t) hunkndx - (intptr_t) pheader;
-
-		for (i = 0; i < pheader->numverts_vbo; i++)
-		{
-			hunkndx[i] = desc[i].vertindex;
-		}
-	}
 }
 
 static char scratchbuf[65536];
