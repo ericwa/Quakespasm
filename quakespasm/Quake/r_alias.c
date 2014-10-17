@@ -173,125 +173,16 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, shader);
 	glEnable( GL_VERTEX_PROGRAM_ARB );
 //
-	
-// ericw -- shader
-#if 0
-	static GLuint shader;
-	static GLuint program;
-	static GLuint blendLoc;
-	static GLuint shadevectorLoc;
-	static GLuint lightColorLoc;
-	
-	static GLint pose1VertexAttrIndex;
-	static GLint pose1NormalAttrIndex;
-	static GLint pose2VertexAttrIndex;
-	static GLint pose2NormalAttrIndex;
-		
-	if (shader == 0)
-	{
-		const GLchar *source = \
-			"#version 110\n"
-			"\n"
-			"uniform float Blend;\n"
-			"uniform vec3 ShadeVector;\n"
-			"uniform vec4 LightColor;\n"
-			"attribute vec4 Pose1Vert;\n"
-			"attribute vec3 Pose1Normal;\n"
-			"attribute vec4 Pose2Vert;\n"
-			"attribute vec3 Pose2Normal;\n"
-			"float r_avertexnormal_dot(vec3 vertexnormal) // from MH \n"
-			"{\n"
-			"        float dot = dot(vertexnormal, ShadeVector);\n"
-			"        // wtf - this reproduces anorm_dots within as reasonable a degree of tolerance as the >= 0 case\n"
-			"        if (dot < 0.0)\n"
-			"            return 1.0 + dot * (13.0 / 44.0);\n"
-			"        else\n"
-			"            return 1.0 + dot;\n"
-			"}\n"
-			"void main()\n"
-			"{\n"
-			"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
-			"	gl_TexCoord[1]  = gl_MultiTexCoord0;\n"
-			"	vec4 lerpedVert = mix(Pose1Vert, Pose2Vert, Blend);\n"
-			"	gl_Position = gl_ModelViewProjectionMatrix * lerpedVert;\n"
-			"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
-			"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
-			"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
-			"	// fog\n"
-			"	vec3 ecPosition = vec3(gl_ModelViewMatrix * lerpedVert);\n"
-			"	gl_FogFragCoord = abs(ecPosition.z);\n"
-			"}\n";
-			
-		shader = GL_CreateShaderFunc(GL_VERTEX_SHADER);
-		GL_ShaderSourceFunc(shader, 1, &source, NULL);
-		GL_CompileShaderFunc(shader);
-		
-		GLint status;
-		GL_GetShaderivFunc(shader, GL_COMPILE_STATUS, &status);
-		
-		if (status != GL_TRUE)
-		{
-			static char infolog[65536];
-			GL_GetShaderInfoLogFunc (shader, 65536, NULL, infolog);
-
-			printf("Shader info log: %s\n", infolog);
-			Sys_Error("Shader failed to compile");
-		}
-		
-		// create program
-		program = GL_CreateProgramFunc();
-		GL_AttachShaderFunc(program, shader);
-		GL_LinkProgramFunc(program);
-		
-		GL_GetProgramivFunc(program, GL_LINK_STATUS, &status);
-		
-		if (status != GL_TRUE)
-		{
-			Sys_Error("Program failed to link");
-		}
-		
-		// get uniform location
-		
-		blendLoc = GL_GetUniformLocationFunc(program, "Blend");
-		if (blendLoc == -1)
-		{
-			Sys_Error("GL_GetUniformLocationFunc Blend failed");
-		}
-		
-		shadevectorLoc = GL_GetUniformLocationFunc(program, "ShadeVector");
-		if (shadevectorLoc == -1)
-		{
-			Sys_Error("GL_GetUniformLocationFunc shadevector failed");
-		}
-		
-		lightColorLoc = GL_GetUniformLocationFunc(program, "LightColor");
-		if (lightColorLoc == -1)
-		{
-			Sys_Error("GL_GetUniformLocationFunc LightColor failed");
-		}
-		
-		// get attributes
-
-		pose1VertexAttrIndex = GL_GetAttribLocationFunc(program, "Pose1Vert");
-		pose1NormalAttrIndex = GL_GetAttribLocationFunc(program, "Pose1Normal");
-		
-		pose2VertexAttrIndex = GL_GetAttribLocationFunc(program, "Pose2Vert");
-		pose2NormalAttrIndex = GL_GetAttribLocationFunc(program, "Pose2Normal");
-	}
-	
-	GL_UseProgramFunc(program);
-#endif
-// ericw --
 
 // ericw -- bind it and stuff
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
 	
-	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
-	GL_EnableVertexAttribArrayFunc (pose1VertexAttrIndex);
+	qglVertexAttribPointerARB (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
+	qglEnableVertexAttribArrayARB (pose1VertexAttrIndex);
 		
-	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
-	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
+	qglVertexAttribPointerARB (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
+	qglEnableVertexAttribArrayARB (pose2VertexAttrIndex);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
 	glTexCoordPointer(2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
@@ -303,11 +194,11 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 		
-	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
-	GL_EnableVertexAttribArrayFunc (pose1NormalAttrIndex);
+	qglVertexAttribPointerARB (pose1NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+	qglEnableVertexAttribArrayARB (pose1NormalAttrIndex);
 		
-	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
-	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
+	qglVertexAttribPointerARB (pose2NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	qglEnableVertexAttribArrayARB (pose2NormalAttrIndex);
 
 	// set uniforms
 	
@@ -321,8 +212,8 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	// clean up
 
-	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
-	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);
+	qglDisableVertexAttribArrayARB(pose1VertexAttrIndex);
+	qglDisableVertexAttribArrayARB(pose2VertexAttrIndex);
 
 	GL_ClientActiveTextureFunc(GL_TEXTURE0_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -333,8 +224,8 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_ClientActiveTextureFunc(GL_TEXTURE2_ARB);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	GL_DisableVertexAttribArrayFunc(pose1NormalAttrIndex);
-	GL_DisableVertexAttribArrayFunc(pose2NormalAttrIndex);
+	qglDisableVertexAttribArrayARB(pose1NormalAttrIndex);
+	qglDisableVertexAttribArrayARB(pose2NormalAttrIndex);
 
 	glDisable(GL_VERTEX_PROGRAM_ARB);
 
@@ -357,11 +248,13 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	qboolean lerping;
 
 	// call fast path if possible
-	if (gl_glsl_able && !r_drawflat_cheatsafe && shading)
+	if (gl_arb_vp_able && !r_drawflat_cheatsafe && shading)
 	{
 		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata);
 		return;
 	}
+
+	Sys_Error("didn't use fast path");
 
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{

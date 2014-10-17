@@ -95,7 +95,7 @@ qboolean gl_anisotropy_able = false; //johnfitz
 float gl_max_anisotropy; //johnfitz
 qboolean gl_texture_NPOT = false; //ericw
 qboolean gl_vbo_able = false; //ericw
-qboolean gl_glsl_able = false; //ericw
+qboolean gl_arb_vp_able = false; //ericw
 GLint gl_max_texture_units = 0; //ericw
 
 PFNGLMULTITEXCOORD2FARBPROC GL_MTexCoord2fFunc = NULL; //johnfitz
@@ -106,26 +106,6 @@ PFNGLBUFFERDATAARBPROC GL_BufferDataFunc = NULL; //ericw
 PFNGLBUFFERSUBDATAARBPROC GL_BufferSubDataFunc = NULL; //ericw
 PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
 PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
-
-QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
-QS_PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc = NULL; //ericw
-QS_PFNGLCOMPILESHADERPROC GL_CompileShaderFunc = NULL; //ericw
-QS_PFNGLGETSHADERIVPROC GL_GetShaderivFunc = NULL; //ericw
-QS_PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc = NULL; //ericw
-QS_PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc = NULL; //ericw
-QS_PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc = NULL; //ericw
-QS_PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc = NULL; //ericw
-QS_PFNGLATTACHSHADERPROC GL_AttachShaderFunc = NULL; //ericw
-QS_PFNGLLINKPROGRAMPROC GL_LinkProgramFunc = NULL; //ericw
-QS_PFNGLUSEPROGRAMPROC GL_UseProgramFunc = NULL; //ericw
-QS_PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc = NULL; //ericw
-QS_PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc = NULL; //ericw
-QS_PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc = NULL; //ericw
-QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc = NULL; //ericw
-QS_PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc = NULL; //ericw
-QS_PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
-QS_PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
-QS_PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
 
 // vertex/fragment program
 PFNGLBINDPROGRAMARBPROC qglBindProgramARB = NULL;
@@ -1039,60 +1019,7 @@ static void GL_CheckExtensions (void)
 		Con_Warning ("texture_non_power_of_two not supported\n");
 	}
 	
-	// GLSL
-	//
-	if (COM_CheckParm("-noglsl"))
-		Con_Warning ("GLSL disabled at command line\n");
-	else
-	{
-		GL_CreateShaderFunc = (QS_PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
-		GL_ShaderSourceFunc = (QS_PFNGLSHADERSOURCEPROC) SDL_GL_GetProcAddress("glShaderSource");
-		GL_CompileShaderFunc = (QS_PFNGLCOMPILESHADERPROC) SDL_GL_GetProcAddress("glCompileShader");
-		GL_GetShaderivFunc = (QS_PFNGLGETSHADERIVPROC) SDL_GL_GetProcAddress("glGetShaderiv");
-		GL_GetShaderInfoLogFunc = (QS_PFNGLGETSHADERINFOLOGPROC) SDL_GL_GetProcAddress("glGetShaderInfoLog");
-		GL_GetProgramivFunc = (QS_PFNGLGETPROGRAMIVPROC) SDL_GL_GetProcAddress("glGetProgramiv");
-		GL_GetProgramInfoLogFunc = (QS_PFNGLGETPROGRAMINFOLOGPROC) SDL_GL_GetProcAddress("glGetProgramInfoLog");
-		GL_CreateProgramFunc = (QS_PFNGLCREATEPROGRAMPROC) SDL_GL_GetProcAddress("glCreateProgram");
-		GL_AttachShaderFunc = (QS_PFNGLATTACHSHADERPROC) SDL_GL_GetProcAddress("glAttachShader");
-		GL_LinkProgramFunc = (QS_PFNGLLINKPROGRAMPROC) SDL_GL_GetProcAddress("glLinkProgram");
-		GL_UseProgramFunc = (QS_PFNGLUSEPROGRAMPROC) SDL_GL_GetProcAddress("glUseProgram");
-		GL_GetAttribLocationFunc = (QS_PFNGLGETATTRIBLOCATIONPROC) SDL_GL_GetProcAddress("glGetAttribLocation");
-		GL_VertexAttribPointerFunc = (QS_PFNGLVERTEXATTRIBPOINTERPROC) SDL_GL_GetProcAddress("glVertexAttribPointer");
-		GL_EnableVertexAttribArrayFunc = (QS_PFNGLENABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glEnableVertexAttribArray");
-		GL_DisableVertexAttribArrayFunc = (QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC) SDL_GL_GetProcAddress("glDisableVertexAttribArray");
-		GL_GetUniformLocationFunc = (QS_PFNGLGETUNIFORMLOCATIONPROC) SDL_GL_GetProcAddress("glGetUniformLocation");
-		GL_Uniform1fFunc = (QS_PFNGLUNIFORM1FPROC) SDL_GL_GetProcAddress("glUniform1f");
-		GL_Uniform3fFunc = (QS_PFNGLUNIFORM3FPROC) SDL_GL_GetProcAddress("glUniform3f");
-		GL_Uniform4fFunc = (QS_PFNGLUNIFORM4FPROC) SDL_GL_GetProcAddress("glUniform4f");
-
-		if (GL_CreateShaderFunc &&
-			GL_ShaderSourceFunc &&
-			GL_CompileShaderFunc &&
-			GL_GetShaderivFunc &&
-			GL_GetShaderInfoLogFunc &&
-			GL_GetProgramivFunc &&
-			GL_GetProgramInfoLogFunc &&
-			GL_CreateProgramFunc &&
-			GL_AttachShaderFunc &&
-			GL_LinkProgramFunc &&
-			GL_UseProgramFunc &&
-			GL_GetAttribLocationFunc &&
-			GL_VertexAttribPointerFunc &&
-			GL_EnableVertexAttribArrayFunc &&
-			GL_DisableVertexAttribArrayFunc &&
-			GL_GetUniformLocationFunc &&
-			GL_Uniform1fFunc &&
-			GL_Uniform3fFunc &&
-			GL_Uniform4fFunc)
-		{
-			Con_Printf("FOUND: GLSL\n");
-			gl_glsl_able = true;
-		}
-		else
-		{
-			Con_Warning ("GLSL not available\n");
-		}
-	}
+	// gl_arb_vp
 	
 	if (!(qglBindProgramARB = (PFNGLBINDPROGRAMARBPROC) SDL_GL_GetProcAddress ("glBindProgramARB"))) return;
 	if (!(qglDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glDeleteProgramsARB"))) return;
@@ -1116,6 +1043,9 @@ static void GL_CheckExtensions (void)
 	if (!(qglVertexAttribPointerARB = (PFNGLVERTEXATTRIBPOINTERARBPROC) SDL_GL_GetProcAddress ("glVertexAttribPointerARB"))) return;
 	if (!(qglEnableVertexAttribArrayARB = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glEnableVertexAttribArrayARB"))) return;
 	if (!(qglDisableVertexAttribArrayARB = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glDisableVertexAttribArrayARB"))) return;
+	
+	Con_Printf("FOUND: gl_arb_vp\n");
+	gl_arb_vp_able = true;
 }
 
 /*

@@ -368,7 +368,7 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 	int maxverts_vbo;
 	trivertx_t *verts;
 
-	if (!gl_glsl_able)
+	if (!gl_arb_vp_able)
 		return;
 	
 	// ericw -- first, copy the verts onto the hunk
@@ -457,7 +457,7 @@ void GLMesh_LoadVertexBuffers (void)
 	int totalindexes = 0;
 	int totalvbosize = 0;
 	
-	if (!gl_glsl_able)
+	if (!gl_arb_vp_able)
 		return;
 	
 	// pass 1 - count the sizes we need
