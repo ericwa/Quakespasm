@@ -430,20 +430,24 @@ Writes out the triangle indices needed to draw s as a triangle list.
 The number of indices it will write is given by R_NumTriangleIndicesForSurf.
 ================
 */
-static void R_TriangleIndicesForSurf (msurface_t *s, unsigned int *dest)
+static void R_TriangleIndicesForSurf (msurface_t *s, unsigned short *dest, int firstvert)
 {
 	int i;
 	for (i=2; i<s->numedges; i++)
 	{
-		*dest++ = s->vbo_firstvert;
-		*dest++ = s->vbo_firstvert + i - 1;
-		*dest++ = s->vbo_firstvert + i;
+		*dest++ = firstvert;
+		*dest++ = firstvert + i - 1;
+		*dest++ = firstvert + i;
 	}
 }
 
+#define VERTEXBYTES (VERTEXSIZE * sizeof(float))
 #define MAX_BATCH_SIZE 4096
 
-static unsigned int vbo_indices[MAX_BATCH_SIZE];
+static float verts[MAX_BATCH_SIZE * VERTEXSIZE];
+static unsigned int num_verts;
+
+static unsigned short vbo_indices[MAX_BATCH_SIZE];
 static unsigned int num_vbo_indices;
 
 /*
@@ -454,6 +458,7 @@ R_ClearBatch
 static void R_ClearBatch ()
 {
 	num_vbo_indices = 0;
+	num_verts = 0;
 }
 
 /*
@@ -467,8 +472,9 @@ static void R_FlushBatch ()
 {
 	if (num_vbo_indices > 0)
 	{
-		glDrawElements (GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_INT, vbo_indices);
+		glDrawElements (GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_SHORT, vbo_indices);
 		num_vbo_indices = 0;
+		num_verts = 0;
 	}
 }
 
@@ -489,8 +495,11 @@ static void R_BatchSurface (msurface_t *s)
 	if (num_vbo_indices + num_surf_indices > MAX_BATCH_SIZE)
 		R_FlushBatch();
 	
-	R_TriangleIndicesForSurf (s, &vbo_indices[num_vbo_indices]);
+	memcpy(verts + (VERTEXSIZE * num_verts), s->polys->verts, VERTEXBYTES * s->numedges);
+	R_TriangleIndicesForSurf (s, &vbo_indices[num_vbo_indices], num_verts);
+
 	num_vbo_indices += num_surf_indices;
+	num_verts += s->numedges;
 }
 
 /*
@@ -786,6 +795,24 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	qboolean	bound;
 	int		lastlightmap;
 	gltexture_t	*fullbright = NULL;
+	
+	// setup vertex array. this will need to move if we use vertex arrays for other things
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)verts));
+	glEnableClientState (GL_VERTEX_ARRAY);
+
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)verts) + 3);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)verts) + 5);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+		
+// TMU 2 is for fullbrights; same texture coordinates as TMU 0
+	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)verts) + 3);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	
 	
 // Setup TMU 1 (lightmap)
 	GL_SelectTexture (GL_TEXTURE1_ARB);

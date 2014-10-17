@@ -971,6 +971,7 @@ surfaces from world + all brush models
 */
 void GL_BuildVBOs (void)
 {
+#if 0
 	unsigned int	numverts, varray_bytes, varray_index;
 	int		i, j;
 	qmodel_t	*m;
@@ -1038,6 +1039,7 @@ void GL_BuildVBOs (void)
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+#endif
 }
 
 /*
