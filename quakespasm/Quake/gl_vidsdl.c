@@ -127,6 +127,31 @@ QS_PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
 QS_PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
 QS_PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
 
+// vertex/fragment program
+PFNGLBINDPROGRAMARBPROC qglBindProgramARB = NULL;
+PFNGLDELETEPROGRAMSARBPROC qglDeleteProgramsARB = NULL;
+PFNGLGENPROGRAMSARBPROC qglGenProgramsARB = NULL;
+PFNGLGETPROGRAMENVPARAMETERDVARBPROC qglGetProgramEnvParameterdvARB = NULL;
+PFNGLGETPROGRAMENVPARAMETERFVARBPROC qglGetProgramEnvParameterfvARB = NULL;
+PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC qglGetProgramLocalParameterdvARB = NULL;
+PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC qglGetProgramLocalParameterfvARB = NULL;
+PFNGLGETPROGRAMSTRINGARBPROC qglGetProgramStringARB = NULL;
+PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB = NULL;
+PFNGLISPROGRAMARBPROC qglIsProgramARB = NULL;
+PFNGLPROGRAMENVPARAMETER4DARBPROC qglProgramEnvParameter4dARB = NULL;
+PFNGLPROGRAMENVPARAMETER4DVARBPROC qglProgramEnvParameter4dvARB = NULL;
+PFNGLPROGRAMENVPARAMETER4FARBPROC qglProgramEnvParameter4fARB = NULL;
+PFNGLPROGRAMENVPARAMETER4FVARBPROC qglProgramEnvParameter4fvARB = NULL;
+PFNGLPROGRAMLOCALPARAMETER4DARBPROC qglProgramLocalParameter4dARB = NULL;
+PFNGLPROGRAMLOCALPARAMETER4DVARBPROC qglProgramLocalParameter4dvARB = NULL;
+PFNGLPROGRAMLOCALPARAMETER4FARBPROC qglProgramLocalParameter4fARB = NULL;
+PFNGLPROGRAMLOCALPARAMETER4FVARBPROC qglProgramLocalParameter4fvARB = NULL;
+PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB = NULL;
+
+PFNGLVERTEXATTRIBPOINTERARBPROC qglVertexAttribPointerARB = NULL;
+PFNGLENABLEVERTEXATTRIBARRAYARBPROC qglEnableVertexAttribArrayARB = NULL;
+PFNGLDISABLEVERTEXATTRIBARRAYARBPROC qglDisableVertexAttribArrayARB = NULL;
+
 //====================================
 
 //johnfitz -- new cvars
@@ -1068,11 +1093,34 @@ static void GL_CheckExtensions (void)
 			Con_Warning ("GLSL not available\n");
 		}
 	}
+	
+	if (!(qglBindProgramARB = (PFNGLBINDPROGRAMARBPROC) SDL_GL_GetProcAddress ("glBindProgramARB"))) return;
+	if (!(qglDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glDeleteProgramsARB"))) return;
+	if (!(qglGenProgramsARB = (PFNGLGENPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glGenProgramsARB"))) return;
+	if (!(qglGetProgramEnvParameterdvARB = (PFNGLGETPROGRAMENVPARAMETERDVARBPROC) SDL_GL_GetProcAddress ("glGetProgramEnvParameterdvARB"))) return;
+	if (!(qglGetProgramEnvParameterfvARB = (PFNGLGETPROGRAMENVPARAMETERFVARBPROC) SDL_GL_GetProcAddress ("glGetProgramEnvParameterfvARB"))) return;
+	if (!(qglGetProgramLocalParameterdvARB = (PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC) SDL_GL_GetProcAddress ("glGetProgramLocalParameterdvARB"))) return;
+	if (!(qglGetProgramLocalParameterfvARB = (PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC) SDL_GL_GetProcAddress ("glGetProgramLocalParameterfvARB"))) return;
+	if (!(qglGetProgramStringARB = (PFNGLGETPROGRAMSTRINGARBPROC) SDL_GL_GetProcAddress ("glGetProgramStringARB"))) return;
+	if (!(qglGetProgramivARB = (PFNGLGETPROGRAMIVARBPROC) SDL_GL_GetProcAddress ("glGetProgramivARB"))) return;
+	if (!(qglIsProgramARB = (PFNGLISPROGRAMARBPROC) SDL_GL_GetProcAddress ("glIsProgramARB"))) return;
+	if (!(qglProgramEnvParameter4dARB = (PFNGLPROGRAMENVPARAMETER4DARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4dARB"))) return;
+	if (!(qglProgramEnvParameter4dvARB = (PFNGLPROGRAMENVPARAMETER4DVARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4dvARB"))) return;
+	if (!(qglProgramEnvParameter4fARB = (PFNGLPROGRAMENVPARAMETER4FARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4fARB"))) return;
+	if (!(qglProgramEnvParameter4fvARB = (PFNGLPROGRAMENVPARAMETER4FVARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4fvARB"))) return;
+	if (!(qglProgramLocalParameter4dARB = (PFNGLPROGRAMLOCALPARAMETER4DARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4dARB"))) return;
+	if (!(qglProgramLocalParameter4dvARB = (PFNGLPROGRAMLOCALPARAMETER4DVARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4dvARB"))) return;
+	if (!(qglProgramLocalParameter4fARB = (PFNGLPROGRAMLOCALPARAMETER4FARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4fARB"))) return;
+	if (!(qglProgramLocalParameter4fvARB = (PFNGLPROGRAMLOCALPARAMETER4FVARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4fvARB"))) return;
+	if (!(qglProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) SDL_GL_GetProcAddress ("glProgramStringARB"))) return;
+	if (!(qglVertexAttribPointerARB = (PFNGLVERTEXATTRIBPOINTERARBPROC) SDL_GL_GetProcAddress ("glVertexAttribPointerARB"))) return;
+	if (!(qglEnableVertexAttribArrayARB = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glEnableVertexAttribArrayARB"))) return;
+	if (!(qglDisableVertexAttribArrayARB = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glDisableVertexAttribArrayARB"))) return;
 }
 
 /*
-===============
-GL_SetupState -- johnfitz
+ ===============
+ GL_SetupState -- johnfitz
 
 does all the stuff from GL_Init that needs to be done every time a new GL render context is created
 ===============

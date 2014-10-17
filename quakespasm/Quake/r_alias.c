@@ -84,6 +84,47 @@ void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
 }
 
+// from RMQEngine
+GLuint GL_CreateProgram (const GLchar *source)
+{
+	GLuint progid;
+	GLint errPos;
+	const GLubyte *errString;
+	GLenum errGLErr;
+		
+	qglGenProgramsARB (1, &progid);
+	qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, progid);
+	
+	errGLErr = glGetError ();
+	qglProgramStringARB (GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, strlen (source), source);
+	errGLErr = glGetError ();
+	
+	// Find the error position
+	glGetIntegerv (GL_PROGRAM_ERROR_POSITION_ARB, &errPos);
+	errString = glGetString (GL_PROGRAM_ERROR_STRING_ARB);
+	
+	if (errGLErr != GL_NO_ERROR) Con_Printf ("Generic OpenGL Error\n");
+	if (errPos != -1) Con_Printf ("Program error at position: %d\n", errPos);
+	if (errString && errString[0]) Con_Printf ("Program error: %s\n", errString);
+	
+	if ((errPos != -1) || (errString && errString[0]) || (errGLErr != GL_NO_ERROR))
+	{
+		Con_Printf ("Program:\n%s\n", source);
+		qglDeleteProgramsARB (1, &progid);
+		qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, 0);
+		return 0;
+	}
+	else
+	{
+//		gl_arb_programs[gl_num_arb_programs] = progid;
+//		gl_num_arb_programs++;
+		
+		qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, 0);
+		return progid;
+	}
+}
+
+
 /*
 =============
 GL_DrawAliasFrame_GLSL -- ericw
@@ -104,8 +145,21 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 		blend = 0;
 	}
 
+// ericw -- ARB shader
+	static GLuint shader;
+	
+	if (shader == 0)
+	{
+		const GLchar *source = 
+#include "vpalias.h"
+		;
+		
+		shader = GL_CreateProgram(source);
+	}
+//
+	
 // ericw -- shader
-
+#if 0
 	static GLuint shader;
 	static GLuint program;
 	static GLuint blendLoc;
@@ -210,7 +264,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	}
 	
 	GL_UseProgramFunc(program);
-	
+
 // ericw --
 
 // ericw -- bind it and stuff
@@ -244,13 +298,13 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_Uniform1fFunc(blendLoc, blend);
 	GL_Uniform3fFunc(shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
 	GL_Uniform4fFunc(lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
-
+#endif
 	// draw
 
 	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
 	// clean up
-	
+#if 0
 	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
 	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);
 
@@ -267,7 +321,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_DisableVertexAttribArrayFunc(pose2NormalAttrIndex);
 
 	GL_UseProgramFunc(0);
-	
+#endif
 	rs_aliaspasses += paliashdr->numtris;
 }
 
