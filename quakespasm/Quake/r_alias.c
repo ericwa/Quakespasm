@@ -148,6 +148,19 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 // ericw -- ARB shader
 	static GLuint shader;
 	
+	// N.B.: Copied from vpalias.h
+
+	// program local indices
+	const GLuint blendLoc = 9;
+	const GLuint shadevectorLoc = 10;
+	const GLuint lightColorLoc = 11;
+	
+	// vertex attribute indices
+	const GLint pose1VertexAttrIndex = 0;
+	const GLint pose1NormalAttrIndex = 1;
+	const GLint pose2VertexAttrIndex = 2;
+	const GLint pose2NormalAttrIndex = 3;
+	
 	if (shader == 0)
 	{
 		const GLchar *source = 
@@ -156,6 +169,9 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 		
 		shader = GL_CreateProgram(source);
 	}
+	
+	qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, shader);
+	glEnable( GL_VERTEX_PROGRAM_ARB );
 //
 	
 // ericw -- shader
@@ -264,7 +280,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	}
 	
 	GL_UseProgramFunc(program);
-
+#endif
 // ericw --
 
 // ericw -- bind it and stuff
@@ -295,16 +311,16 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	// set uniforms
 	
-	GL_Uniform1fFunc(blendLoc, blend);
-	GL_Uniform3fFunc(shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
-	GL_Uniform4fFunc(lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
-#endif
+	qglProgramLocalParameter4fARB(GL_VERTEX_PROGRAM_ARB, blendLoc, blend, /* unused */ 0, 0, 0);
+	qglProgramLocalParameter4fARB(GL_VERTEX_PROGRAM_ARB, shadevectorLoc, shadevector[0], shadevector[1], shadevector[2], /* unused */ 0);
+	qglProgramLocalParameter4fARB(GL_VERTEX_PROGRAM_ARB, lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+
 	// draw
 
 	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
 	// clean up
-#if 0
+
 	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
 	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);
 
@@ -320,8 +336,8 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_DisableVertexAttribArrayFunc(pose1NormalAttrIndex);
 	GL_DisableVertexAttribArrayFunc(pose2NormalAttrIndex);
 
-	GL_UseProgramFunc(0);
-#endif
+	glDisable(GL_VERTEX_PROGRAM_ARB);
+
 	rs_aliaspasses += paliashdr->numtris;
 }
 
