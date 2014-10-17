@@ -1044,8 +1044,13 @@ static void GL_CheckExtensions (void)
 	if (!(qglEnableVertexAttribArrayARB = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glEnableVertexAttribArrayARB"))) return;
 	if (!(qglDisableVertexAttribArrayARB = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glDisableVertexAttribArrayARB"))) return;
 	
-	Con_Printf("FOUND: gl_arb_vp\n");
-	gl_arb_vp_able = true;
+	if (COM_CheckParm("-novp"))
+		Con_Warning ("vp disabled at command line\n");
+	else
+	{
+		Con_Printf("FOUND: gl_arb_vp\n");
+		gl_arb_vp_able = true;
+	}
 }
 
 /*

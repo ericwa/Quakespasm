@@ -254,8 +254,6 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 		return;
 	}
 
-	Sys_Error("didn't use fast path");
-
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{
 		lerping = true;
