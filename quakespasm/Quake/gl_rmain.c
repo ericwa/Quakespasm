@@ -385,6 +385,9 @@ void R_SetupScene (void)
 	R_SetupGL ();
 }
 
+extern texture_t *sorted_textures[1024];
+extern int num_sorted_textures;
+
 /*
 ===============
 R_SetupView -- johnfitz -- this is the stuff that needs to be done once per frame, even in stereo mode
@@ -428,6 +431,19 @@ void R_SetupView (void)
 	
 	VectorCopy (r_refdef.vieworg, modelorg);
 	R_ClearTextureChains(cl.worldmodel, chain_world);
+	
+// clear texture sorting data
+	{
+		int i;
+		num_sorted_textures = 0;
+		memset(sorted_textures, 0, sizeof(sorted_textures));
+
+		for (i=0 ; i<cl.worldmodel->numtextures ; i++)
+		{
+			cl.worldmodel->textures[i]->sorted = false;
+		}
+	}
+
 	R_RecursiveWorldNode(cl.worldmodel->nodes);
 	//R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
 

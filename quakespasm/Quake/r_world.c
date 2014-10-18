@@ -70,6 +70,20 @@ void R_ChainSurface (msurface_t *surf, texchain_t chain)
 	surf->texinfo->texture->texturechains[chain] = surf;
 }
 
+// world textures, sorted
+texture_t *sorted_textures[1024];
+int num_sorted_textures;
+
+static void R_AddSurfTextureToSortList (msurface_t *surf)
+{
+	if (!surf->texinfo->texture->sorted)
+	{
+		sorted_textures[num_sorted_textures] = surf->texinfo->texture;
+		num_sorted_textures++;
+		surf->texinfo->texture->sorted = true;
+	}
+}
+
 /*
 ================
 R_RecursiveWorldNode
@@ -172,6 +186,7 @@ void R_RecursiveWorldNode (mnode_t *node)
 
 				// if sorting by texture, just store it out
 				R_ChainSurface(surf, chain_world);
+				R_AddSurfTextureToSortList(surf);
 			}
 		}
 	}
@@ -1030,7 +1045,13 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 		msurface_t	*lightmap_chains[MAX_LIGHTMAPS];
 		int lm;
 		
-		t = model->textures[i];
+		if (ent == NULL) /* world */
+		{
+			if (i == num_sorted_textures) break;
+			t = sorted_textures[i];
+		}
+		else
+			t = model->textures[i];
 
 		if (!t || !t->texturechains[chain] || t->texturechains[chain]->flags & (SURF_DRAWTILED | SURF_NOTEXTURE))
 			continue;
