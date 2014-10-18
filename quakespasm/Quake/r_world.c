@@ -984,8 +984,6 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	int			i;
 	msurface_t	*s;
 	texture_t	*t;
-	qboolean	bound;
-	int		lastlightmap;
 	gltexture_t	*fullbright = NULL;
 	
 // ericw -- bind it and stuff
@@ -1026,10 +1024,29 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 
 	for (i=0 ; i<model->numtextures ; i++)
 	{
+		msurface_t	*lightmap_chains[MAX_LIGHTMAPS];
+		int lm;
+		
 		t = model->textures[i];
 
 		if (!t || !t->texturechains[chain] || t->texturechains[chain]->flags & (SURF_DRAWTILED | SURF_NOTEXTURE))
 			continue;
+
+	// check the first surf for drawfence
+		if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
+			glEnable (GL_ALPHA_TEST); // Flip alpha test back on
+
+	// bind the texture
+		GL_SelectTexture (GL_TEXTURE0_ARB);
+		GL_Bind ((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
+
+	// Reverse chains and sort by lightmap
+		memset(lightmap_chains, 0, sizeof(lightmap_chains));
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+		{
+			s->lightmapchain = lightmap_chains[s->lightmaptexturenum];
+			lightmap_chains[s->lightmaptexturenum] = s;
+		}
 
 	// Enable/disable TMU 2 (fullbrights)
 		GL_SelectTexture (GL_TEXTURE2_ARB);
@@ -1043,38 +1060,29 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 
 		R_ClearBatch ();
 
-		bound = false;
-		lastlightmap = 0; // avoid compiler warning
-		for (s = t->texturechains[chain]; s; s = s->texturechain)
-			if (true)
+		for (lm = 0; lm < MAX_LIGHTMAPS; lm++)
+		{
+			if (!lightmap_chains[lm])
+				continue;
+			
+			GL_SelectTexture (GL_TEXTURE1_ARB);
+			GL_Bind (lightmap_textures[lm]);
+		
+			for (s = lightmap_chains[lm]; s; s = s->lightmapchain)
 			{
-				if (!bound) //only bind once we are sure we need this texture
-				{
-					GL_SelectTexture (GL_TEXTURE0_ARB);
-					GL_Bind ((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
-					
-					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
-						glEnable (GL_ALPHA_TEST); // Flip alpha test back on
-										
-					bound = true;
-					lastlightmap = s->lightmaptexturenum;
-				}
 				R_RenderDynamicLightmaps (s);
 				
-				if (s->lightmaptexturenum != lastlightmap)
-					R_FlushBatch ();
-
-				GL_SelectTexture (GL_TEXTURE1_ARB);
-				GL_Bind (lightmap_textures[s->lightmaptexturenum]);
-				lastlightmap = s->lightmaptexturenum;
 				R_BatchSurface (s);
 
 				rs_brushpasses++;
 			}
+			
+			R_FlushBatch ();
+		}
 
 		R_FlushBatch ();
 
-		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
+		if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
 	}
 	
