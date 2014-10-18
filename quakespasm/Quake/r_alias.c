@@ -193,11 +193,12 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-		
-	qglVertexAttribPointerARB (pose1NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+	
+// GL_TRUE to normalize the signed bytes to [-1 .. 1]
+	qglVertexAttribPointerARB (pose1NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
 	qglEnableVertexAttribArrayARB (pose1NormalAttrIndex);
 		
-	qglVertexAttribPointerARB (pose2NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	qglVertexAttribPointerARB (pose2NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
 	qglEnableVertexAttribArrayARB (pose2NormalAttrIndex);
 
 	// set uniforms
