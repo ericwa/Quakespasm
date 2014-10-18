@@ -250,8 +250,6 @@ void Fog_Init (void);
 void R_NewGame (void);
 
 void R_AnimateLight (void);
-void R_MarkSurfaces (void);
-void R_CullSurfaces (void);
 qboolean R_CullBox (vec3_t emins, vec3_t emaxs);
 void R_StoreEfrags (efrag_t **ppefrag);
 qboolean R_CullModelForEntity (entity_t *e);
@@ -309,6 +307,9 @@ void R_ClearTextureChains (qmodel_t *mod, texchain_t chain);
 void R_ChainSurface (msurface_t *surf, texchain_t chain);
 void R_DrawTextureChains (qmodel_t *model, entity_t *ent, texchain_t chain);
 void R_DrawWorld_Water (void);
+
+void R_MarkLeaves(void);
+void R_RecursiveWorldNode (mnode_t *node);
 
 #endif	/* __GLQUAKE_H */
 

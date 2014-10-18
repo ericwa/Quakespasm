@@ -104,7 +104,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	commands = (int *)((byte *)paliashdr + paliashdr->commands);
 
 	vertcolor[3] = entalpha; //never changes, so there's no need to put this inside the loop
-
+	
 	while (1)
 	{
 		// get the vertex count and primitive type
@@ -374,7 +374,7 @@ void R_SetupAliasLighting (entity_t	*e)
 			lightcolor[1] = 256.0f;
 			lightcolor[2] = 256.0f;
 		}
-
+		
 	shadedots = r_avertexnormal_dots[((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1)];
 	VectorScale(lightcolor, 1.0f / 200.0f, lightcolor);
 }

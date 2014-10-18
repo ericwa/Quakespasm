@@ -137,7 +137,6 @@ typedef struct glpoly_s
 typedef struct msurface_s
 {
 	int			visframe;		// should be drawn when node is crossed
-	qboolean	culled;			// johnfitz -- for frustum culling
 	float		mins[3];		// johnfitz -- for frustum culling
 	float		maxs[3];		// johnfitz -- for frustum culling
 
@@ -154,6 +153,7 @@ typedef struct msurface_s
 
 	glpoly_t	*polys;				// multiple if warped
 	struct	msurface_s	*texturechain;
+	struct	msurface_s	*lightmapchain;		// ericw -- used for sorting by lightmap
 
 	mtexinfo_t	*texinfo;
 
@@ -331,7 +331,7 @@ typedef struct {
 	synctype_t	synctype;
 	int			flags;
 	float		size;
-
+	
 	int					numposes;
 	int					poseverts;
 	int					posedata;	// numposes*poseverts trivert_t

@@ -346,5 +346,5 @@ void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr)
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<numorder ; j++)
 			*verts++ = poseverts[i][vertexorder[j]];
-}
+			}
 

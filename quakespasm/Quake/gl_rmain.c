@@ -424,9 +424,14 @@ void R_SetupView (void)
 
 	R_SetFrustum (r_fovx, r_fovy); //johnfitz -- use r_fov* vars
 
-	R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
+	R_MarkLeaves();
+	
+	VectorCopy (r_refdef.vieworg, modelorg);
+	R_ClearTextureChains(cl.worldmodel, chain_world);
+	R_RecursiveWorldNode(cl.worldmodel->nodes);
+	//R_MarkSurfaces (); //johnfitz -- create texture chains from PVS
 
-	R_CullSurfaces (); //johnfitz -- do after R_SetFrustum and R_MarkSurfaces
+	//R_CullSurfaces (); //johnfitz -- do after R_SetFrustum and R_MarkSurfaces
 
 	R_UpdateWarpTextures (); //johnfitz -- do this before R_Clear
 

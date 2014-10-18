@@ -1008,15 +1008,15 @@ void GL_BuildVBOs (void)
 		m = cl.model_precache[j];
 		if (!m || m->name[0] == '*' || m->type != mod_brush)
 			continue;
-
+	
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
 			msurface_t *s = &m->surfaces[i];
-			s->vbo_firstvert = varray_index;
-			memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
-			varray_index += s->numedges;
+				s->vbo_firstvert = varray_index;
+				memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
+				varray_index += s->numedges;
+			}
 		}
-	}
 
 // upload to GPU
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbo);

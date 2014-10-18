@@ -531,7 +531,7 @@ void Sky_ProcessTextureChains (void)
 			continue;
 
 		for (s = t->texturechains[chain_world]; s; s = s->texturechain)
-			if (!s->culled)
+			if (true)
 				Sky_ProcessPoly (s->polys);
 	}
 }
