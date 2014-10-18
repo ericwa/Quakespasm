@@ -1004,16 +1004,47 @@ void GL_BuildVBOs (void)
 	
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
+		msurface_t	*lightmap_chains[MAX_LIGHTMAPS];
+		texture_t	*t;
+		msurface_t	*s;
+		
 		m = cl.model_precache[j];
 		if (!m || m->name[0] == '*' || m->type != mod_brush)
 			continue;
-
+	
+	// sort by lightmap
+		memset(lightmap_chains, 0, sizeof(lightmap_chains));
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
 			msurface_t *s = &m->surfaces[i];
-			s->vbo_firstvert = varray_index;
-			memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
-			varray_index += s->numedges;
+			s->lightmapchain = lightmap_chains[s->lightmaptexturenum];
+			lightmap_chains[s->lightmaptexturenum] = s;
+		}
+	
+	// sort by texture
+		R_ClearTextureChains(m, chain_world);
+		for (i = 0; i < MAX_LIGHTMAPS; i++)
+		{
+			if (!lightmap_chains[i])
+				continue;
+		
+			for (s = lightmap_chains[i]; s; s = s->lightmapchain)
+			{
+				R_ChainSurface(s, chain_world);
+			}
+		}
+		
+	// spit out the surface
+		for (i=0 ; i<m->numtextures ; i++)
+		{
+			t = m->textures[i];
+			if (!t) continue;
+			for (s = t->texturechains[chain_world]; s; s = s->texturechain)
+			{
+				s->vbo_firstvert = varray_index;
+				memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
+				varray_index += s->numedges;
+			}
 		}
 	}
 
