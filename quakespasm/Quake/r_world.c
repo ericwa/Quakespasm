@@ -645,6 +645,9 @@ static void R_TriangleIndicesForSurf (msurface_t *s, unsigned int *dest)
 static unsigned int vbo_indices[MAX_BATCH_SIZE];
 static unsigned int num_vbo_indices;
 
+static int nbatches = 0;
+static int nsurfs = 0;
+
 /*
 ================
 R_ClearBatch
@@ -668,6 +671,8 @@ static void R_FlushBatch ()
 	{
 		glDrawElements (GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_INT, vbo_indices);
 		num_vbo_indices = 0;
+		
+		nbatches++;
 	}
 }
 
@@ -690,6 +695,8 @@ static void R_BatchSurface (msurface_t *s)
 	
 	R_TriangleIndicesForSurf (s, &vbo_indices[num_vbo_indices]);
 	num_vbo_indices += num_surf_indices;
+
+	nsurfs++;
 }
 
 /*
@@ -1022,6 +1029,8 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	GL_SelectTexture (GL_TEXTURE2_ARB);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
 
+	uint64_t start = SDL_GetPerformanceCounter();
+
 	for (i=0 ; i<model->numtextures ; i++)
 	{
 		msurface_t	*lightmap_chains[MAX_LIGHTMAPS];
@@ -1084,6 +1093,30 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 
 		if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
+	}
+	
+	uint64_t end = SDL_GetPerformanceCounter();
+	double ms = 1000.0 * ((end - start) / (double)SDL_GetPerformanceFrequency());
+	
+	if (ent == NULL)
+	{
+		static double total;
+		static int count;
+		
+		total += ms;
+		count++;
+		
+		if (count == 60)
+		{
+			SDL_Log("Frame took %f ms avg, had: %f batches, %f surfs\n",
+			 total/count, nbatches/(double)count, nsurfs/(double)count);
+			
+			total = 0;
+			count = 0;
+			
+			nbatches = 0;
+			nsurfs = 0;
+		}
 	}
 	
 // Reset TMU states
