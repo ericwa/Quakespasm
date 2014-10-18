@@ -648,6 +648,8 @@ static unsigned int num_vbo_indices;
 static int nbatches = 0;
 static int nsurfs = 0;
 
+static int logindices = 0;
+
 /*
 ================
 R_ClearBatch
@@ -697,6 +699,9 @@ static void R_BatchSurface (msurface_t *s)
 	num_vbo_indices += num_surf_indices;
 
 	nsurfs++;
+	
+	if (logindices)
+		printf("%d\n", s->vbo_firstvert);
 }
 
 /*
@@ -1031,6 +1036,14 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 
 	uint64_t start = SDL_GetPerformanceCounter();
 
+	static int done;
+
+	if (ent == NULL) {
+		if (!done) {
+			logindices = 1;
+		}
+	}
+
 	for (i=0 ; i<model->numtextures ; i++)
 	{
 		msurface_t	*lightmap_chains[MAX_LIGHTMAPS];
@@ -1093,6 +1106,11 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 
 		if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
+	}
+	
+	if (logindices) {
+		logindices = 0;
+		done = 1;
 	}
 	
 	uint64_t end = SDL_GetPerformanceCounter();
