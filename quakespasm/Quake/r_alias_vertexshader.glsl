@@ -7,6 +7,23 @@ attribute vec4 Pose1Vert;
 attribute vec3 Pose1Normal;
 attribute vec4 Pose2Vert;
 attribute vec3 Pose2Normal;
+
+// Note about r_avertexnormal_dot:
+// The function in the shader produces the same result as the lookup table
+// (r_avertexnormal_dots[quantized entity angle, from 0-15][compressed vertex normal, 0-161])
+// but takes an ordinary vec3 vertex normal instead of a 1-byte compressed normal,
+// and requires a ShadeVector uniform variable set as follows:
+//
+//     float radAngle = (quantangle / 16.0) * 2.0 * 3.14159;
+//     shadevector[0] = cos(-radAngle);
+//     shadevector[1] = sin(-radAngle);
+//     shadevector[2] = 1;
+//     VectorNormalize(shadevector);
+//
+// where quantangle is the qunatized entity angle, from 0-15.
+//
+// Thanks MH for providing that (from: http://forums.inside3d.com/viewtopic.php?p=39361#p39361 )
+
 float r_avertexnormal_dot(vec3 vertexnormal) // from MH 
 {
         float dot = dot(vertexnormal, ShadeVector);
@@ -16,6 +33,7 @@ float r_avertexnormal_dot(vec3 vertexnormal) // from MH
         else
             return 1.0 + dot;
 }
+
 void main()
 {
 	gl_TexCoord[0]  = gl_MultiTexCoord0;

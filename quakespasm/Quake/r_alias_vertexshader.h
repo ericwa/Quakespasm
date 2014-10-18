@@ -1,7 +1,7 @@
 "!!ARBvp1.0\n"
 "# cgc version 3.1.0013, build date Apr 18 2012\n"
 "# command line args: -profile arbvp1 -oglsl\n"
-"# source file: vsalias.glsl\n"
+"# source file: r_alias_vertexshader.glsl\n"
 "#vendor NVIDIA Corporation\n"
 "#version 3.1.0.13\n"
 "#profile arbvp1\n"

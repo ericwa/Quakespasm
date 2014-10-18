@@ -127,12 +127,12 @@ GLuint GL_CreateProgram (const GLchar *source)
 
 /*
 =============
-GL_DrawAliasFrame_GLSL -- ericw
+GL_DrawAliasFrame_ARB -- ericw
 
 Based on code by MH from RMQEngine
 =============
 */
-void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
+void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 {
 	float	blend;
 
@@ -164,7 +164,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	if (shader == 0)
 	{
 		const GLchar *source = 
-#include "vpalias.h"
+#include "r_alias_vertexshader.h"
 		;
 		
 		shader = GL_CreateProgram(source);
@@ -250,7 +250,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	// call fast path if possible
 	if (gl_arb_vp_able && !r_drawflat_cheatsafe && shading)
 	{
-		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata);
+		GL_DrawAliasFrame_ARB (paliashdr, lerpdata);
 		return;
 	}
 
