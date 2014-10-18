@@ -161,6 +161,10 @@ void R_RecursiveWorldNode (mnode_t *node)
 				if (surf->visframe != r_framecount)
 					continue;
 
+				// ericw -- this can reject a decent number of surfs
+				if (R_CullBox(surf->mins, surf->maxs))
+					continue;
+
 				// johnfitz -- now we can backface cull underwater surfaces, becuase they don't warp
 				if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
 					continue;		// wrong side
