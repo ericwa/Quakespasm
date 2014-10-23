@@ -321,6 +321,9 @@ void R_DrawBrushModel_ShowTris (entity_t *e);
 void R_DrawAliasModel_ShowTris (entity_t *e);
 void R_DrawParticles_ShowTris (void);
 
+GLuint GL_CreateProgram (const GLchar *source);
+void R_DeleteShaders (void);
+
 qboolean GLAlias_SupportsShaders (void);
 void GLAlias_CreateShaders (void);
 void GL_DrawAliasShadow (entity_t *e);

@@ -1122,6 +1122,7 @@ static void GL_Init (void)
 	}
 	//johnfitz
 	
+	R_DeleteShaders ();
 	GLAlias_CreateShaders ();
 }
 

@@ -86,46 +86,6 @@ void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
 }
 
-// from RMQEngine
-GLuint GL_CreateProgram (const GLchar *source)
-{
-	GLuint progid;
-	GLint errPos;
-	const GLubyte *errString;
-	GLenum errGLErr;
-		
-	GL_GenProgramsARBFunc (1, &progid);
-	GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, progid);
-	
-	errGLErr = glGetError ();
-	GL_ProgramStringARBFunc (GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, strlen (source), source);
-	errGLErr = glGetError ();
-	
-	// Find the error position
-	glGetIntegerv (GL_PROGRAM_ERROR_POSITION_ARB, &errPos);
-	errString = glGetString (GL_PROGRAM_ERROR_STRING_ARB);
-	
-	if (errGLErr != GL_NO_ERROR) Con_Printf ("Generic OpenGL Error\n");
-	if (errPos != -1) Con_Printf ("Program error at position: %d\n", errPos);
-	if (errString && errString[0]) Con_Printf ("Program error: %s\n", errString);
-	
-	if ((errPos != -1) || (errString && errString[0]) || (errGLErr != GL_NO_ERROR))
-	{
-		Con_Printf ("Program:\n%s\n", source);
-		GL_DeleteProgramsARBFunc (1, &progid);
-		GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, 0);
-		return 0;
-	}
-	else
-	{
-//		gl_arb_programs[gl_num_arb_programs] = progid;
-//		gl_num_arb_programs++;
-		
-		GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, 0);
-		return progid;
-	}
-}
-
 qboolean GLAlias_SupportsShaders (void)
 {
        return gl_arb_vp_able && gl_vbo_able && gl_max_texture_units >= 3;
