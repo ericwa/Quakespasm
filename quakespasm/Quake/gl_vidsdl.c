@@ -841,8 +841,6 @@ static void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-novbo"))
 		Con_Warning ("Vertex buffer objects disabled at command line\n");
-	else if (gl_version_major < 1 || (gl_version_major == 1 && gl_version_minor < 5))
-		Con_Warning ("OpenGL version < 1.5, skipping ARB_vertex_buffer_object check\n");
 	else
 	{
 		GL_BindBufferFunc = (PFNGLBINDBUFFERARBPROC) SDL_GL_GetProcAddress("glBindBufferARB");
