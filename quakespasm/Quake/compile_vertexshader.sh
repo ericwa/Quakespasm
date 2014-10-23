@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# cgc from https://developer.nvidia.com/cg-toolkit
+
 rm -f r_alias_vertexshader.h
 rm -f r_alias_vertexshader.vp
 

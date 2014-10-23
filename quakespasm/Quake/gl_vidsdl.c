@@ -1018,7 +1018,7 @@ static void GL_CheckExtensions (void)
 	{
 		Con_Warning ("texture_non_power_of_two not supported\n");
 	}
-	
+
 	// GL_ARB_vertex_program
 	//
 	if (COM_CheckParm("-novertexprogram"))
@@ -1026,7 +1026,7 @@ static void GL_CheckExtensions (void)
 	else
 	{
 		qboolean ok = true;
-		
+
 		if (!(GL_BindProgramARBFunc = (PFNGLBINDPROGRAMARBPROC) SDL_GL_GetProcAddress ("glBindProgramARB"))) ok = false;
 		if (!(GL_DeleteProgramsARBFunc = (PFNGLDELETEPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glDeleteProgramsARB"))) ok = false;
 		if (!(GL_GenProgramsARBFunc = (PFNGLGENPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glGenProgramsARB"))) ok = false;
@@ -1049,7 +1049,7 @@ static void GL_CheckExtensions (void)
 		if (!(GL_VertexAttribPointerARBFunc = (PFNGLVERTEXATTRIBPOINTERARBPROC) SDL_GL_GetProcAddress ("glVertexAttribPointerARB"))) ok = false;
 		if (!(GL_EnableVertexAttribArrayARBFunc = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glEnableVertexAttribArrayARB"))) ok = false;
 		if (!(GL_DisableVertexAttribArrayARBFunc = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glDisableVertexAttribArrayARB"))) ok = false;
-		
+
 		if (ok)
 		{
 			Con_Printf("FOUND: GL_ARB_vertex_program\n");
@@ -1063,8 +1063,8 @@ static void GL_CheckExtensions (void)
 }
 
 /*
- ===============
- GL_SetupState -- johnfitz
+===============
+GL_SetupState -- johnfitz
 
 does all the stuff from GL_Init that needs to be done every time a new GL render context is created
 ===============
@@ -1121,7 +1121,7 @@ static void GL_Init (void)
 		Cbuf_AddText ("gl_clear 1");
 	}
 	//johnfitz
-	
+
 	R_DeleteShaders ();
 	GLAlias_CreateShaders ();
 }

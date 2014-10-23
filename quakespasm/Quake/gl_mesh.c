@@ -347,7 +347,7 @@ void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr)
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<numorder ; j++)
 			*verts++ = poseverts[i][vertexorder[j]];
-			
+
 	// ericw
 	GL_MakeAliasModelDisplayLists_VBO ();
 }
@@ -358,6 +358,9 @@ unsigned int r_meshvertexbuffer = 0;
 /*
 ================
 GL_MakeAliasModelDisplayLists_VBO
+
+Saves data needed to build the VBO for this model on the hunk. Afterwards this
+is copied to Mod_Extradata.
 
 Original code by MH from RMQEngine
 ================
@@ -372,14 +375,14 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 
 	if (!GLAlias_SupportsShaders())
 		return;
-	
+
 	// first, copy the verts onto the hunk
 	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts * sizeof(trivertx_t));
 	paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<paliashdr->numverts ; j++)
 			verts[i*paliashdr->numverts + j] = poseverts[i][j];
-	
+
 	// there can never be more than this number of verts and we just put them all on the hunk
 	maxverts_vbo = pheader->numtris * 3;
 	desc = (aliasmesh_t *) Hunk_Alloc (sizeof (aliasmesh_t) * maxverts_vbo);
@@ -445,6 +448,9 @@ GLuint r_meshindexesvbo = 0;
 ================
 GLMesh_LoadVertexBuffers
 
+Loop over all precached alias models, and upload them into one big VBO plus
+an GL_ELEMENT_ARRAY_BUFFER for the vertex indices.
+
 Original code by MH from RMQEngine
 ================
 */
@@ -454,10 +460,10 @@ void GLMesh_LoadVertexBuffers (void)
 	qmodel_t *m;
 	int totalindexes = 0;
 	int totalvbosize = 0;
-	
+
 	if (!GLAlias_SupportsShaders())
 		return;
-	
+
 	// pass 1 - count the sizes we need
 	for (j = 1; j < MAX_MODELS; j++)
 	{
@@ -503,7 +509,7 @@ void GLMesh_LoadVertexBuffers (void)
 		aliasmesh_t *desc;
 		meshst_t *st;
 		float hscale, vscale;
-		
+
 		if (!(m = cl.model_precache[j])) break;
 		if (m->type != mod_alias) continue;
 
@@ -529,7 +535,7 @@ void GLMesh_LoadVertexBuffers (void)
 			for (v = 0; v < hdr->numverts_vbo; v++)
 			{
 				trivertx_t trivert = tv[desc[v].vertindex];
-				
+
 				xyz[v].xyz[0] = trivert.v[0];
 				xyz[v].xyz[1] = trivert.v[1];
 				xyz[v].xyz[2] = trivert.v[2];

@@ -1,5 +1,8 @@
 #version 110
 
+// Note: we’re not loading this directly but first compiling it to ARB_vertex_program
+// using compile_vertexshader.sh
+
 uniform float Blend;
 uniform vec3 ShadeVector;
 uniform vec4 LightColor;

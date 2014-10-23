@@ -67,7 +67,7 @@ typedef struct {
 } lerpdata_t;
 //johnfitz
 
-static GLuint shader;
+static GLuint r_alias_vertex_program;
 
 extern GLuint r_meshvbo;
 extern GLuint r_meshindexesvbo;
@@ -88,9 +88,16 @@ void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 
 qboolean GLAlias_SupportsShaders (void)
 {
-       return gl_arb_vp_able && gl_vbo_able && gl_max_texture_units >= 3;
+	return gl_arb_vp_able && gl_vbo_able && gl_max_texture_units >= 3;
 }
 
+/*
+=============
+GLAlias_CreateShaders -- ericw
+
+Creates the alias model vertex shader
+=============
+*/
 void GLAlias_CreateShaders (void)
 {
 		const GLchar *source = 
@@ -99,8 +106,8 @@ void GLAlias_CreateShaders (void)
 
 		if (!GLAlias_SupportsShaders())
 			return;
-	
-		shader = GL_CreateProgram(source);
+
+		r_alias_vertex_program = GL_CreateProgram(source);
 }
 
 /*
@@ -114,6 +121,17 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 {
 	float	blend;
 
+// program local indices - copied from vpalias.h
+	const GLuint blendLoc = 9;
+	const GLuint shadevectorLoc = 10;
+	const GLuint lightColorLoc = 11;
+	
+// vertex attribute indices - copied from vpalias.h
+	const GLint pose1VertexAttrIndex = 0;
+	const GLint pose1NormalAttrIndex = 1;
+	const GLint pose2VertexAttrIndex = 2;
+	const GLint pose2NormalAttrIndex = 3;
+
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{
 		blend = lerpdata.blend;
@@ -122,62 +140,45 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	{
 		blend = 0;
 	}
-	
-	// N.B.: Copied from vpalias.h
 
-	// program local indices
-	const GLuint blendLoc = 9;
-	const GLuint shadevectorLoc = 10;
-	const GLuint lightColorLoc = 11;
-	
-	// vertex attribute indices
-	const GLint pose1VertexAttrIndex = 0;
-	const GLint pose1NormalAttrIndex = 1;
-	const GLint pose2VertexAttrIndex = 2;
-	const GLint pose2NormalAttrIndex = 3;
-	
-	GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, shader);
+	GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, r_alias_vertex_program);
 	glEnable ( GL_VERTEX_PROGRAM_ARB );
 
-// ericw -- bind it and stuff
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
-	
+
 	GL_VertexAttribPointerARBFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
 	GL_EnableVertexAttribArrayARBFunc (pose1VertexAttrIndex);
-		
+
 	GL_VertexAttribPointerARBFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
 	GL_EnableVertexAttribArrayARBFunc (pose2VertexAttrIndex);
-	
+
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
 	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-	
+
 	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-	
+
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-	
+
 // GL_TRUE to normalize the signed bytes to [-1 .. 1]
 	GL_VertexAttribPointerARBFunc (pose1NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
 	GL_EnableVertexAttribArrayARBFunc (pose1NormalAttrIndex);
-		
+
 	GL_VertexAttribPointerARBFunc (pose2NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
 	GL_EnableVertexAttribArrayARBFunc (pose2NormalAttrIndex);
 
-	// set uniforms
-	
+// set uniforms
 	GL_ProgramLocalParameter4fARBFunc (GL_VERTEX_PROGRAM_ARB, blendLoc, blend, /* unused */ 0, 0, 0);
 	GL_ProgramLocalParameter4fARBFunc (GL_VERTEX_PROGRAM_ARB, shadevectorLoc, shadevector[0], shadevector[1], shadevector[2], /* unused */ 0);
 	GL_ProgramLocalParameter4fARBFunc (GL_VERTEX_PROGRAM_ARB, lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
 
-	// draw
-
+// draw
 	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
-	// clean up
-
+// clean up
 	GL_DisableVertexAttribArrayARBFunc (pose1VertexAttrIndex);
 	GL_DisableVertexAttribArrayARBFunc (pose2VertexAttrIndex);
 
@@ -213,8 +214,9 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	float	blend, iblend;
 	qboolean lerping;
 
-	// call fast path if possible
-	if (GLAlias_SupportsShaders() && !r_drawflat_cheatsafe && shading)
+// call fast path if possible. if the shader compliation failed for some reason,
+// r_alias_vertex_program will be 0.
+	if (GLAlias_SupportsShaders() && (r_alias_vertex_program != 0) && !r_drawflat_cheatsafe && shading)
 	{
 		GL_DrawAliasFrame_ARB (paliashdr, lerpdata);
 		return;
@@ -517,14 +519,16 @@ void R_SetupAliasLighting (entity_t	*e)
 
 	quantizedangle = ((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1);
 
+//ericw -- shadevector is passed to the shader to compute shadedots inside the
+//shader, see r_alias_vertexshader.glsl
 	radiansangle = (quantizedangle / 16.0) * 2.0 * 3.14159;
 	shadevector[0] = cos(-radiansangle);
 	shadevector[1] = sin(-radiansangle);
 	shadevector[2] = 1;
 	VectorNormalize(shadevector);
+//ericw --
 
 	shadedots = r_avertexnormal_dots[quantizedangle];
-
 	VectorScale (lightcolor, 1.0f / 200.0f, lightcolor);
 }
 
