@@ -94,11 +94,11 @@ GLuint GL_CreateProgram (const GLchar *source)
 	const GLubyte *errString;
 	GLenum errGLErr;
 		
-	qglGenProgramsARB (1, &progid);
-	qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, progid);
+	GL_GenProgramsARBFunc (1, &progid);
+	GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, progid);
 	
 	errGLErr = glGetError ();
-	qglProgramStringARB (GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, strlen (source), source);
+	GL_ProgramStringARBFunc (GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, strlen (source), source);
 	errGLErr = glGetError ();
 	
 	// Find the error position
@@ -112,8 +112,8 @@ GLuint GL_CreateProgram (const GLchar *source)
 	if ((errPos != -1) || (errString && errString[0]) || (errGLErr != GL_NO_ERROR))
 	{
 		Con_Printf ("Program:\n%s\n", source);
-		qglDeleteProgramsARB (1, &progid);
-		qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, 0);
+		GL_DeleteProgramsARBFunc (1, &progid);
+		GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, 0);
 		return 0;
 	}
 	else
@@ -121,7 +121,7 @@ GLuint GL_CreateProgram (const GLchar *source)
 //		gl_arb_programs[gl_num_arb_programs] = progid;
 //		gl_num_arb_programs++;
 		
-		qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, 0);
+		GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, 0);
 		return progid;
 	}
 }
@@ -176,18 +176,18 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	const GLint pose2VertexAttrIndex = 2;
 	const GLint pose2NormalAttrIndex = 3;
 	
-	qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, shader);
+	GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, shader);
 	glEnable ( GL_VERTEX_PROGRAM_ARB );
 
 // ericw -- bind it and stuff
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
 	
-	qglVertexAttribPointerARB (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
-	qglEnableVertexAttribArrayARB (pose1VertexAttrIndex);
+	GL_VertexAttribPointerARBFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
+	GL_EnableVertexAttribArrayARBFunc (pose1VertexAttrIndex);
 		
-	qglVertexAttribPointerARB (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
-	qglEnableVertexAttribArrayARB (pose2VertexAttrIndex);
+	GL_VertexAttribPointerARBFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
+	GL_EnableVertexAttribArrayARBFunc (pose2VertexAttrIndex);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
 	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
@@ -200,17 +200,17 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 	
 // GL_TRUE to normalize the signed bytes to [-1 .. 1]
-	qglVertexAttribPointerARB (pose1NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
-	qglEnableVertexAttribArrayARB (pose1NormalAttrIndex);
+	GL_VertexAttribPointerARBFunc (pose1NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+	GL_EnableVertexAttribArrayARBFunc (pose1NormalAttrIndex);
 		
-	qglVertexAttribPointerARB (pose2NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
-	qglEnableVertexAttribArrayARB (pose2NormalAttrIndex);
+	GL_VertexAttribPointerARBFunc (pose2NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	GL_EnableVertexAttribArrayARBFunc (pose2NormalAttrIndex);
 
 	// set uniforms
 	
-	qglProgramLocalParameter4fARB (GL_VERTEX_PROGRAM_ARB, blendLoc, blend, /* unused */ 0, 0, 0);
-	qglProgramLocalParameter4fARB (GL_VERTEX_PROGRAM_ARB, shadevectorLoc, shadevector[0], shadevector[1], shadevector[2], /* unused */ 0);
-	qglProgramLocalParameter4fARB (GL_VERTEX_PROGRAM_ARB, lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+	GL_ProgramLocalParameter4fARBFunc (GL_VERTEX_PROGRAM_ARB, blendLoc, blend, /* unused */ 0, 0, 0);
+	GL_ProgramLocalParameter4fARBFunc (GL_VERTEX_PROGRAM_ARB, shadevectorLoc, shadevector[0], shadevector[1], shadevector[2], /* unused */ 0);
+	GL_ProgramLocalParameter4fARBFunc (GL_VERTEX_PROGRAM_ARB, lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
 
 	// draw
 
@@ -218,8 +218,8 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	// clean up
 
-	qglDisableVertexAttribArrayARB (pose1VertexAttrIndex);
-	qglDisableVertexAttribArrayARB (pose2VertexAttrIndex);
+	GL_DisableVertexAttribArrayARBFunc (pose1VertexAttrIndex);
+	GL_DisableVertexAttribArrayARBFunc (pose2VertexAttrIndex);
 
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
@@ -230,8 +230,8 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 
-	qglDisableVertexAttribArrayARB (pose1NormalAttrIndex);
-	qglDisableVertexAttribArrayARB (pose2NormalAttrIndex);
+	GL_DisableVertexAttribArrayARBFunc (pose1NormalAttrIndex);
+	GL_DisableVertexAttribArrayARBFunc (pose2NormalAttrIndex);
 
 	glDisable (GL_VERTEX_PROGRAM_ARB);
 

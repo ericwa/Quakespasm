@@ -108,29 +108,29 @@ PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
 PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
 
 // vertex/fragment program
-PFNGLBINDPROGRAMARBPROC qglBindProgramARB = NULL;
-PFNGLDELETEPROGRAMSARBPROC qglDeleteProgramsARB = NULL;
-PFNGLGENPROGRAMSARBPROC qglGenProgramsARB = NULL;
-PFNGLGETPROGRAMENVPARAMETERDVARBPROC qglGetProgramEnvParameterdvARB = NULL;
-PFNGLGETPROGRAMENVPARAMETERFVARBPROC qglGetProgramEnvParameterfvARB = NULL;
-PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC qglGetProgramLocalParameterdvARB = NULL;
-PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC qglGetProgramLocalParameterfvARB = NULL;
-PFNGLGETPROGRAMSTRINGARBPROC qglGetProgramStringARB = NULL;
-PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB = NULL;
-PFNGLISPROGRAMARBPROC qglIsProgramARB = NULL;
-PFNGLPROGRAMENVPARAMETER4DARBPROC qglProgramEnvParameter4dARB = NULL;
-PFNGLPROGRAMENVPARAMETER4DVARBPROC qglProgramEnvParameter4dvARB = NULL;
-PFNGLPROGRAMENVPARAMETER4FARBPROC qglProgramEnvParameter4fARB = NULL;
-PFNGLPROGRAMENVPARAMETER4FVARBPROC qglProgramEnvParameter4fvARB = NULL;
-PFNGLPROGRAMLOCALPARAMETER4DARBPROC qglProgramLocalParameter4dARB = NULL;
-PFNGLPROGRAMLOCALPARAMETER4DVARBPROC qglProgramLocalParameter4dvARB = NULL;
-PFNGLPROGRAMLOCALPARAMETER4FARBPROC qglProgramLocalParameter4fARB = NULL;
-PFNGLPROGRAMLOCALPARAMETER4FVARBPROC qglProgramLocalParameter4fvARB = NULL;
-PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB = NULL;
+PFNGLBINDPROGRAMARBPROC GL_BindProgramARBFunc = NULL;
+PFNGLDELETEPROGRAMSARBPROC GL_DeleteProgramsARBFunc = NULL;
+PFNGLGENPROGRAMSARBPROC GL_GenProgramsARBFunc = NULL;
+PFNGLGETPROGRAMENVPARAMETERDVARBPROC GL_GetProgramEnvParameterdvARBFunc = NULL;
+PFNGLGETPROGRAMENVPARAMETERFVARBPROC GL_GetProgramEnvParameterfvARBFunc = NULL;
+PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC GL_GetProgramLocalParameterdvARBFunc = NULL;
+PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC GL_GetProgramLocalParameterfvARBFunc = NULL;
+PFNGLGETPROGRAMSTRINGARBPROC GL_GetProgramStringARBFunc = NULL;
+PFNGLGETPROGRAMIVARBPROC GL_GetProgramivARBFunc = NULL;
+PFNGLISPROGRAMARBPROC GL_IsProgramARBFunc = NULL;
+PFNGLPROGRAMENVPARAMETER4DARBPROC GL_ProgramEnvParameter4dARBFunc = NULL;
+PFNGLPROGRAMENVPARAMETER4DVARBPROC GL_ProgramEnvParameter4dvARBFunc = NULL;
+PFNGLPROGRAMENVPARAMETER4FARBPROC GL_ProgramEnvParameter4fARBFunc = NULL;
+PFNGLPROGRAMENVPARAMETER4FVARBPROC GL_ProgramEnvParameter4fvARBFunc = NULL;
+PFNGLPROGRAMLOCALPARAMETER4DARBPROC GL_ProgramLocalParameter4dARBFunc = NULL;
+PFNGLPROGRAMLOCALPARAMETER4DVARBPROC GL_ProgramLocalParameter4dvARBFunc = NULL;
+PFNGLPROGRAMLOCALPARAMETER4FARBPROC GL_ProgramLocalParameter4fARBFunc = NULL;
+PFNGLPROGRAMLOCALPARAMETER4FVARBPROC GL_ProgramLocalParameter4fvARBFunc = NULL;
+PFNGLPROGRAMSTRINGARBPROC GL_ProgramStringARBFunc = NULL;
 
-PFNGLVERTEXATTRIBPOINTERARBPROC qglVertexAttribPointerARB = NULL;
-PFNGLENABLEVERTEXATTRIBARRAYARBPROC qglEnableVertexAttribArrayARB = NULL;
-PFNGLDISABLEVERTEXATTRIBARRAYARBPROC qglDisableVertexAttribArrayARB = NULL;
+PFNGLVERTEXATTRIBPOINTERARBPROC GL_VertexAttribPointerARBFunc = NULL;
+PFNGLENABLEVERTEXATTRIBARRAYARBPROC GL_EnableVertexAttribArrayARBFunc = NULL;
+PFNGLDISABLEVERTEXATTRIBARRAYARBPROC GL_DisableVertexAttribArrayARBFunc = NULL;
 
 //====================================
 
@@ -841,8 +841,8 @@ static void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-novbo"))
 		Con_Warning ("Vertex buffer objects disabled at command line\n");
-//	else if (gl_version_major < 1 || (gl_version_major == 1 && gl_version_minor < 5))
-//		Con_Warning ("OpenGL version < 1.5, skipping ARB_vertex_buffer_object check\n");
+	else if (gl_version_major < 1 || (gl_version_major == 1 && gl_version_minor < 5))
+		Con_Warning ("OpenGL version < 1.5, skipping ARB_vertex_buffer_object check\n");
 	else
 	{
 		GL_BindBufferFunc = (PFNGLBINDBUFFERARBPROC) SDL_GL_GetProcAddress("glBindBufferARB");
@@ -1019,37 +1019,46 @@ static void GL_CheckExtensions (void)
 		Con_Warning ("texture_non_power_of_two not supported\n");
 	}
 	
-	// gl_arb_vp
-	
-	if (!(qglBindProgramARB = (PFNGLBINDPROGRAMARBPROC) SDL_GL_GetProcAddress ("glBindProgramARB"))) return;
-	if (!(qglDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glDeleteProgramsARB"))) return;
-	if (!(qglGenProgramsARB = (PFNGLGENPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glGenProgramsARB"))) return;
-	if (!(qglGetProgramEnvParameterdvARB = (PFNGLGETPROGRAMENVPARAMETERDVARBPROC) SDL_GL_GetProcAddress ("glGetProgramEnvParameterdvARB"))) return;
-	if (!(qglGetProgramEnvParameterfvARB = (PFNGLGETPROGRAMENVPARAMETERFVARBPROC) SDL_GL_GetProcAddress ("glGetProgramEnvParameterfvARB"))) return;
-	if (!(qglGetProgramLocalParameterdvARB = (PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC) SDL_GL_GetProcAddress ("glGetProgramLocalParameterdvARB"))) return;
-	if (!(qglGetProgramLocalParameterfvARB = (PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC) SDL_GL_GetProcAddress ("glGetProgramLocalParameterfvARB"))) return;
-	if (!(qglGetProgramStringARB = (PFNGLGETPROGRAMSTRINGARBPROC) SDL_GL_GetProcAddress ("glGetProgramStringARB"))) return;
-	if (!(qglGetProgramivARB = (PFNGLGETPROGRAMIVARBPROC) SDL_GL_GetProcAddress ("glGetProgramivARB"))) return;
-	if (!(qglIsProgramARB = (PFNGLISPROGRAMARBPROC) SDL_GL_GetProcAddress ("glIsProgramARB"))) return;
-	if (!(qglProgramEnvParameter4dARB = (PFNGLPROGRAMENVPARAMETER4DARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4dARB"))) return;
-	if (!(qglProgramEnvParameter4dvARB = (PFNGLPROGRAMENVPARAMETER4DVARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4dvARB"))) return;
-	if (!(qglProgramEnvParameter4fARB = (PFNGLPROGRAMENVPARAMETER4FARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4fARB"))) return;
-	if (!(qglProgramEnvParameter4fvARB = (PFNGLPROGRAMENVPARAMETER4FVARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4fvARB"))) return;
-	if (!(qglProgramLocalParameter4dARB = (PFNGLPROGRAMLOCALPARAMETER4DARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4dARB"))) return;
-	if (!(qglProgramLocalParameter4dvARB = (PFNGLPROGRAMLOCALPARAMETER4DVARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4dvARB"))) return;
-	if (!(qglProgramLocalParameter4fARB = (PFNGLPROGRAMLOCALPARAMETER4FARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4fARB"))) return;
-	if (!(qglProgramLocalParameter4fvARB = (PFNGLPROGRAMLOCALPARAMETER4FVARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4fvARB"))) return;
-	if (!(qglProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) SDL_GL_GetProcAddress ("glProgramStringARB"))) return;
-	if (!(qglVertexAttribPointerARB = (PFNGLVERTEXATTRIBPOINTERARBPROC) SDL_GL_GetProcAddress ("glVertexAttribPointerARB"))) return;
-	if (!(qglEnableVertexAttribArrayARB = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glEnableVertexAttribArrayARB"))) return;
-	if (!(qglDisableVertexAttribArrayARB = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glDisableVertexAttribArrayARB"))) return;
-	
-	if (COM_CheckParm("-novp"))
-		Con_Warning ("vp disabled at command line\n");
+	// GL_ARB_vertex_program
+	//
+	if (COM_CheckParm("-novertexprogram"))
+		Con_Warning ("GL_ARB_vertex_program disabled at command line\n");
 	else
 	{
-		Con_Printf("FOUND: gl_arb_vp\n");
-		gl_arb_vp_able = true;
+		qboolean ok = true;
+		
+		if (!(GL_BindProgramARBFunc = (PFNGLBINDPROGRAMARBPROC) SDL_GL_GetProcAddress ("glBindProgramARB"))) ok = false;
+		if (!(GL_DeleteProgramsARBFunc = (PFNGLDELETEPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glDeleteProgramsARB"))) ok = false;
+		if (!(GL_GenProgramsARBFunc = (PFNGLGENPROGRAMSARBPROC) SDL_GL_GetProcAddress ("glGenProgramsARB"))) ok = false;
+		if (!(GL_GetProgramEnvParameterdvARBFunc = (PFNGLGETPROGRAMENVPARAMETERDVARBPROC) SDL_GL_GetProcAddress ("glGetProgramEnvParameterdvARB"))) ok = false;
+		if (!(GL_GetProgramEnvParameterfvARBFunc = (PFNGLGETPROGRAMENVPARAMETERFVARBPROC) SDL_GL_GetProcAddress ("glGetProgramEnvParameterfvARB"))) ok = false;
+		if (!(GL_GetProgramLocalParameterdvARBFunc = (PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC) SDL_GL_GetProcAddress ("glGetProgramLocalParameterdvARB"))) ok = false;
+		if (!(GL_GetProgramLocalParameterfvARBFunc = (PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC) SDL_GL_GetProcAddress ("glGetProgramLocalParameterfvARB"))) ok = false;
+		if (!(GL_GetProgramStringARBFunc = (PFNGLGETPROGRAMSTRINGARBPROC) SDL_GL_GetProcAddress ("glGetProgramStringARB"))) ok = false;
+		if (!(GL_GetProgramivARBFunc = (PFNGLGETPROGRAMIVARBPROC) SDL_GL_GetProcAddress ("glGetProgramivARB"))) ok = false;
+		if (!(GL_IsProgramARBFunc = (PFNGLISPROGRAMARBPROC) SDL_GL_GetProcAddress ("glIsProgramARB"))) ok = false;
+		if (!(GL_ProgramEnvParameter4dARBFunc = (PFNGLPROGRAMENVPARAMETER4DARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4dARB"))) ok = false;
+		if (!(GL_ProgramEnvParameter4dvARBFunc = (PFNGLPROGRAMENVPARAMETER4DVARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4dvARB"))) ok = false;
+		if (!(GL_ProgramEnvParameter4fARBFunc = (PFNGLPROGRAMENVPARAMETER4FARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4fARB"))) ok = false;
+		if (!(GL_ProgramEnvParameter4fvARBFunc = (PFNGLPROGRAMENVPARAMETER4FVARBPROC) SDL_GL_GetProcAddress ("glProgramEnvParameter4fvARB"))) ok = false;
+		if (!(GL_ProgramLocalParameter4dARBFunc = (PFNGLPROGRAMLOCALPARAMETER4DARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4dARB"))) ok = false;
+		if (!(GL_ProgramLocalParameter4dvARBFunc = (PFNGLPROGRAMLOCALPARAMETER4DVARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4dvARB"))) ok = false;
+		if (!(GL_ProgramLocalParameter4fARBFunc = (PFNGLPROGRAMLOCALPARAMETER4FARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4fARB"))) ok = false;
+		if (!(GL_ProgramLocalParameter4fvARBFunc = (PFNGLPROGRAMLOCALPARAMETER4FVARBPROC) SDL_GL_GetProcAddress ("glProgramLocalParameter4fvARB"))) ok = false;
+		if (!(GL_ProgramStringARBFunc = (PFNGLPROGRAMSTRINGARBPROC) SDL_GL_GetProcAddress ("glProgramStringARB"))) ok = false;
+		if (!(GL_VertexAttribPointerARBFunc = (PFNGLVERTEXATTRIBPOINTERARBPROC) SDL_GL_GetProcAddress ("glVertexAttribPointerARB"))) ok = false;
+		if (!(GL_EnableVertexAttribArrayARBFunc = (PFNGLENABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glEnableVertexAttribArrayARB"))) ok = false;
+		if (!(GL_DisableVertexAttribArrayARBFunc = (PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) SDL_GL_GetProcAddress ("glDisableVertexAttribArrayARB"))) ok = false;
+		
+		if (ok)
+		{
+			Con_Printf("FOUND: GL_ARB_vertex_program\n");
+			gl_arb_vp_able = true;
+		}
+		else
+		{
+			Con_Warning ("GL_ARB_vertex_program not available\n");
+		}
 	}
 }
 
