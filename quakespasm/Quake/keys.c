@@ -160,6 +160,9 @@ keyname_t keynames[] =
 
 	{"SEMICOLON", ';'},	// because a raw semicolon seperates commands
 
+	{"BACKQUOTE", '`'},	// because a raw backquote may toggle the console
+	{"TILDE", '~'},		// because a raw tilde may toggle the console
+
 	{NULL,		0}
 };
 
@@ -824,7 +827,6 @@ void Key_Init (void)
 	consolekeys[K_DOWNARROW] = true;
 	consolekeys[K_LEFTARROW] = true;
 	consolekeys[K_RIGHTARROW] = true;
-	consolekeys[K_ALT] = true;
 	consolekeys[K_CTRL] = true;
 	consolekeys[K_SHIFT] = true;
 	consolekeys[K_INS] = true;
@@ -1074,6 +1076,13 @@ Called by the backend when the user has input a character.
 void Char_Event (int key)
 {
 	if (key < 32 || key > 126)
+		return;
+
+#if defined(PLATFORM_OSX) || defined(PLATFORM_MAC)
+	if (keydown[K_COMMAND])
+		return;
+#endif
+	if (keydown[K_CTRL])
 		return;
 
 	if (key_inputgrab.active)
