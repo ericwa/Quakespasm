@@ -339,6 +339,9 @@ GLuint GL_CreateProgram (const GLchar *source)
 	const GLubyte *errString;
 	GLenum errGLErr;
 
+	if (!GLAlias_SupportsShaders())
+		return 0;
+
 	GL_GenProgramsARBFunc (1, &progid);
 	GL_BindProgramARBFunc (GL_VERTEX_PROGRAM_ARB, progid);
 
@@ -383,6 +386,9 @@ Deletes any ARB programs that have been created.
 */
 void R_DeleteShaders (void)
 {
+	if (!GLAlias_SupportsShaders())
+		return;
+
 	GL_DeleteProgramsARBFunc (sizeof(gl_arb_programs)/sizeof(GLuint), gl_arb_programs);
 	memset (gl_arb_programs, 0, sizeof(gl_arb_programs));
 	gl_num_arb_programs = 0;
