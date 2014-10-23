@@ -67,6 +67,8 @@ typedef struct {
 } lerpdata_t;
 //johnfitz
 
+static GLuint shader;
+
 extern GLuint r_meshvbo;
 extern GLuint r_meshindexesvbo;
 
@@ -124,6 +126,22 @@ GLuint GL_CreateProgram (const GLchar *source)
 	}
 }
 
+qboolean GLAlias_SupportsShaders (void)
+{
+       return gl_arb_vp_able && gl_vbo_able && gl_max_texture_units >= 3;
+}
+
+void GLAlias_CreateShaders (void)
+{
+		const GLchar *source = 
+#include "r_alias_vertexshader.h"
+		;
+
+		if (!GLAlias_SupportsShaders())
+			return;
+	
+		shader = GL_CreateProgram(source);
+}
 
 /*
 =============
@@ -144,9 +162,6 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	{
 		blend = 0;
 	}
-
-// ericw -- ARB shader
-	static GLuint shader;
 	
 	// N.B.: Copied from vpalias.h
 
@@ -161,18 +176,8 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	const GLint pose2VertexAttrIndex = 2;
 	const GLint pose2NormalAttrIndex = 3;
 	
-	if (shader == 0)
-	{
-		const GLchar *source = 
-#include "r_alias_vertexshader.h"
-		;
-		
-		shader = GL_CreateProgram(source);
-	}
-	
 	qglBindProgramARB (GL_VERTEX_PROGRAM_ARB, shader);
-	glEnable( GL_VERTEX_PROGRAM_ARB );
-//
+	glEnable ( GL_VERTEX_PROGRAM_ARB );
 
 // ericw -- bind it and stuff
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
@@ -185,7 +190,7 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	qglEnableVertexAttribArrayARB (pose2VertexAttrIndex);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glTexCoordPointer(2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
+	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
@@ -203,32 +208,32 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	// set uniforms
 	
-	qglProgramLocalParameter4fARB(GL_VERTEX_PROGRAM_ARB, blendLoc, blend, /* unused */ 0, 0, 0);
-	qglProgramLocalParameter4fARB(GL_VERTEX_PROGRAM_ARB, shadevectorLoc, shadevector[0], shadevector[1], shadevector[2], /* unused */ 0);
-	qglProgramLocalParameter4fARB(GL_VERTEX_PROGRAM_ARB, lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+	qglProgramLocalParameter4fARB (GL_VERTEX_PROGRAM_ARB, blendLoc, blend, /* unused */ 0, 0, 0);
+	qglProgramLocalParameter4fARB (GL_VERTEX_PROGRAM_ARB, shadevectorLoc, shadevector[0], shadevector[1], shadevector[2], /* unused */ 0);
+	qglProgramLocalParameter4fARB (GL_VERTEX_PROGRAM_ARB, lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
 
 	// draw
 
-	glDrawElements(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
+	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
 	// clean up
 
-	qglDisableVertexAttribArrayARB(pose1VertexAttrIndex);
-	qglDisableVertexAttribArrayARB(pose2VertexAttrIndex);
+	qglDisableVertexAttribArrayARB (pose1VertexAttrIndex);
+	qglDisableVertexAttribArrayARB (pose2VertexAttrIndex);
 
-	GL_ClientActiveTextureFunc(GL_TEXTURE0_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 
-	GL_ClientActiveTextureFunc(GL_TEXTURE1_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 
-	GL_ClientActiveTextureFunc(GL_TEXTURE2_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 
-	qglDisableVertexAttribArrayARB(pose1NormalAttrIndex);
-	qglDisableVertexAttribArrayARB(pose2NormalAttrIndex);
+	qglDisableVertexAttribArrayARB (pose1NormalAttrIndex);
+	qglDisableVertexAttribArrayARB (pose2NormalAttrIndex);
 
-	glDisable(GL_VERTEX_PROGRAM_ARB);
+	glDisable (GL_VERTEX_PROGRAM_ARB);
 
 	rs_aliaspasses += paliashdr->numtris;
 }
@@ -249,7 +254,7 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	qboolean lerping;
 
 	// call fast path if possible
-	if (gl_arb_vp_able && !r_drawflat_cheatsafe && shading)
+	if (GLAlias_SupportsShaders() && !r_drawflat_cheatsafe && shading)
 	{
 		GL_DrawAliasFrame_ARB (paliashdr, lerpdata);
 		return;
@@ -492,6 +497,8 @@ void R_SetupAliasLighting (entity_t	*e)
 	vec3_t		dist;
 	float		add;
 	int			i;
+	int		quantizedangle;
+	float		radiansangle;
 
 	R_LightPoint (e->origin);
 
@@ -548,17 +555,17 @@ void R_SetupAliasLighting (entity_t	*e)
 			lightcolor[2] = 256.0f;
 		}
 		
-	int quantangle = ((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1);
+	quantizedangle = ((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1);
 
-	float radAngle = (quantangle / 16.0) * 2.0 * 3.14159;
-	shadevector[0] = cos(-radAngle);
-	shadevector[1] = sin(-radAngle);
+	radiansangle = (quantizedangle / 16.0) * 2.0 * 3.14159;
+	shadevector[0] = cos(-radiansangle);
+	shadevector[1] = sin(-radiansangle);
 	shadevector[2] = 1;
 	VectorNormalize(shadevector);
 
-	shadedots = r_avertexnormal_dots[quantangle];
+	shadedots = r_avertexnormal_dots[quantizedangle];
 	
-	VectorScale(lightcolor, 1.0f / 200.0f, lightcolor);
+	VectorScale (lightcolor, 1.0f / 200.0f, lightcolor);
 }
 
 /*

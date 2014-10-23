@@ -1112,6 +1112,8 @@ static void GL_Init (void)
 		Cbuf_AddText ("gl_clear 1");
 	}
 	//johnfitz
+	
+	GLAlias_CreateShaders ();
 }
 
 /*
