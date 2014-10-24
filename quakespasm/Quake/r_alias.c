@@ -125,7 +125,7 @@ void GL_DrawAliasFrame_ARB (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	const GLuint blendLoc = 9;
 	const GLuint shadevectorLoc = 10;
 	const GLuint lightColorLoc = 11;
-	
+
 // vertex attribute indices - copied from vpalias.h
 	const GLint pose1VertexAttrIndex = 0;
 	const GLint pose1NormalAttrIndex = 1;
