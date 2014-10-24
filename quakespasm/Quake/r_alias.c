@@ -114,6 +114,13 @@ void GLAlias_CreateShaders (void)
 =============
 GL_DrawAliasFrame_ARB -- ericw
 
+Optimized alias model drawing codepath.
+Compared to the original GL_DrawAliasFrame, this makes 1 draw call,
+no vertex data is uploaded (it's already in the r_meshvbo and r_meshindexesvbo
+static VBOs), and lerping and lighting is done in the vertex shader
+(see r_alias_vertexshader.glsl, but it's compiled ahead of time to ARB assembly
+using compile_vertexshader.sh and saved in r_alias_vertexshader.h).
+
 Based on code by MH from RMQEngine
 =============
 */
