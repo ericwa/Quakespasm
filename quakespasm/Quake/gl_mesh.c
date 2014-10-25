@@ -347,7 +347,7 @@ void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *hdr)
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<numorder ; j++)
 			*verts++ = poseverts[i][vertexorder[j]];
-			
+
 	// ericw
 	GL_MakeAliasModelDisplayLists_VBO ();
 }
@@ -359,6 +359,9 @@ unsigned int r_meshvertexbuffer = 0;
 ================
 GL_MakeAliasModelDisplayLists_VBO
 
+Saves data needed to build the VBO for this model on the hunk. Afterwards this
+is copied to Mod_Extradata.
+
 Original code by MH from RMQEngine
 ================
 */
@@ -367,25 +370,25 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 	int i, j;
 	int maxverts_vbo;
 	trivertx_t *verts;
+	unsigned short *indexes;
+	aliasmesh_t *desc;
 
-	if (!gl_glsl_able)
+	if (!GLAlias_SupportsShaders())
 		return;
-	
-	// ericw -- first, copy the verts onto the hunk
-	
+
+	// first, copy the verts onto the hunk
 	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts * sizeof(trivertx_t));
 	paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
 	for (i=0 ; i<paliashdr->numposes ; i++)
 		for (j=0 ; j<paliashdr->numverts ; j++)
 			verts[i*paliashdr->numverts + j] = poseverts[i][j];
-	// ericw --
-	
+
 	// there can never be more than this number of verts and we just put them all on the hunk
 	maxverts_vbo = pheader->numtris * 3;
-	aliasmesh_t *desc = (aliasmesh_t *) Hunk_Alloc (sizeof (aliasmesh_t) * maxverts_vbo);
+	desc = (aliasmesh_t *) Hunk_Alloc (sizeof (aliasmesh_t) * maxverts_vbo);
 
 	// there will always be this number of indexes
-	unsigned short *indexes = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * maxverts_vbo);
+	indexes = (unsigned short *) Hunk_Alloc (sizeof (unsigned short) * maxverts_vbo);
 
 	pheader->indexes = (intptr_t) indexes - (intptr_t) pheader;
 	pheader->meshdesc = (intptr_t) desc - (intptr_t) pheader;
@@ -435,8 +438,6 @@ void GL_MakeAliasModelDisplayLists_VBO (void)
 	}
 }
 
-static char scratchbuf[65536];
-
 #define NUMVERTEXNORMALS	 162
 extern	float	r_avertexnormals[NUMVERTEXNORMALS][3];
 
@@ -447,6 +448,9 @@ GLuint r_meshindexesvbo = 0;
 ================
 GLMesh_LoadVertexBuffers
 
+Loop over all precached alias models, and upload them into one big VBO plus
+an GL_ELEMENT_ARRAY_BUFFER for the vertex indices.
+
 Original code by MH from RMQEngine
 ================
 */
@@ -456,10 +460,10 @@ void GLMesh_LoadVertexBuffers (void)
 	qmodel_t *m;
 	int totalindexes = 0;
 	int totalvbosize = 0;
-	
-	if (!gl_glsl_able)
+
+	if (!GLAlias_SupportsShaders())
 		return;
-	
+
 	// pass 1 - count the sizes we need
 	for (j = 1; j < MAX_MODELS; j++)
 	{
@@ -505,7 +509,7 @@ void GLMesh_LoadVertexBuffers (void)
 		aliasmesh_t *desc;
 		meshst_t *st;
 		float hscale, vscale;
-		
+
 		if (!(m = cl.model_precache[j])) break;
 		if (m->type != mod_alias) continue;
 
@@ -525,13 +529,13 @@ void GLMesh_LoadVertexBuffers (void)
 		for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 		{
 			int v;
-			meshxyz_t *xyz = (meshxyz_t *) scratchbuf; // FIXME - potentially unsafe here
+			meshxyz_t *xyz = (meshxyz_t *) malloc (hdr->numverts_vbo * sizeof (meshxyz_t));
 			trivertx_t *tv = (trivertx_t *) ((byte *) hdr + hdr->vertexes + (hdr->numverts * sizeof(trivertx_t) * f));
 
 			for (v = 0; v < hdr->numverts_vbo; v++)
 			{
 				trivertx_t trivert = tv[desc[v].vertindex];
-				
+
 				xyz[v].xyz[0] = trivert.v[0];
 				xyz[v].xyz[1] = trivert.v[1];
 				xyz[v].xyz[2] = trivert.v[2];
@@ -550,9 +554,11 @@ void GLMesh_LoadVertexBuffers (void)
 				m->vboxyzofs + (f * hdr->numverts_vbo * sizeof (meshxyz_t)),
 				hdr->numverts_vbo * sizeof (meshxyz_t),
 				xyz);
+
+			free (xyz);
 		}
 
-		st = (meshst_t *) scratchbuf;
+		st = (meshst_t *) malloc (hdr->numverts_vbo * sizeof (meshst_t));
 
 		for (f = 0; f < hdr->numverts_vbo; f++)
 		{
@@ -564,6 +570,8 @@ void GLMesh_LoadVertexBuffers (void)
 			m->vbostofs,
 			hdr->numverts_vbo * sizeof (meshst_t),
 			st);
+
+		free (st);
 	}
 
 	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0);

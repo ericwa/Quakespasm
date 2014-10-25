@@ -108,6 +108,8 @@ PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
 PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
 
 QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
+QS_PFNGLDELETESHADERPROC GL_DeleteShaderFunc = NULL; //ericw
+QS_PFNGLDELETEPROGRAMPROC GL_DeleteProgramFunc = NULL; //ericw
 QS_PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc = NULL; //ericw
 QS_PFNGLCOMPILESHADERPROC GL_CompileShaderFunc = NULL; //ericw
 QS_PFNGLGETSHADERIVPROC GL_GetShaderivFunc = NULL; //ericw
@@ -1018,9 +1020,11 @@ static void GL_CheckExtensions (void)
 	//
 	if (COM_CheckParm("-noglsl"))
 		Con_Warning ("GLSL disabled at command line\n");
-	else
+	else if (gl_version_major >= 2)
 	{
 		GL_CreateShaderFunc = (QS_PFNGLCREATESHADERPROC) SDL_GL_GetProcAddress("glCreateShader");
+		GL_DeleteShaderFunc = (QS_PFNGLDELETESHADERPROC) SDL_GL_GetProcAddress("glDeleteShader");
+		GL_DeleteProgramFunc = (QS_PFNGLDELETEPROGRAMPROC) SDL_GL_GetProcAddress("glDeleteProgram");
 		GL_ShaderSourceFunc = (QS_PFNGLSHADERSOURCEPROC) SDL_GL_GetProcAddress("glShaderSource");
 		GL_CompileShaderFunc = (QS_PFNGLCOMPILESHADERPROC) SDL_GL_GetProcAddress("glCompileShader");
 		GL_GetShaderivFunc = (QS_PFNGLGETSHADERIVPROC) SDL_GL_GetProcAddress("glGetShaderiv");
@@ -1041,6 +1045,8 @@ static void GL_CheckExtensions (void)
 		GL_Uniform4fFunc = (QS_PFNGLUNIFORM4FPROC) SDL_GL_GetProcAddress("glUniform4f");
 
 		if (GL_CreateShaderFunc &&
+			GL_DeleteShaderFunc &&
+			GL_DeleteProgramFunc &&
 			GL_ShaderSourceFunc &&
 			GL_CompileShaderFunc &&
 			GL_GetShaderivFunc &&
@@ -1067,6 +1073,10 @@ static void GL_CheckExtensions (void)
 		{
 			Con_Warning ("GLSL not available\n");
 		}
+	}
+	else
+	{
+		Con_Warning ("OpenGL version < 2, GLSL not available\n");
 	}
 }
 
@@ -1129,6 +1139,9 @@ static void GL_Init (void)
 		Cbuf_AddText ("gl_clear 1");
 	}
 	//johnfitz
+
+	R_DeleteShaders ();
+	GLAlias_CreateShaders ();
 }
 
 /*

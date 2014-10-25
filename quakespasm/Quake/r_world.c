@@ -798,11 +798,11 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	int		lastlightmap;
 	gltexture_t	*fullbright = NULL;
 	
-// ericw -- bind it and stuff
+// Bind the buffers
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbo);
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0); // ericw -- so we pull them from client memory!
+	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0); // indices come from client memory!
 
-// setup vertex array. this will need to move if we use vertex arrays for other things
+// Setup vertex array pointers
 	glVertexPointer (3, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0));
 	glEnableClientState (GL_VERTEX_ARRAY);
 
@@ -813,14 +813,12 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
 	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 5);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-		
+
 // TMU 2 is for fullbrights; same texture coordinates as TMU 0
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-// ericw -- bind it and stuff
 
-	
 // Setup TMU 1 (lightmap)
 	GL_SelectTexture (GL_TEXTURE1_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
@@ -829,7 +827,7 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
 	glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, gl_overbright.value ? 2.0f : 1.0f);
 	glEnable(GL_TEXTURE_2D);
-	
+
 // Setup TMU 2 (fullbrights)
 	GL_SelectTexture (GL_TEXTURE2_ARB);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);

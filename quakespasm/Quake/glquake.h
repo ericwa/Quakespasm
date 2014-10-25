@@ -177,6 +177,8 @@ extern	qboolean	gl_vbo_able;
 
 // SDL 1.2 has a bug where it doesn't provide these typedefs on OS X!
 typedef GLuint (APIENTRYP QS_PFNGLCREATESHADERPROC) (GLenum type);
+typedef void (APIENTRYP QS_PFNGLDELETESHADERPROC) (GLuint shader);
+typedef void (APIENTRYP QS_PFNGLDELETEPROGRAMPROC) (GLuint program);
 typedef void (APIENTRYP QS_PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length);
 typedef void (APIENTRYP QS_PFNGLCOMPILESHADERPROC) (GLuint shader);
 typedef void (APIENTRYP QS_PFNGLGETSHADERIVPROC) (GLuint shader, GLenum pname, GLint *params);
@@ -197,6 +199,8 @@ typedef void (APIENTRYP QS_PFNGLUNIFORM3FPROC) (GLint location, GLfloat v0, GLfl
 typedef void (APIENTRYP QS_PFNGLUNIFORM4FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 
 extern QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc;
+extern QS_PFNGLDELETESHADERPROC GL_DeleteShaderFunc;
+extern QS_PFNGLDELETEPROGRAMPROC GL_DeleteProgramFunc;
 extern QS_PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc;
 extern QS_PFNGLCOMPILESHADERPROC GL_CompileShaderFunc;
 extern QS_PFNGLGETSHADERIVPROC GL_GetShaderivFunc;
@@ -338,6 +342,11 @@ void R_DrawBrushModel_ShowTris (entity_t *e);
 void R_DrawAliasModel_ShowTris (entity_t *e);
 void R_DrawParticles_ShowTris (void);
 
+GLuint GL_CreateVertexShader (const GLchar *source);
+void R_DeleteShaders (void);
+
+qboolean GLAlias_SupportsShaders (void);
+void GLAlias_CreateShaders (void);
 void GL_DrawAliasShadow (entity_t *e);
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);

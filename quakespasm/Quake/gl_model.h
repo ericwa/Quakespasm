@@ -346,19 +346,19 @@ typedef struct {
 	int			skinwidth;
 	int			skinheight;
 	int			numverts;
-	int			numverts_vbo;
 	int			numtris;
 	int			numframes;
 	synctype_t	synctype;
 	int			flags;
 	float		size;
-	
-	intptr_t		meshdesc;
-	intptr_t		indexes;
-	int			numindexes;
 
-	// offset to (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->vertsperframe * sizeof(trivertx_t))
-	intptr_t		vertexes;
+	//ericw -- used to populate vbo
+	int			numverts_vbo;   // number of verts with unique x,y,z,s,t
+	intptr_t		meshdesc;       // offset into extradata: numverts_vbo aliasmesh_t
+	int			numindexes;
+	intptr_t		indexes;        // offset into extradata: numindexes unsigned shorts
+	intptr_t		vertexes;       // offset into extradata: numposes*vertsperframe trivertx_t
+	//ericw --
 
 	int					numposes;
 	int					poseverts;
@@ -481,10 +481,9 @@ typedef struct qmodel_s
 // alias model
 //
 
-// only vbos use these
-	int			vboindexofs;
-	int			vboxyzofs;
-	int			vbostofs;
+	int			vboindexofs;    // offset in vbo of the hdr->numindexes unsigned shorts
+	int			vboxyzofs;      // offset in vbo of hdr->numposes*hdr->numverts_vbo meshxyz_t
+	int			vbostofs;       // offset in vbo of hdr->numverts_vbo meshst_t
 
 //
 // additional model data
