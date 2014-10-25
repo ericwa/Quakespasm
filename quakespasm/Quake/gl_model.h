@@ -293,7 +293,7 @@ typedef struct aliasmesh_s
 typedef struct meshvert_t
 {
 	float xyz[3];
-	float color[4];
+	unsigned char color[4];
 	float st[2];
 } meshvert_t;
 

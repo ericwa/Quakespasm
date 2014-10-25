@@ -97,10 +97,10 @@ void fillverts(unsigned short *indices, meshvert_t *verts, aliashdr_t *hdr, floa
 
 		float brightness = shadedots[trivert1.lightnormalindex]*iblend + shadedots[trivert2.lightnormalindex]*blend;
 		
-		verts[v].color[0] = brightness * lightcolor[0];
-		verts[v].color[1] = brightness * lightcolor[1];
-		verts[v].color[2] = brightness * lightcolor[2];
-		verts[v].color[3] = entalpha;
+		verts[v].color[0] = 255 * (brightness * lightcolor[0]);
+		verts[v].color[1] = 255 * (brightness * lightcolor[1]);
+		verts[v].color[2] = 255 * (brightness * lightcolor[2]);
+		verts[v].color[3] = 255 * (entalpha);
 		
 		verts[v].st[0] = hscale * ((float) desc[v].st[0] + 0.5f) / (float) hdr->skinwidth;
 		verts[v].st[1] = vscale * ((float) desc[v].st[1] + 0.5f) / (float) hdr->skinheight;
@@ -135,7 +135,7 @@ void GLAlias_ArrayDraw (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	glVertexPointer(3, GL_FLOAT, sizeof(meshvert_t), &(verts[0].xyz));
 	glEnableClientState(GL_VERTEX_ARRAY);
 	
-	glColorPointer(4, GL_FLOAT, sizeof(meshvert_t), &(verts[0].color));
+	glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(meshvert_t), &(verts[0].color));
 	glEnableClientState(GL_COLOR_ARRAY);
 	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
