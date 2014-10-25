@@ -290,16 +290,13 @@ typedef struct aliasmesh_s
 	unsigned short vertindex;
 } aliasmesh_t;
 
-typedef struct meshxyz_s
+typedef struct meshvert_t
 {
 	float xyz[3];
-	float normal[3];
-} meshxyz_t;
-
-typedef struct meshst_s
-{
+	float color[4];
 	float st[2];
-} meshst_t;
+} meshvert_t;
+
 //--
 
 typedef struct

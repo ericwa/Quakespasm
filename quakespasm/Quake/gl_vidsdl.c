@@ -678,7 +678,6 @@ static void VID_Restart (void)
 	GL_Init ();
 	TexMgr_ReloadImages ();
 	GL_BuildVBOs ();
-	GLMesh_LoadVertexBuffers ();
 	GL_SetupState ();
 
 	//warpimages needs to be recalculated
@@ -1139,9 +1138,6 @@ static void GL_Init (void)
 		Cbuf_AddText ("gl_clear 1");
 	}
 	//johnfitz
-
-	R_DeleteShaders ();
-	GLAlias_CreateShaders ();
 }
 
 /*
