@@ -81,18 +81,20 @@ static GLint pose2NormalAttrIndex;
 extern GLuint r_meshvbo;
 extern GLuint r_meshindexesvbo;
 
+extern char *r_meshdata;
+
 void *GLARB_GetXYZOffset (aliashdr_t *hdr, int pose)
 {
 	meshxyz_t dummy;
 	int xyzoffs = ((char*)&dummy.xyz - (char*)&dummy);
-	return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
+	return (void *) (r_meshdata + currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
 }
 
 void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 {
 	meshxyz_t dummy;
 	int normaloffs = ((char*)&dummy.normal - (char*)&dummy);
-	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
+	return (void *)(r_meshdata + currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
 }
 
 qboolean GLAlias_SupportsShaders (void)
@@ -197,20 +199,17 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	{
 		blend = 0;
 	}
+	
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, 0);
+	
 
-	GL_UseProgramFunc (r_alias_vertex_program);
-
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
-
-	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
-	GL_EnableVertexAttribArrayFunc (pose1VertexAttrIndex);
-
-	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
-	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
-
+	glVertexPointer(3, GL_FLOAT, sizeof(meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
+	glNormalPointer(GL_FLOAT, sizeof(meshxyz_t), GLARB_GetNormalOffset(paliashdr, lerpdata.pose1));
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_NORMAL_ARRAY);
+	
 	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
+	glTexCoordPointer (2, GL_FLOAT, 0, r_meshdata + currententity->model->vbostofs);
 	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
 
 	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
@@ -218,39 +217,65 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
 	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-// GL_TRUE to normalize the signed bytes to [-1 .. 1]
-	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
-	GL_EnableVertexAttribArrayFunc (pose1NormalAttrIndex);
-
-	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
-	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
-
-// set uniforms
-	GL_Uniform1fFunc (blendLoc, blend);
-	GL_Uniform3fFunc (shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
-	GL_Uniform4fFunc (lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+	
+//
+//
+//	GL_UseProgramFunc (r_alias_vertex_program);
+//
+//	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
+//	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
+//
+//	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), );
+//	GL_EnableVertexAttribArrayFunc (pose1VertexAttrIndex);
+//
+//	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
+//	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
+//
+//	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+//	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
+//	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+//
+//	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+//	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+//
+//	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+//	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+//
+//// GL_TRUE to normalize the signed bytes to [-1 .. 1]
+//	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+//	GL_EnableVertexAttribArrayFunc (pose1NormalAttrIndex);
+//
+//	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 3, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+//	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
+//
+//// set uniforms
+//	GL_Uniform1fFunc (blendLoc, blend);
+//	GL_Uniform3fFunc (shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
+//	GL_Uniform4fFunc (lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
 
 // draw
-	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
+	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, ((char*)paliashdr) + paliashdr->indexes);
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_NORMAL_ARRAY);
 
 // clean up
-	GL_DisableVertexAttribArrayFunc (pose1VertexAttrIndex);
-	GL_DisableVertexAttribArrayFunc (pose2VertexAttrIndex);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_DisableVertexAttribArrayFunc (pose1NormalAttrIndex);
-	GL_DisableVertexAttribArrayFunc (pose2NormalAttrIndex);
-
-	GL_UseProgramFunc (0);
+//	GL_DisableVertexAttribArrayFunc (pose1VertexAttrIndex);
+//	GL_DisableVertexAttribArrayFunc (pose2VertexAttrIndex);
+//
+//	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+//	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+//
+//	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+//	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+//
+//	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+//	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+//
+//	GL_DisableVertexAttribArrayFunc (pose1NormalAttrIndex);
+//	GL_DisableVertexAttribArrayFunc (pose2NormalAttrIndex);
+//
+//	GL_UseProgramFunc (0);
 
 	rs_aliaspasses += paliashdr->numtris;
 }

@@ -444,6 +444,8 @@ extern	float	r_avertexnormals[NUMVERTEXNORMALS][3];
 GLuint r_meshvbo = 0;
 GLuint r_meshindexesvbo = 0;
 
+char *r_meshdata;
+
 /*
 ================
 GLMesh_LoadVertexBuffers
@@ -491,15 +493,11 @@ void GLMesh_LoadVertexBuffers (void)
 	if (!totalvbosize) return;
 
 	// pass 2 - create the buffers
-	GL_DeleteBuffersFunc (1, &r_meshindexesvbo);
-	GL_GenBuffersFunc (1, &r_meshindexesvbo);
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
-	GL_BufferDataFunc (GL_ELEMENT_ARRAY_BUFFER, totalindexes * sizeof (unsigned short), NULL, GL_STATIC_DRAW);
+	
+	if (r_meshdata != NULL)
+		free(r_meshdata);
 
-	GL_DeleteBuffersFunc (1, &r_meshvbo);
-	GL_GenBuffersFunc (1, &r_meshvbo);
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
-	GL_BufferDataFunc (GL_ARRAY_BUFFER, totalvbosize, NULL, GL_STATIC_DRAW);
+	r_meshdata = malloc(totalvbosize);
 
 	// pass 3 - fill in the buffers
 	for (j = 1; j < MAX_MODELS; j++)
@@ -521,11 +519,6 @@ void GLMesh_LoadVertexBuffers (void)
 		vscale = (float)hdr->skinheight/(float)TexMgr_PadConditional(hdr->skinheight);
 		//johnfitz
 
-		GL_BufferSubDataFunc (GL_ELEMENT_ARRAY_BUFFER,
-			m->vboindexofs,
-			hdr->numindexes * sizeof (unsigned short),
-			((byte *) hdr + hdr->indexes));
-
 		for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 		{
 			int v;
@@ -539,21 +532,20 @@ void GLMesh_LoadVertexBuffers (void)
 				xyz[v].xyz[0] = trivert.v[0];
 				xyz[v].xyz[1] = trivert.v[1];
 				xyz[v].xyz[2] = trivert.v[2];
-				xyz[v].xyz[3] = 1;	// need w 1 for 4 byte vertex compression
+				//xyz[v].xyz[3] = 1;	// need w 1 for 4 byte vertex compression
 
 				// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
 				// this introduces some error (less than 0.004), but the normals were very coarse
 				// to begin with
-				xyz[v].normal[0] = 127 * r_avertexnormals[trivert.lightnormalindex][0];
-				xyz[v].normal[1] = 127 * r_avertexnormals[trivert.lightnormalindex][1];
-				xyz[v].normal[2] = 127 * r_avertexnormals[trivert.lightnormalindex][2];
-				xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
+				xyz[v].normal[0] = /*127 **/ r_avertexnormals[trivert.lightnormalindex][0];
+				xyz[v].normal[1] = /*127 **/ r_avertexnormals[trivert.lightnormalindex][1];
+				xyz[v].normal[2] = /*127 **/ r_avertexnormals[trivert.lightnormalindex][2];
+				//xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
 			}
 
-			GL_BufferSubDataFunc (GL_ARRAY_BUFFER,
-				m->vboxyzofs + (f * hdr->numverts_vbo * sizeof (meshxyz_t)),
-				hdr->numverts_vbo * sizeof (meshxyz_t),
-				xyz);
+			memcpy (r_meshdata + m->vboxyzofs + (f * hdr->numverts_vbo * sizeof (meshxyz_t)),
+				xyz,
+				hdr->numverts_vbo * sizeof (meshxyz_t));
 
 			free (xyz);
 		}
@@ -566,14 +558,10 @@ void GLMesh_LoadVertexBuffers (void)
 			st[f].st[1] = vscale * ((float) desc[f].st[1] + 0.5f) / (float) hdr->skinheight;
 		}
 
-		GL_BufferSubDataFunc (GL_ARRAY_BUFFER,
-			m->vbostofs,
-			hdr->numverts_vbo * sizeof (meshst_t),
-			st);
+		memcpy (r_meshdata + m->vbostofs,
+			st,
+			hdr->numverts_vbo * sizeof (meshst_t));
 
 		free (st);
 	}
-
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0);
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, 0);
 }
