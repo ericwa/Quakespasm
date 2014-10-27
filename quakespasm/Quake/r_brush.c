@@ -959,7 +959,11 @@ void GL_BuildLightmaps (void)
 =============================================================
 */
 
-static GLuint gl_bmodel_vbo = 0;
+#define MAX_BMODEL_VBOS 32
+static GLuint gl_bmodel_vbos[MAX_BMODEL_VBOS];
+
+/* 1.7MB */
+#define VBO_SIZE (65536 * VERTEXSIZE * sizeof(float))
 
 /*
 ==================
@@ -971,36 +975,23 @@ surfaces from world + all brush models
 */
 void GL_BuildVBOs (void)
 {
-	unsigned int	numverts, varray_bytes, varray_index;
+	unsigned int	varray_index, varray_bytes, current_vbo_index;
 	int		i, j;
 	qmodel_t	*m;
-	float		*varray;
+	unsigned char	*varray;
 
 	if (!(gl_vbo_able && gl_mtexable && gl_max_texture_units >= 3))
 		return;
 
 // ask GL for a name for our VBO
-	GL_DeleteBuffersFunc (1, &gl_bmodel_vbo);
-	GL_GenBuffersFunc (1, &gl_bmodel_vbo);
-	
-// count all verts in all models
-	numverts = 0;
-	for (j=1 ; j<MAX_MODELS ; j++)
-	{
-		m = cl.model_precache[j];
-		if (!m || m->name[0] == '*' || m->type != mod_brush)
-			continue;
+	GL_DeleteBuffersFunc (MAX_BMODEL_VBOS, gl_bmodel_vbos);
+	GL_GenBuffersFunc (MAX_BMODEL_VBOS, gl_bmodel_vbos);
 
-		for (i=0 ; i<m->numsurfaces ; i++)
-		{
-			numverts += m->surfaces[i].numedges;
-		}
-	}
-	
-// build vertex array
-	varray_bytes = VERTEXSIZE * sizeof(float) * numverts;
-	varray = (float *) malloc (varray_bytes);
+	// build vertex array
+	varray = (unsigned char *) malloc (VBO_SIZE);
+	varray_bytes = 0;
 	varray_index = 0;
+	current_vbo_index = 0;
 	
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
@@ -1008,36 +999,54 @@ void GL_BuildVBOs (void)
 		if (!m || m->name[0] == '*' || m->type != mod_brush)
 			continue;
 
+	// sort by texture
+		R_ClearTextureChains(m, chain_world);
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
-			msurface_t *s = &m->surfaces[i];
-			s->vbo_firstvert = varray_index;
-			memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
-			varray_index += s->numedges;
+			R_ChainSurface(&m->surfaces[i], chain_world);
+		}
+
+	// add the sorted surfaces
+		for (i=0 ; i<m->numtextures ; i++)
+		{
+			texture_t	*t;
+			msurface_t	*s;
+
+			t = m->textures[i];
+			if (!t) continue;
+			for (s = t->texturechains[chain_world]; s; s = s->texturechain)
+			{
+				const int surf_bytes = VERTEXSIZE * sizeof(float) * s->numedges;
+				
+				if (varray_bytes + surf_bytes > VBO_SIZE)
+				{
+				// start a new vbo
+					GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbos[current_vbo_index]);
+					GL_BufferDataFunc (GL_ARRAY_BUFFER, varray_bytes, varray, GL_STATIC_DRAW);
+					current_vbo_index++;
+					varray_bytes = 0;
+					varray_index = 0;
+					
+					// fixme: check for out of vbo's
+				}
+				
+				s->vbo = gl_bmodel_vbos[current_vbo_index];
+				s->vbo_firstvert = varray_index; // todo: rewrite so it's clear this will fit in unsigned short?
+				memcpy (varray + varray_bytes, s->polys->verts, surf_bytes);
+
+				varray_bytes += surf_bytes;
+				varray_index += s->numedges;
+			}
 		}
 	}
 
-// upload to GPU
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbo);
+// upload last VBO
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbos[current_vbo_index]);
 	GL_BufferDataFunc (GL_ARRAY_BUFFER, varray_bytes, varray, GL_STATIC_DRAW);
+
+// clean up
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, 0);
 	free (varray);
-
-// setup vertex array. this will need to move if we use vertex arrays for other things
-	glVertexPointer (3, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0));
-	glEnableClientState (GL_VERTEX_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
-	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
-	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 5);
-	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-		
-// TMU 2 is for fullbrights; same texture coordinates as TMU 0
-	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
-	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
-	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
 }
 
 /*

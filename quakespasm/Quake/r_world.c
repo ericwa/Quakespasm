@@ -441,7 +441,7 @@ Writes out the triangle indices needed to draw s as a triangle list.
 The number of indices it will write is given by R_NumTriangleIndicesForSurf.
 ================
 */
-static void R_TriangleIndicesForSurf (msurface_t *s, unsigned int *dest)
+static void R_TriangleIndicesForSurf (msurface_t *s, unsigned short *dest)
 {
 	int i;
 	for (i=2; i<s->numedges; i++)
@@ -454,8 +454,9 @@ static void R_TriangleIndicesForSurf (msurface_t *s, unsigned int *dest)
 
 #define MAX_BATCH_SIZE 4096
 
-static unsigned int vbo_indices[MAX_BATCH_SIZE];
+static unsigned short vbo_indices[MAX_BATCH_SIZE];
 static unsigned int num_vbo_indices;
+static GLuint bound_vbo;
 
 /*
 ================
@@ -478,10 +479,12 @@ static void R_FlushBatch ()
 {
 	if (num_vbo_indices > 0)
 	{
-		glDrawElements (GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_INT, vbo_indices);
+		glDrawElements (GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_SHORT, vbo_indices);
 		num_vbo_indices = 0;
 	}
 }
+
+static int bufferbindings = 0;
 
 /*
 ================
@@ -494,6 +497,32 @@ using VBOs.
 static void R_BatchSurface (msurface_t *s)
 {
 	int num_surf_indices;
+
+	if (s->vbo != bound_vbo)
+	{
+		R_FlushBatch();
+	
+		bufferbindings ++;
+		GL_BindBufferFunc(GL_ARRAY_BUFFER, s->vbo);
+		bound_vbo = s->vbo;
+		
+	// setup vertex array. this will need to move if we use vertex arrays for other things
+		glVertexPointer (3, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0));
+		glEnableClientState (GL_VERTEX_ARRAY);
+
+		GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+
+		GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 5);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+			
+	// TMU 2 is for fullbrights; same texture coordinates as TMU 0
+		GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+		glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
+		glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	}
 
 	num_surf_indices = R_NumTriangleIndicesForSurf (s);
 	
@@ -796,6 +825,11 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	int		lastlightmap;
 	gltexture_t	*fullbright = NULL;
 	
+// ensure we bind to a vbo for the first surface
+	bound_vbo = 0;
+	
+	bufferbindings = 0;
+	
 // Setup TMU 1 (lightmap)
 	GL_SelectTexture (GL_TEXTURE1_ARB);
 	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
@@ -861,6 +895,7 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			glDisable (GL_ALPHA_TEST); // Flip alpha test back off
 	}
+	
 	
 // Reset TMU states
 	GL_SelectTexture (GL_TEXTURE2_ARB);

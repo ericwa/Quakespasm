@@ -157,7 +157,8 @@ typedef struct msurface_s
 
 	mtexinfo_t	*texinfo;
 
-	int		vbo_firstvert;		// index of this surface's first vert in the VBO
+	GLuint		vbo;
+	unsigned short	vbo_firstvert;		// index of this surface's first vert in the VBO
 
 // lighting info
 	int			dlightframe;
