@@ -1008,12 +1008,28 @@ void GL_BuildVBOs (void)
 		if (!m || m->name[0] == '*' || m->type != mod_brush)
 			continue;
 
-		for (i=0 ; i<m->numsurfaces ; i++)
-		{
-			msurface_t *s = &m->surfaces[i];
-			s->vbo_firstvert = varray_index;
-			memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
-			varray_index += s->numedges;
+	// sort by texture (don't clear chain_world because that needs to persist between pvs updates
+	// and we could be doing a video mode switch)
+		R_ClearTextureChains(m, chain_model);
+ 		for (i=0 ; i<m->numsurfaces ; i++)
+ 		{
+			R_ChainSurface(&m->surfaces[i], chain_model);
+ 		}
+
+	// add the sorted surfaces
+		for (i=0 ; i<m->numtextures ; i++)
+ 		{
+			texture_t	*t;
+			msurface_t	*s;
+
+			t = m->textures[i];
+			if (!t) continue;
+			for (s = t->texturechains[chain_model]; s; s = s->texturechain)
+			{
+				s->vbo_firstvert = varray_index;
+				memcpy (&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
+				varray_index += s->numedges;
+			}
 		}
 	}
 
