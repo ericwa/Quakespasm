@@ -73,6 +73,7 @@ static GLuint blendLoc;
 static GLuint shadevectorLoc;
 static GLuint lightColorLoc;
 
+static GLint texCoordsAttrIndex;
 static GLint pose1VertexAttrIndex;
 static GLint pose1NormalAttrIndex;
 static GLint pose2VertexAttrIndex;
@@ -125,6 +126,7 @@ void GLAlias_CreateShaders (void)
 		"uniform float Blend;\n"
 		"uniform vec3 ShadeVector;\n"
 		"uniform vec4 LightColor;\n"
+		"attribute vec4 TexCoords; // only xy are used \n"
 		"attribute vec4 Pose1Vert;\n"
 		"attribute vec3 Pose1Normal;\n"
 		"attribute vec4 Pose2Vert;\n"
@@ -140,8 +142,8 @@ void GLAlias_CreateShaders (void)
 		"}\n"
 		"void main()\n"
 		"{\n"
-		"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
-		"	gl_TexCoord[1]  = gl_MultiTexCoord0;\n"
+		"	gl_TexCoord[0] = TexCoords;\n"
+		"	gl_TexCoord[1] = TexCoords;\n"
 		"	vec4 lerpedVert = mix(Pose1Vert, Pose2Vert, Blend);\n"
 		"	gl_Position = gl_ModelViewProjectionMatrix * lerpedVert;\n"
 		"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
@@ -165,6 +167,8 @@ void GLAlias_CreateShaders (void)
 		lightColorLoc = GLAlias_GetUniformLocation ("LightColor");
 
 	// get attributes
+		texCoordsAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "TexCoords");
+
 		pose1VertexAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "Pose1Vert");
 		pose1NormalAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "Pose1Normal");
 
@@ -203,21 +207,14 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
 
+	GL_VertexAttribPointerFunc (texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, 0, (void *)(intptr_t)currententity->model->vbostofs);
+	GL_EnableVertexAttribArrayFunc (texCoordsAttrIndex);
+
 	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
 	GL_EnableVertexAttribArrayFunc (pose1VertexAttrIndex);
 
 	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
 	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glTexCoordPointer (2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
-	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 
 // GL_TRUE to normalize the signed bytes to [-1 .. 1]
 	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
@@ -235,18 +232,9 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
 // clean up
+	GL_DisableVertexAttribArrayFunc (texCoordsAttrIndex);
 	GL_DisableVertexAttribArrayFunc (pose1VertexAttrIndex);
 	GL_DisableVertexAttribArrayFunc (pose2VertexAttrIndex);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
-	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
-	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
-
 	GL_DisableVertexAttribArrayFunc (pose1NormalAttrIndex);
 	GL_DisableVertexAttribArrayFunc (pose2NormalAttrIndex);
 

@@ -897,7 +897,17 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	GL_SelectTexture (GL_TEXTURE0_ARB);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
+// Disable client state
 	glDisableClientState (GL_VERTEX_ARRAY);
+
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+
+	GL_ClientActiveTextureFunc (GL_TEXTURE1_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+
+	GL_ClientActiveTextureFunc (GL_TEXTURE2_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
 }
 
 /*
