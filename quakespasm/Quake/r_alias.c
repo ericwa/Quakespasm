@@ -204,8 +204,8 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 
 	GL_UseProgramFunc (r_alias_vertex_program);
 
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, r_meshvbo);
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
+	GL_BindBuffer (GL_ARRAY_BUFFER, r_meshvbo);
+	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
 
 	GL_VertexAttribPointerFunc (texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, 0, (void *)(intptr_t)currententity->model->vbostofs);
 	GL_EnableVertexAttribArrayFunc (texCoordsAttrIndex);

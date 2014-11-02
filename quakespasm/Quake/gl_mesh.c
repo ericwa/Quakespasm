@@ -574,6 +574,6 @@ void GLMesh_LoadVertexBuffers (void)
 		free (st);
 	}
 
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0);
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, 0);
+// invalidate the cached bindings
+	GL_ClearBufferBindings ();
 }

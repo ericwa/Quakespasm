@@ -1142,6 +1142,7 @@ static void GL_Init (void)
 
 	R_DeleteShaders ();
 	GLAlias_CreateShaders ();
+	GL_ClearBufferBindings ();	
 }
 
 /*

@@ -799,8 +799,8 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	gltexture_t	*fullbright = NULL;
 	
 // Bind the buffers
-	GL_BindBufferFunc (GL_ARRAY_BUFFER, gl_bmodel_vbo);
-	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0); // indices come from client memory!
+	GL_BindBuffer (GL_ARRAY_BUFFER, gl_bmodel_vbo);
+	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, 0); // indices come from client memory!
 
 // Setup vertex array pointers
 	glVertexPointer (3, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0));

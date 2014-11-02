@@ -409,3 +409,57 @@ void R_DeleteShaders (void)
 	}
 	gl_num_programs = 0;
 }
+GLuint current_array_buffer, current_element_array_buffer;
+
+/*
+====================
+GL_BindBuffer
+
+glBindBuffer wrapper
+====================
+*/
+void GL_BindBuffer (GLenum target, GLuint buffer)
+{
+	GLuint *cache;
+
+	if (!gl_vbo_able)
+		return;
+	
+	switch (target)
+	{
+		case GL_ARRAY_BUFFER:
+			cache = &current_array_buffer;
+			break;
+		case GL_ELEMENT_ARRAY_BUFFER:
+			cache = &current_element_array_buffer;
+			break;
+		default:
+			Host_Error("GL_BindBuffer: unsupported target %d", (int)target);
+			return;
+	}
+	
+	if (*cache != buffer)
+	{
+		*cache = buffer;
+		GL_BindBufferFunc (target, *cache);
+	}
+}
+
+/*
+====================
+GL_ClearBufferBindings
+
+This must be called if you do anything that could make the cached bindings
+invalid (e.g. manually binding, destroying the context).
+====================
+*/
+void GL_ClearBufferBindings ()
+{
+	if (!gl_vbo_able)
+		return;
+
+	current_array_buffer = 0;
+	current_element_array_buffer = 0;
+	GL_BindBufferFunc (GL_ARRAY_BUFFER, 0);
+	GL_BindBufferFunc (GL_ELEMENT_ARRAY_BUFFER, 0);
+}

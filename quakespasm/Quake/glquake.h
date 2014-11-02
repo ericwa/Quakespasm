@@ -366,5 +366,7 @@ void R_ChainSurface (msurface_t *surf, texchain_t chain);
 void R_DrawTextureChains (qmodel_t *model, entity_t *ent, texchain_t chain);
 void R_DrawWorld_Water (void);
 
+void GL_BindBuffer (GLenum target, GLuint buffer);
+void GL_ClearBufferBindings ();
 #endif	/* __GLQUAKE_H */
 
