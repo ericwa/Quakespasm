@@ -896,6 +896,8 @@ void R_DrawTextureChains_Multitexture_VBO (qmodel_t *model, entity_t *ent, texch
 	
 	GL_SelectTexture (GL_TEXTURE0_ARB);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+	glDisableClientState (GL_VERTEX_ARRAY);
 }
 
 /*
