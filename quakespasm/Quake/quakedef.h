@@ -46,11 +46,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "q_stdinc.h"
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
-#define CACHE_SIZE	32		// used to align key data structures
+#define CACHE_SIZE	32	// used to align key data structures
 
-#define UNUSED(x)	(x = x)	// for pesky compiler / lint warnings
+#define Q_UNUSED(x)	(x = x)	// for pesky compiler / lint warnings
 
-#define	MINIMUM_MEMORY		0x550000
+#define	MINIMUM_MEMORY	0x550000
 #define	MINIMUM_MEMORY_LEVELPAK	(MINIMUM_MEMORY + 0x100000)
 
 #define MAX_NUM_ARGVS	50
@@ -223,6 +223,9 @@ typedef struct
 #else
 #include "SDL.h"
 #include "SDL_opengl.h"
+#endif
+#ifndef APIENTRY
+#define	APIENTRY
 #endif
 
 #include "console.h"
