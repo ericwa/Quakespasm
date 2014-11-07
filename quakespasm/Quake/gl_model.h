@@ -293,7 +293,6 @@ typedef struct aliasmesh_s
 typedef struct meshxyz_s
 {
 	float xyz[3];
-	float normal[3];
 } meshxyz_t;
 
 typedef struct meshst_s

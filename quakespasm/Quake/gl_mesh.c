@@ -544,9 +544,9 @@ void GLMesh_LoadVertexBuffers (void)
 				// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
 				// this introduces some error (less than 0.004), but the normals were very coarse
 				// to begin with
-				xyz[v].normal[0] = r_avertexnormals[trivert.lightnormalindex][0];
-				xyz[v].normal[1] = r_avertexnormals[trivert.lightnormalindex][1];
-				xyz[v].normal[2] = r_avertexnormals[trivert.lightnormalindex][2];
+//				xyz[v].normal[0] = r_avertexnormals[trivert.lightnormalindex][0];
+//				xyz[v].normal[1] = r_avertexnormals[trivert.lightnormalindex][1];
+//				xyz[v].normal[2] = r_avertexnormals[trivert.lightnormalindex][2];
 				//xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
 			}
 

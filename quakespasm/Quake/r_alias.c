@@ -69,15 +69,8 @@ typedef struct {
 
 GLuint r_alias_vertex_program;
 
-static GLuint blendLoc;
-static GLuint shadevectorLoc;
-static GLuint lightColorLoc;
-
 static GLint texCoordsAttrIndex;
 static GLint pose1VertexAttrIndex;
-static GLint pose1NormalAttrIndex;
-static GLint pose2VertexAttrIndex;
-static GLint pose2NormalAttrIndex;
 
 extern GLuint r_meshvbo;
 extern GLuint r_meshindexesvbo;
@@ -89,28 +82,9 @@ void *GLARB_GetXYZOffset (aliashdr_t *hdr, int pose)
 	return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
 }
 
-void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
-{
-	meshxyz_t dummy;
-	int normaloffs = ((char*)&dummy.normal - (char*)&dummy);
-	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
-}
-
 qboolean GLAlias_SupportsShaders (void)
 {
 	return gl_glsl_able && gl_vbo_able && gl_max_texture_units >= 3;
-}
-
-static GLint GLAlias_GetUniformLocation (const char *name)
-{
-	GLint location;
-	location = GL_GetUniformLocationFunc(r_alias_vertex_program, name);
-	if (location == -1)
-	{
-		Con_Warning("GL_GetUniformLocationFunc %s failed", name);
-		r_alias_vertex_program = 0;
-	}
-	return location;
 }
 
 /*
@@ -123,35 +97,14 @@ void GLAlias_CreateShaders (void)
 	const GLchar *source = \
 		"#version 110\n"
 		"\n"
-		"uniform float Blend;\n"
-		"uniform vec3 ShadeVector;\n"
-		"uniform vec4 LightColor;\n"
 		"attribute vec4 TexCoords; // only xy are used \n"
 		"attribute vec4 Pose1Vert;\n"
-		"attribute vec3 Pose1Normal;\n"
-		"attribute vec4 Pose2Vert;\n"
-		"attribute vec3 Pose2Normal;\n"
-		"float r_avertexnormal_dot(vec3 vertexnormal) // from MH \n"
-		"{\n"
-		"        float dot = dot(vertexnormal, ShadeVector);\n"
-		"        // wtf - this reproduces anorm_dots within as reasonable a degree of tolerance as the >= 0 case\n"
-		"        if (dot < 0.0)\n"
-		"            return 1.0 + dot * (13.0 / 44.0);\n"
-		"        else\n"
-		"            return 1.0 + dot;\n"
-		"}\n"
 		"void main()\n"
 		"{\n"
 		"	gl_TexCoord[0] = TexCoords;\n"
 		"	gl_TexCoord[1] = TexCoords;\n"
-		"	vec4 lerpedVert = mix(Pose1Vert, Pose2Vert, Blend);\n"
-		"	gl_Position = gl_ModelViewProjectionMatrix * lerpedVert;\n"
-		"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
-		"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
-		"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
-		"	// fog\n"
-		"	vec3 ecPosition = vec3(gl_ModelViewMatrix * lerpedVert);\n"
-		"	gl_FogFragCoord = abs(ecPosition.z);\n"
+		"	gl_Position = gl_ModelViewProjectionMatrix * Pose1Vert;\n"
+		"	gl_FrontColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
 		"}\n";
 
 	if (!GLAlias_SupportsShaders())
@@ -161,19 +114,10 @@ void GLAlias_CreateShaders (void)
 
 	if (r_alias_vertex_program != 0)
 	{
-	// get uniform locations
-		blendLoc = GLAlias_GetUniformLocation ("Blend");
-		shadevectorLoc = GLAlias_GetUniformLocation ("ShadeVector");
-		lightColorLoc = GLAlias_GetUniformLocation ("LightColor");
-
 	// get attributes
 		texCoordsAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "TexCoords");
 
 		pose1VertexAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "Pose1Vert");
-		pose1NormalAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "Pose1Normal");
-
-		pose2VertexAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "Pose2Vert");
-		pose2NormalAttrIndex = GL_GetAttribLocationFunc (r_alias_vertex_program, "Pose2Normal");
 	}
 }
 
@@ -211,30 +155,12 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
 	GL_EnableVertexAttribArrayFunc (pose1VertexAttrIndex);
 
-	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
-	GL_EnableVertexAttribArrayFunc (pose2VertexAttrIndex);
-
-// GL_TRUE to normalize the signed bytes to [-1 .. 1]
-	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
-	GL_EnableVertexAttribArrayFunc (pose1NormalAttrIndex);
-
-	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
-	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
-
-// set uniforms
-	GL_Uniform1fFunc (blendLoc, blend);
-	GL_Uniform3fFunc (shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
-	GL_Uniform4fFunc (lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
-
 // draw
 	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
 
 // clean up
 	GL_DisableVertexAttribArrayFunc (texCoordsAttrIndex);
 	GL_DisableVertexAttribArrayFunc (pose1VertexAttrIndex);
-	GL_DisableVertexAttribArrayFunc (pose2VertexAttrIndex);
-	GL_DisableVertexAttribArrayFunc (pose1NormalAttrIndex);
-	GL_DisableVertexAttribArrayFunc (pose2NormalAttrIndex);
 
 	rs_aliaspasses += paliashdr->numtris;
 }
