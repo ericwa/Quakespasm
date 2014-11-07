@@ -565,7 +565,11 @@ void R_DrawAliasModel (entity_t *e)
 	}
 	if (!gl_fullbrights.value)
 		fb = NULL;
-
+	
+	GL_Bind (tx);
+	GL_DrawAliasFrame_GLSL (paliashdr, lerpdata);
+	
+#if 0
 	//
 	// draw it
 	//
@@ -733,6 +737,7 @@ void R_DrawAliasModel (entity_t *e)
 			}
 		}
 	}
+#endif
 
 cleanup:
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
