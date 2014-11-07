@@ -96,7 +96,6 @@ void GLAlias_CreateShaders (void)
 		"void main()\n"
 		"{\n"
 		"	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
-		"	gl_TexCoord[1] = gl_MultiTexCoord0;\n"
 		"	gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\n"
 		"	gl_FrontColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
 		"}\n";
