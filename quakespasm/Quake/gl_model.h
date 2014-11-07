@@ -292,8 +292,8 @@ typedef struct aliasmesh_s
 
 typedef struct meshxyz_s
 {
-	byte xyz[4];
-	signed char normal[4];
+	float xyz[3];
+	float normal[3];
 } meshxyz_t;
 
 typedef struct meshst_s
