@@ -135,7 +135,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_BindBuffer (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
 
-	glClientActiveTexture (GL_TEXTURE0_ARB);
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
 	glTexCoordPointer(2, GL_FLOAT, 0, (void *)(intptr_t)currententity->model->vbostofs);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	
