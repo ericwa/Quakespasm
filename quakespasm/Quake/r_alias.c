@@ -67,7 +67,7 @@ typedef struct {
 } lerpdata_t;
 //johnfitz
 
-static GLuint r_alias_vertex_program;
+GLuint r_alias_vertex_program;
 
 static GLuint blendLoc;
 static GLuint shadevectorLoc;
@@ -202,8 +202,6 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 		blend = 0;
 	}
 
-	GL_UseProgramFunc (r_alias_vertex_program);
-
 	GL_BindBuffer (GL_ARRAY_BUFFER, r_meshvbo);
 	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, r_meshindexesvbo);
 
@@ -237,8 +235,6 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	GL_DisableVertexAttribArrayFunc (pose2VertexAttrIndex);
 	GL_DisableVertexAttribArrayFunc (pose1NormalAttrIndex);
 	GL_DisableVertexAttribArrayFunc (pose2NormalAttrIndex);
-
-	GL_UseProgramFunc (0);
 
 	rs_aliaspasses += paliashdr->numtris;
 }

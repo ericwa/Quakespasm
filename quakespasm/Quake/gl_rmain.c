@@ -454,8 +454,18 @@ void R_SetupView (void)
 
 static int R_EntitySortFunc(const void *a, const void *b)
 {
-	return (*(entity_t **)a)->model - (*(entity_t **)b)->model;
+	entity_t *enta = *(entity_t **)a;
+	entity_t *entb = *(entity_t **)b;
+
+	if (enta->model->type != entb->model->type)
+	{
+		return (int)enta->model->type - (int)entb->model->type;
+	}
+	
+	return enta->model - entb->model;
 }
+
+extern GLuint r_alias_vertex_program;
 
 /*
 =============
@@ -466,7 +476,8 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 {
 	entity_t	*entities_sorted[MAX_VISEDICTS];
 	int		i;
-
+	qboolean	drawing_alias = false;
+	
 	if (!r_drawentities.value)
 		return;
 
@@ -491,6 +502,17 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 			currententity->angles[0] *= 0.3;
 		//johnfitz
 
+		if (!drawing_alias && currententity->model->type == mod_alias)
+		{
+			GL_UseProgramFunc (r_alias_vertex_program);
+			drawing_alias = true;
+		}
+		else if (drawing_alias && currententity->model->type != mod_alias)
+		{
+			GL_UseProgramFunc (0);
+			drawing_alias = false;
+		}
+		
 		switch (currententity->model->type)
 		{
 			case mod_alias:
@@ -504,6 +526,9 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 				break;
 		}
 	}
+	
+	if (drawing_alias)
+		GL_UseProgramFunc (0);
 }
 
 /*
@@ -530,7 +555,9 @@ void R_DrawViewModel (void)
 
 	// hack the depth range to prevent view model from poking into walls
 	glDepthRange (0, 0.3);
+	GL_UseProgramFunc (r_alias_vertex_program);
 	R_DrawAliasModel (currententity);
+	GL_UseProgramFunc (0);
 	glDepthRange (0, 1);
 }
 
