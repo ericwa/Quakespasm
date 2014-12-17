@@ -1055,13 +1055,18 @@ void Host_Loadgame_f (void)
 	entnum = -1;		// -1 is the globals
 	while (!feof(f))
 	{
+		qboolean inside_string = false;
 		for (i = 0; i < (int) sizeof(str) - 1; i++)
 		{
 			r = fgetc (f);
 			if (r == EOF || !r)
 				break;
 			str[i] = r;
-			if (r == '}')
+			if (r == '"')
+			{
+				inside_string = !inside_string;
+			}
+			else if (r == '}' && !inside_string) // only handle } characters outside of quoted strings
 			{
 				i++;
 				break;
@@ -1403,6 +1408,13 @@ Host_Pause_f
 */
 void Host_Pause_f (void)
 {
+//ericw -- demo pause support (inspired by MarkV)
+	if (cls.demoplayback && cls.demonum == -1) // Don't allow startdemos to be paused
+	{
+		cls.demopaused = !cls.demopaused;
+		cl.paused = cls.demopaused;
+		return;
+	}
 
 	if (cmd_source == src_command)
 	{
@@ -2081,6 +2093,7 @@ void Host_Startdemos_f (void)
 		if (!fitzmode)
 		{  /* QuakeSpasm customization: */
 			/* go straight to menu, no CL_NextDemo */
+			cls.demonum = -1;
 			Cbuf_InsertText("menu_main\n");
 			return;
 		}
