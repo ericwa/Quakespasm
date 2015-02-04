@@ -143,6 +143,8 @@ QS_PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
 QS_PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
 QS_PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
 
+PFNGLDEBUGMESSAGECALLBACKARBPROC  glDebugMessageCallbackARB = NULL; //ericw
+
 //====================================
 
 //johnfitz -- new cvars
@@ -589,6 +591,8 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 	CDAudio_Pause ();
 	BGM_Pause ();
 
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+
 	/* z-buffer depth */
 	if (bpp == 16)
 	{
@@ -754,6 +758,8 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, int bpp, qb
 
 // no pending changes
 	vid_changed = false;
+
+// setup debug callback
 
 	return true;
 }
@@ -988,6 +994,45 @@ static qboolean GL_ParseExtensionList (const char *list, const char *name)
 		start = terminator;
 	}
 	return false;
+}
+
+static void APIENTRY GL_DebugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, GLvoid *userParam)
+{
+	const char *sourceString;
+	const char *typeString;
+	const char *severityString;
+
+	switch (source)
+	{
+		case GL_DEBUG_SOURCE_API_ARB: sourceString = "GL_DEBUG_SOURCE_API_ARB"; break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB: sourceString = "GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB"; break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER_ARB: sourceString = "GL_DEBUG_SOURCE_SHADER_COMPILER_ARB"; break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY_ARB: sourceString = "GL_DEBUG_SOURCE_THIRD_PARTY_ARB"; break;
+		case GL_DEBUG_SOURCE_APPLICATION_ARB: sourceString = "GL_DEBUG_SOURCE_APPLICATION_ARB"; break;
+		case GL_DEBUG_SOURCE_OTHER_ARB: sourceString = "GL_DEBUG_SOURCE_OTHER_ARB"; break;
+		default: sourceString = "unknown"; break;
+	}
+
+	switch (type)
+	{
+		case GL_DEBUG_TYPE_ERROR_ARB: typeString = "GL_DEBUG_TYPE_ERROR_ARB"; break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB: typeString = "GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB"; break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB: typeString = "GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB"; break;
+		case GL_DEBUG_TYPE_PORTABILITY_ARB: typeString = "GL_DEBUG_TYPE_PORTABILITY_ARB"; break;
+		case GL_DEBUG_TYPE_PERFORMANCE_ARB: typeString = "GL_DEBUG_TYPE_PERFORMANCE_ARB"; break;
+		case GL_DEBUG_TYPE_OTHER_ARB: typeString = "GL_DEBUG_TYPE_OTHER_ARB"; break;
+		default: typeString = "unknown"; break;
+	}
+
+	switch (severity)
+	{
+		case GL_DEBUG_SEVERITY_HIGH_ARB: severityString = "GL_DEBUG_SEVERITY_HIGH_ARB"; break;
+		case GL_DEBUG_SEVERITY_MEDIUM_ARB: severityString = "GL_DEBUG_SEVERITY_MEDIUM_ARB"; break;
+		case GL_DEBUG_SEVERITY_LOW_ARB: severityString = "GL_DEBUG_SEVERITY_LOW_ARB"; break;
+		default: severityString = "unknown"; break;
+	}
+
+	SDL_Log("ARB_debug_output: %s, %s, %d, %s: '%s'\n", sourceString, typeString, (int)id, severityString, message);
 }
 
 static void GL_CheckExtensions (void)
@@ -1255,7 +1300,7 @@ static void GL_CheckExtensions (void)
 	{
 		Con_Warning ("GLSL gamma not available, using hardware gamma\n");
 	}
-    
+
     // GLSL alias model rendering
     //
 	if (COM_CheckParm("-noglslalias"))
@@ -1267,6 +1312,19 @@ static void GL_CheckExtensions (void)
 	else
 	{
 		Con_Warning ("GLSL alias model rendering not available, using Fitz renderer\n");
+	}
+
+	// ARB_debug_output
+	glDebugMessageCallbackARB = (PFNGLDEBUGMESSAGECALLBACKARBPROC)SDL_GL_GetProcAddress("glDebugMessageCallbackARB");
+	if (glDebugMessageCallbackARB)
+	{
+		Con_Printf("FOUND: ARB_debug_output\n");
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+		glDebugMessageCallbackARB(GL_DebugMessageCallback, NULL);
+	}
+	else
+	{
+		Con_Warning("ARB_debug_output not available\n");
 	}
 }
 

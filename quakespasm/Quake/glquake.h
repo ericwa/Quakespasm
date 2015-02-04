@@ -238,6 +238,9 @@ extern	qboolean	gl_glsl_alias_able;
 //ericw -- NPOT texture support
 extern	qboolean	gl_texture_NPOT;
 
+//ericw -- debug output
+extern PFNGLDEBUGMESSAGECALLBACKARBPROC glDebugMessageCallbackARB;
+
 //johnfitz -- polygon offset
 #define OFFSET_BMODEL 1
 #define OFFSET_NONE 0
