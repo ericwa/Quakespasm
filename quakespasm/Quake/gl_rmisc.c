@@ -399,30 +399,44 @@ GLuint GL_CreateProgram (const GLchar *vertSource, const GLchar *fragSource, int
 	if (!gl_glsl_able)
 		return 0;
 
-	vertShader = GL_CreateShaderFunc (GL_VERTEX_SHADER);
-	GL_ShaderSourceFunc (vertShader, 1, &vertSource, NULL);
-	GL_CompileShaderFunc (vertShader);
-	if (!GL_CheckShader (vertShader))
+	vertShader = 0;
+	if (vertSource != NULL)
 	{
-		GL_DeleteShaderFunc (vertShader);
-		return 0;
+		vertShader = GL_CreateShaderFunc (GL_VERTEX_SHADER);
+		GL_ShaderSourceFunc (vertShader, 1, &vertSource, NULL);
+		GL_CompileShaderFunc (vertShader);
+		if (!GL_CheckShader (vertShader))
+		{
+			GL_DeleteShaderFunc (vertShader);
+			return 0;
+		}
 	}
-
-	fragShader = GL_CreateShaderFunc (GL_FRAGMENT_SHADER);
-	GL_ShaderSourceFunc (fragShader, 1, &fragSource, NULL);
-	GL_CompileShaderFunc (fragShader);
-	if (!GL_CheckShader (fragShader))
+	
+	fragShader = 0;
+	if (fragSource != NULL)
 	{
-		GL_DeleteShaderFunc (vertShader);
-		GL_DeleteShaderFunc (fragShader);
-		return 0;
+		fragShader = GL_CreateShaderFunc (GL_FRAGMENT_SHADER);
+		GL_ShaderSourceFunc (fragShader, 1, &fragSource, NULL);
+		GL_CompileShaderFunc (fragShader);
+		if (!GL_CheckShader (fragShader))
+		{
+			GL_DeleteShaderFunc (vertShader);
+			GL_DeleteShaderFunc (fragShader);
+			return 0;
+		}
 	}
 
 	program = GL_CreateProgramFunc ();
-	GL_AttachShaderFunc (program, vertShader);
-	GL_DeleteShaderFunc (vertShader);
-	GL_AttachShaderFunc (program, fragShader);
-	GL_DeleteShaderFunc (fragShader);
+	if (vertShader != 0)
+	{
+		GL_AttachShaderFunc (program, vertShader);
+		GL_DeleteShaderFunc (vertShader);
+	}
+	if (fragShader != 0)
+	{
+		GL_AttachShaderFunc (program, fragShader);
+		GL_DeleteShaderFunc (fragShader);
+	}
 	
 	for (i = 0; i < numbindings; i++)
 	{

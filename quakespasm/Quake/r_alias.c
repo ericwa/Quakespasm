@@ -74,12 +74,6 @@ static GLuint blendLoc;
 static GLuint shadevectorLoc;
 static GLuint lightColorLoc;
 
-// uniforms used in frag shader
-static GLuint texLoc;
-static GLuint fullbrightTexLoc;
-static GLuint useFullbrightTexLoc;
-static GLuint useOverbrightLoc;
-
 static const GLint pose1VertexAttrIndex = 0;
 static const GLint pose1NormalAttrIndex = 1;
 static const GLint pose2VertexAttrIndex = 2;
@@ -157,43 +151,22 @@ void GLAlias_CreateShaders (void)
 		"void main()\n"
 		"{\n"
 		"	gl_TexCoord[0] = TexCoords;\n"
+		"	gl_TexCoord[1] = TexCoords;\n"
 		"	vec4 lerpedVert = mix(Pose1Vert, Pose2Vert, Blend);\n"
 		"	gl_Position = gl_ModelViewProjectionMatrix * lerpedVert;\n"
 		"	float dot1 = r_avertexnormal_dot(Pose1Normal);\n"
 		"	float dot2 = r_avertexnormal_dot(Pose2Normal);\n"
 		"	gl_FrontColor = LightColor * vec4(vec3(mix(dot1, dot2, Blend)), 1.0);\n"
+		"   gl_FrontColor.r = 1.0;\n" // FIXME: for debugging, remove
 		"	// fog\n"
 		"	vec3 ecPosition = vec3(gl_ModelViewMatrix * lerpedVert);\n"
 		"	gl_FogFragCoord = abs(ecPosition.z);\n"
 		"}\n";
 
-	const GLchar *fragSource = \
-		"#version 110\n"
-		"\n"
-		"uniform sampler2D Tex;\n"
-		"uniform sampler2D FullbrightTex;\n"
-		"uniform bool UseFullbrightTex;\n"
-		"uniform bool UseOverbright;\n"
-		"void main()\n"
-		"{\n"
-		"	vec4 result = texture2D(Tex, gl_TexCoord[0].xy);\n"
-		"	result *= gl_Color;\n"
-		"	if (UseOverbright)\n"
-		"		result.rgb *= 2.0;\n"
-		"	if (UseFullbrightTex)\n"
-		"		result += texture2D(FullbrightTex, gl_TexCoord[0].xy);\n"
-		"	result = clamp(result, 0.0, 1.0);\n"
-		"	// apply GL_EXP2 fog (from the orange book)\n"
-		"	float fog = exp(-gl_Fog.density * gl_Fog.density * gl_FogFragCoord * gl_FogFragCoord);\n"
-		"	fog = clamp(fog, 0.0, 1.0);\n"
-		"	result = vec4(mix(gl_Fog.color.rgb, result.rgb, fog), result.a);\n"
-		"	gl_FragColor = result;\n"
-		"}\n";
-
 	if (!gl_glsl_alias_able)
 		return;
 
-	r_alias_program = GL_CreateProgram (vertSource, fragSource, sizeof(bindings)/sizeof(bindings[0]), bindings);
+	r_alias_program = GL_CreateProgram (vertSource, NULL, sizeof(bindings)/sizeof(bindings[0]), bindings);
 
 	if (r_alias_program != 0)
 	{
@@ -201,10 +174,6 @@ void GLAlias_CreateShaders (void)
 		blendLoc = GL_GetUniformLocation (&r_alias_program, "Blend");
 		shadevectorLoc = GL_GetUniformLocation (&r_alias_program, "ShadeVector");
 		lightColorLoc = GL_GetUniformLocation (&r_alias_program, "LightColor");
-		texLoc = GL_GetUniformLocation (&r_alias_program, "Tex");
-		fullbrightTexLoc = GL_GetUniformLocation (&r_alias_program, "FullbrightTex");
-		useFullbrightTexLoc = GL_GetUniformLocation (&r_alias_program, "UseFullbrightTex");
-		useOverbrightLoc = GL_GetUniformLocation (&r_alias_program, "UseOverbright");
 	}
 }
 
@@ -217,12 +186,12 @@ Compared to the original GL_DrawAliasFrame, this makes 1 draw call,
 no vertex data is uploaded (it's already in the r_meshvbo and r_meshindexesvbo
 static VBOs), and lerping and lighting is done in the vertex shader.
 
-Supports optional overbright, optional fullbright pixels.
+Uses fixed-function for fragment shading, textures must be bound already.
 
 Based on code by MH from RMQEngine
 =============
 */
-void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltexture_t *tx, gltexture_t *fb)
+void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 {
 	float	blend;
 
@@ -257,20 +226,6 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 	GL_Uniform1fFunc (blendLoc, blend);
 	GL_Uniform3fFunc (shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
 	GL_Uniform4fFunc (lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
-	GL_Uniform1iFunc (texLoc, 0);
-	GL_Uniform1iFunc (fullbrightTexLoc, 1);
-	GL_Uniform1iFunc (useFullbrightTexLoc, (fb != NULL) ? 1 : 0);
-	GL_Uniform1fFunc (useOverbrightLoc, overbright ? 1 : 0);
-
-// set textures
-	GL_SelectTexture (GL_TEXTURE0);
-	GL_Bind (tx);
-
-	if (fb)
-	{
-		GL_SelectTexture (GL_TEXTURE1);
-		GL_Bind (fb);
-	}
 
 // draw
 	glDrawElements (GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
@@ -283,7 +238,6 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 	GL_DisableVertexAttribArrayFunc (pose2NormalAttrIndex);
 
 	GL_UseProgramFunc (0);
-	GL_SelectTexture (GL_TEXTURE0);
 
 	rs_aliaspasses += paliashdr->numtris;
 }
@@ -302,6 +256,14 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	float	u,v;
 	float	blend, iblend;
 	qboolean lerping;
+
+// call fast path if possible. if the shader compliation failed for some reason,
+// r_alias_program will be 0.
+	if (r_alias_program != 0)
+	{
+		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata);
+		return;
+	}
 
 	if (lerpdata.pose1 != lerpdata.pose2)
 	{
@@ -733,12 +695,6 @@ void R_DrawAliasModel (entity_t *e)
 		glColor3f(1,1,1);
 		GL_DrawAliasFrame (paliashdr, lerpdata);
 		glEnable (GL_TEXTURE_2D);
-	}
-// call fast path if possible. if the shader compliation failed for some reason,
-// r_alias_program will be 0.
-	else if (r_alias_program != 0)
-	{
-		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata, tx, fb);
 	}
 	else if (overbright)
 	{
