@@ -403,8 +403,40 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 		return;
 
 // set the abs box
+    // ROTATE START
+    if (ent->v.solid == SOLID_BSP &&
+        (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]) && ent != sv.edicts)
+    { // expand for rotation
+        float max, v;
+        int i;
+        
+        max = DotProduct(ent->v.mins, ent->v.mins);
+        
+        v = DotProduct(ent->v.maxs, ent->v.maxs);
+        
+        if (max < v)
+            
+            max = v;
+        
+        max = sqrt(max);
+        
+        for (i=0 ; i<3 ; i++)
+            
+        {
+            
+            ent->v.absmin[i] = ent->v.origin[i] - max;
+            
+            ent->v.absmax[i] = ent->v.origin[i] + max;
+            
+        }
+        
+    }
+    else
+    {
+        // ROTATE END
 	VectorAdd (ent->v.origin, ent->v.mins, ent->v.absmin);
 	VectorAdd (ent->v.origin, ent->v.maxs, ent->v.absmax);
+    }
 
 //
 // to make items easier to pick up and allow them to be grabbed off
@@ -697,44 +729,105 @@ qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec
 
 
 /*
-==================
-SV_ClipMoveToEntity
-
-Handles selection or creation of a clipping hull, and offseting (and
-eventually rotation) of the end points
-==================
-*/
+ ==================
+ SV_ClipMoveToEntity
+ 
+ Handles selection or creation of a clipping hull, and offseting (and
+ eventually rotation) of the end points
+ ==================
+ */
 trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
 {
-	trace_t		trace;
-	vec3_t		offset;
-	vec3_t		start_l, end_l;
-	hull_t		*hull;
-
-// fill in a default trace
-	memset (&trace, 0, sizeof(trace_t));
-	trace.fraction = 1;
-	trace.allsolid = true;
-	VectorCopy (end, trace.endpos);
-
-// get the clipping hull
-	hull = SV_HullForEntity (ent, mins, maxs, offset);
-
-	VectorSubtract (start, offset, start_l);
-	VectorSubtract (end, offset, end_l);
-
-// trace a line through the apropriate clipping hull
-	SV_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, &trace);
-
-// fix trace up by the offset
-	if (trace.fraction != 1)
-		VectorAdd (trace.endpos, offset, trace.endpos);
-
-// did we clip the move?
-	if (trace.fraction < 1 || trace.startsolid  )
-		trace.ent = ent;
-
-	return trace;
+    trace_t      trace;
+    vec3_t      offset;
+    vec3_t      start_l, end_l;
+    hull_t      *hull;
+    
+    // fill in a default trace
+    memset (&trace, 0, sizeof(trace_t));
+    trace.fraction = 1;
+    trace.allsolid = true;
+    VectorCopy (end, trace.endpos);
+    
+    // get the clipping hull
+    hull = SV_HullForEntity (ent, mins, maxs, offset);
+    
+    VectorSubtract (start, offset, start_l);
+    VectorSubtract (end, offset, end_l);
+    
+    // ROTATE START
+    // rotate start and end into the models frame of reference
+    if (ent->v.solid == SOLID_BSP &&
+        (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]) && ent != sv.edicts)
+    {
+        vec3_t   a;
+        vec3_t   forward, right, up;
+        vec3_t   temp;
+        
+        AngleVectors (ent->v.angles, forward, right, up);
+        
+        VectorCopy (start_l, temp);
+        start_l[0] = DotProduct (temp, forward);
+        start_l[1] = -DotProduct (temp, right);
+        start_l[2] = DotProduct (temp, up);
+        
+        VectorCopy (end_l, temp);
+        end_l[0] = DotProduct (temp, forward);
+        end_l[1] = -DotProduct (temp, right);
+        end_l[2] = DotProduct (temp, up);
+    }
+    // ROTATE END
+    
+    // trace a line through the apropriate clipping hull
+    SV_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, &trace);
+    
+    
+    // ROTATE START
+    // rotate endpos back to world frame of reference
+    if (ent->v.solid == SOLID_BSP &&
+        (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2]) && ent != sv.edicts)
+    {
+        vec3_t   a;
+        vec3_t   forward, right, up;
+        vec3_t   temp;
+        
+        if (trace.fraction != 1)
+        {
+            VectorSubtract (vec3_origin, ent->v.angles, a);
+            AngleVectors (a, forward, right, up);
+            
+            VectorCopy (trace.endpos, temp);
+            trace.endpos[0] = DotProduct (temp, forward);
+            trace.endpos[1] = -DotProduct (temp, right);
+            trace.endpos[2] = DotProduct (temp, up);
+            
+            VectorCopy (trace.plane.normal, temp);
+            trace.plane.normal[0] = DotProduct (temp, forward);
+            trace.plane.normal[1] = -DotProduct (temp, right);
+            trace.plane.normal[2] = DotProduct (temp, up);
+        }
+        
+        // fix trace up by the offset
+        VectorAdd (trace.endpos, offset, trace.endpos);
+        
+    }
+#if 1 // Baker addition
+    // Cases where not Solid BSP or no avelocity
+    // Otherwise backpacks from dead monsters and such can fall through the floor
+    else {
+        if (trace.fraction != 1)
+            VectorAdd (trace.endpos, offset, trace.endpos);
+        
+    }
+#endif
+    // ROTATE END
+    
+    
+    // did we clip the move?
+    if (trace.fraction < 1 || trace.startsolid )
+        trace.ent = ent;
+    
+    return trace;
 }
 
 //===========================================================================
