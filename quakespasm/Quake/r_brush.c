@@ -30,8 +30,8 @@ extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
 int		gl_lightmap_format;
 int		lightmap_bytes;
 
-#define	BLOCK_WIDTH	128
-#define	BLOCK_HEIGHT	128
+#define	BLOCK_WIDTH	256
+#define	BLOCK_HEIGHT	256
 
 gltexture_t	*lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
 
@@ -703,8 +703,8 @@ dynamic:
 					theRect->w += theRect->l - fa->light_s;
 				theRect->l = fa->light_s;
 			}
-			smax = (fa->extents[0]>>4)+1;
-			tmax = (fa->extents[1]>>4)+1;
+			smax = (fa->extents[0]>>fa->lmshift)+1;
+			tmax = (fa->extents[1]>>fa->lmshift)+1;
 			if ((theRect->w + theRect->l) < (fa->light_s + smax))
 				theRect->w = (fa->light_s-theRect->l)+smax;
 			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
@@ -783,8 +783,8 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 	int		smax, tmax;
 	byte	*base;
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 
 	surf->lightmaptexturenum = AllocBlock (smax, tmax, &surf->light_s, &surf->light_t);
 	base = lightmaps + surf->lightmaptexturenum*lightmap_bytes*BLOCK_WIDTH*BLOCK_HEIGHT;
@@ -846,15 +846,15 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		//
 		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
 		s -= fa->texturemins[0];
-		s += fa->light_s*16;
-		s += 8;
-		s /= BLOCK_WIDTH*16; //fa->texinfo->texture->width;
+		s += fa->light_s << fa->lmshift;
+		s += (1 << fa->lmshift) * 0.5;
+		s /= BLOCK_WIDTH << fa->lmshift; //fa->texinfo->texture->width;
 
 		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 		t -= fa->texturemins[1];
-		t += fa->light_t*16;
-		t += 8;
-		t /= BLOCK_HEIGHT*16; //fa->texinfo->texture->height;
+		t += fa->light_t << fa->lmshift;
+		t += (1 << fa->lmshift) * 0.5;
+		t /= BLOCK_HEIGHT << fa->lmshift; //fa->texinfo->texture->height;
 
 		poly->verts[i][5] = s;
 		poly->verts[i][6] = t;
@@ -1046,8 +1046,8 @@ void R_AddDynamicLights (msurface_t *surf)
 	unsigned	*bl;
 	//johnfitz
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 	tex = surf->texinfo;
 
 	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
@@ -1084,12 +1084,12 @@ void R_AddDynamicLights (msurface_t *surf)
 		//johnfitz
 		for (t = 0 ; t<tmax ; t++)
 		{
-			td = local[1] - t*16;
+			td = local[1] - t*(1<<surf->lmshift);
 			if (td < 0)
 				td = -td;
 			for (s=0 ; s<smax ; s++)
 			{
-				sd = local[0] - s*16;
+				sd = local[0] - s*(1<<surf->lmshift);
 				if (sd < 0)
 					sd = -sd;
 				if (sd > td)
@@ -1131,8 +1131,8 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 	size = smax*tmax;
 	lightmap = surf->samples;
 

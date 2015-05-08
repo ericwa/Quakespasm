@@ -650,6 +650,31 @@ void Mod_LoadTextures (lump_t *l)
 	}
 }
 
+typedef struct
+{
+	unsigned int magic; //"QLIT"
+	unsigned int version; //2
+	unsigned int numsurfs;
+	unsigned int lmsize;	//samples, not bytes (same size as vanilla lighting lump in a q1 bsp).
+	
+	//uint		lmoffsets[numsurfs];	//completely overrides the bsp lightmap info
+	//ushort	lmextents[numsurfs*2];	//only to avoid precision issues. width+height pairs, actual lightmap sizes on disk (so +1).
+	//byte		lmstyles[numsurfs*4];	//completely overrides the bsp lightmap info
+	//byte		lmshifts[numsurfs];		//default is 4 (1<<4=16), for 1/16th lightmap-to-texel ratio
+	//byte		litdata[lmsize*3];		//rgb data
+	//byte		luxdata[lmsize*3];		//stn light dirs (unsigned bytes
+} qlit2_t;
+
+typedef struct
+{
+	unsigned int *offsets;
+	unsigned short *extents;
+	unsigned char *styles;
+	unsigned char *shifts;
+} lightmapoverrides_t;
+
+#define Q1_LMSHIFT 4
+
 /*
 =================
 Mod_LoadLighting -- johnfitz -- replaced with lit support code via lordhavoc
@@ -687,6 +712,28 @@ void Mod_LoadLighting (lump_t *l)
 			{
 				Con_DPrintf("%s loaded", litfilename);
 				loadmodel->lightdata = data + 8;
+				return;
+			}
+			else if (i == 2)
+			{
+				const qlit2_t *ql2 = (const qlit2_t *)data;
+			
+				Con_DPrintf("%s loaded (lit2)\n", litfilename);
+				
+				unsigned int *offsets = (unsigned int*)(ql2+1);
+				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
+				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
+				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
+				unsigned char *litdata = shifts + ql2->numsurfs;
+				unsigned char *luxdata = litdata + (ql2->lmsize*3);
+				
+				loadmodel->lit2offsets = offsets;
+				loadmodel->lit2extents = extents;
+				loadmodel->lit2styles = styles;
+				loadmodel->lit2shifts = shifts;
+				//loadmodel->lit2litdata = litdata;
+				loadmodel->lightdata = litdata;
+				loadmodel->lit2luxdata = luxdata;
 				return;
 			}
 			else
@@ -994,11 +1041,11 @@ void CalcSurfaceExtents (msurface_t *s)
 
 	for (i=0 ; i<2 ; i++)
 	{
-		bmins[i] = floor(mins[i]/16);
-		bmaxs[i] = ceil(maxs[i]/16);
+		bmins[i] = floor(mins[i]/(1<<s->lmshift));
+		bmaxs[i] = ceil(maxs[i]/(1<<s->lmshift));
 
-		s->texturemins[i] = bmins[i] * 16;
-		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
+		s->texturemins[i] = bmins[i] << s->lmshift;
+		s->extents[i] = (bmaxs[i] - bmins[i]) << s->lmshift;
 
 		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 2000) //johnfitz -- was 512 in glquake, 256 in winquake
 			Sys_Error ("Bad surface extents");
@@ -1164,6 +1211,20 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 
 		out->texinfo = loadmodel->texinfo + texinfon;
 
+	// ericw -- lit2
+		if (loadmodel->lit2shifts)
+			out->lmshift = loadmodel->lit2shifts[surfnum];
+		else
+			out->lmshift = Q1_LMSHIFT;
+
+		if (loadmodel->lit2offsets)
+			lofs = loadmodel->lit2offsets[surfnum];
+
+//		if (overrides.styles)
+//			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
+//				out->styles[i] = overrides.styles[surfnum*4+i];
+	// ericw --
+	
 		CalcSurfaceExtents (out);
 
 		Mod_CalcSurfaceBounds (out); //johnfitz -- for per-surface frustum culling
