@@ -689,6 +689,62 @@ void Mod_LoadLighting (lump_t *l)
 	unsigned int path_id;
 
 	loadmodel->lightdata = NULL;
+
+    // ericw -- check for a .lit2 file
+    q_strlcpy(litfilename, loadmodel->name, sizeof(litfilename));
+    COM_StripExtension(litfilename, litfilename, sizeof(litfilename));
+    q_strlcat(litfilename, ".lit2", sizeof(litfilename));
+    mark = Hunk_LowMark();
+    data = (byte*) COM_LoadHunkFile (litfilename, &path_id);
+
+	if (data)
+	{
+		// use lit file only from the same gamedir as the map
+		// itself or from a searchpath with higher priority.
+		if (path_id < loadmodel->path_id)
+		{
+			Hunk_FreeToLowMark(mark);
+			Con_DPrintf("ignored %s from a gamedir with lower priority\n", litfilename);
+		}
+		else
+			if (data[0] == 'Q' && data[1] == 'L' && data[2] == 'I' && data[3] == 'T')
+			{
+				i = LittleLong(((int *)data)[1]);
+				if (i == 2)
+				{
+					const qlit2_t *ql2 = (const qlit2_t *)data;
+					
+					Con_DPrintf("%s loaded (lit2)\n", litfilename);
+					
+					unsigned int *offsets = (unsigned int*)(ql2+1);
+					unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
+					unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
+					unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
+					unsigned char *litdata = shifts + ql2->numsurfs;
+					unsigned char *luxdata = litdata + (ql2->lmsize*3);
+					
+					loadmodel->lit2offsets = offsets;
+					loadmodel->lit2extents = extents;
+					loadmodel->lit2styles = styles;
+					loadmodel->lit2shifts = shifts;
+					//loadmodel->lit2litdata = litdata;
+					loadmodel->lightdata = litdata;
+					loadmodel->lit2luxdata = luxdata;
+					return;
+				}
+				else
+				{
+					Hunk_FreeToLowMark(mark);
+					Con_Printf("Unknown .lit2 file version (%d)\n", i);
+				}
+			}
+			else
+			{
+				Hunk_FreeToLowMark(mark);
+				Con_Printf("Corrupt .lit2 file (old version?), ignoring\n");
+			}
+	}
+
 	// LordHavoc: check for a .lit file
 	q_strlcpy(litfilename, loadmodel->name, sizeof(litfilename));
 	COM_StripExtension(litfilename, litfilename, sizeof(litfilename));
@@ -712,28 +768,6 @@ void Mod_LoadLighting (lump_t *l)
 			{
 				Con_DPrintf("%s loaded", litfilename);
 				loadmodel->lightdata = data + 8;
-				return;
-			}
-			else if (i == 2)
-			{
-				const qlit2_t *ql2 = (const qlit2_t *)data;
-			
-				Con_DPrintf("%s loaded (lit2)\n", litfilename);
-				
-				unsigned int *offsets = (unsigned int*)(ql2+1);
-				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
-				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
-				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
-				unsigned char *litdata = shifts + ql2->numsurfs;
-				unsigned char *luxdata = litdata + (ql2->lmsize*3);
-				
-				loadmodel->lit2offsets = offsets;
-				loadmodel->lit2extents = extents;
-				loadmodel->lit2styles = styles;
-				loadmodel->lit2shifts = shifts;
-				//loadmodel->lit2litdata = litdata;
-				loadmodel->lightdata = litdata;
-				loadmodel->lit2luxdata = luxdata;
 				return;
 			}
 			else
