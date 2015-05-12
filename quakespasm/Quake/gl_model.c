@@ -1254,9 +1254,9 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 		if (loadmodel->lit2offsets)
 			lofs = loadmodel->lit2offsets[surfnum];
 
-//		if (overrides.styles)
-//			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
-//				out->styles[i] = overrides.styles[surfnum*4+i];
+		if (loadmodel->lit2styles)
+			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+				out->styles[i] = loadmodel->lit2styles[surfnum*4+i];
 	// ericw --
 	
 		CalcSurfaceExtents (out);
