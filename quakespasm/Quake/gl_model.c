@@ -656,7 +656,7 @@ typedef struct
 	unsigned int version; //2
 	unsigned int numsurfs;
 	unsigned int lmsize;	//samples, not bytes (same size as vanilla lighting lump in a q1 bsp).
-	
+
 	//uint		lmoffsets[numsurfs];	//completely overrides the bsp lightmap info
 	//ushort	lmextents[numsurfs*2];	//only to avoid precision issues. width+height pairs, actual lightmap sizes on disk (so +1).
 	//byte		lmstyles[numsurfs*4];	//completely overrides the bsp lightmap info
@@ -680,7 +680,7 @@ typedef struct
 Mod_LoadLighting -- johnfitz -- replaced with lit support code via lordhavoc
 =================
 */
-void Mod_LoadLighting (lump_t *l)
+void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 {
 	int i, mark;
 	byte *in, *out, *data;
@@ -690,12 +690,17 @@ void Mod_LoadLighting (lump_t *l)
 
 	loadmodel->lightdata = NULL;
 
-    // ericw -- check for a .lit2 file
-    q_strlcpy(litfilename, loadmodel->name, sizeof(litfilename));
-    COM_StripExtension(litfilename, litfilename, sizeof(litfilename));
-    q_strlcat(litfilename, ".lit2", sizeof(litfilename));
-    mark = Hunk_LowMark();
-    data = (byte*) COM_LoadHunkFile (litfilename, &path_id);
+	// ericw -- lit2 support
+	lit2overrides->offsets = NULL;
+	lit2overrides->extents = NULL;
+	lit2overrides->styles = NULL;
+	lit2overrides->shifts = NULL;
+
+	q_strlcpy(litfilename, loadmodel->name, sizeof(litfilename));
+	COM_StripExtension(litfilename, litfilename, sizeof(litfilename));
+	q_strlcat(litfilename, ".lit2", sizeof(litfilename));
+	mark = Hunk_LowMark();
+	data = (byte*) COM_LoadHunkFile (litfilename, &path_id);
 
 	if (data)
 	{
@@ -707,42 +712,38 @@ void Mod_LoadLighting (lump_t *l)
 			Con_DPrintf("ignored %s from a gamedir with lower priority\n", litfilename);
 		}
 		else
-			if (data[0] == 'Q' && data[1] == 'L' && data[2] == 'I' && data[3] == 'T')
+		if (data[0] == 'Q' && data[1] == 'L' && data[2] == 'I' && data[3] == 'T')
+		{
+			i = LittleLong(((int *)data)[1]);
+			if (i == 2)
 			{
-				i = LittleLong(((int *)data)[1]);
-				if (i == 2)
-				{
-					const qlit2_t *ql2 = (const qlit2_t *)data;
-					
-					Con_DPrintf("%s loaded (lit2)\n", litfilename);
-					
-					unsigned int *offsets = (unsigned int*)(ql2+1);
-					unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
-					unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
-					unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
-					unsigned char *litdata = shifts + ql2->numsurfs;
-					unsigned char *luxdata = litdata + (ql2->lmsize*3);
-					
-					loadmodel->lit2offsets = offsets;
-					loadmodel->lit2extents = extents;
-					loadmodel->lit2styles = styles;
-					loadmodel->lit2shifts = shifts;
-					//loadmodel->lit2litdata = litdata;
-					loadmodel->lightdata = litdata;
-					loadmodel->lit2luxdata = luxdata;
-					return;
-				}
-				else
-				{
-					Hunk_FreeToLowMark(mark);
-					Con_Printf("Unknown .lit2 file version (%d)\n", i);
-				}
+				const qlit2_t *ql2 = (const qlit2_t *)data;
+
+				unsigned int *offsets = (unsigned int*)(ql2+1);
+				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
+				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
+				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
+				unsigned char *litdata = shifts + ql2->numsurfs;
+				// unsigned char *luxdata = litdata + (ql2->lmsize*3);
+
+				lit2overrides->offsets = offsets;
+				lit2overrides->extents = extents;
+				lit2overrides->styles = styles;
+				lit2overrides->shifts = shifts;
+				loadmodel->lightdata = litdata;
+				return;
 			}
 			else
 			{
 				Hunk_FreeToLowMark(mark);
-				Con_Printf("Corrupt .lit2 file (old version?), ignoring\n");
+				Con_Printf("Unknown .lit2 file version (%d)\n", i);
 			}
+		}
+		else
+		{
+			Hunk_FreeToLowMark(mark);
+			Con_Printf("Corrupt .lit2 file (old version?), ignoring\n");
+		}
 	}
 
 	// LordHavoc: check for a .lit file
@@ -1175,7 +1176,7 @@ void Mod_CalcSurfaceBounds (msurface_t *s)
 Mod_LoadFaces
 =================
 */
-void Mod_LoadFaces (lump_t *l, qboolean bsp2)
+void Mod_LoadFaces (lump_t *l, qboolean bsp2, lightmapoverrides_t *lit2overrides)
 {
 	dsface_t	*ins;
 	dlface_t	*inl;
@@ -1245,20 +1246,20 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 
 		out->texinfo = loadmodel->texinfo + texinfon;
 
-	// ericw -- lit2
-		if (loadmodel->lit2shifts)
-			out->lmshift = loadmodel->lit2shifts[surfnum];
+		// ericw -- lit2 support
+		if (lit2overrides->shifts)
+			out->lmshift = lit2overrides->shifts[surfnum];
 		else
 			out->lmshift = Q1_LMSHIFT;
 
-		if (loadmodel->lit2offsets)
-			lofs = loadmodel->lit2offsets[surfnum];
+		if (lit2overrides->offsets)
+			lofs = lit2overrides->offsets[surfnum];
 
-		if (loadmodel->lit2styles)
+		if (lit2overrides->styles)
 			for (i=0 ; i<MAXLIGHTMAPS ; i++)
-				out->styles[i] = loadmodel->lit2styles[surfnum*4+i];
-	// ericw --
-	
+				out->styles[i] = lit2overrides->styles[surfnum*4+i];
+		// ericw --
+
 		CalcSurfaceExtents (out);
 
 		Mod_CalcSurfaceBounds (out); //johnfitz -- for per-surface frustum culling
@@ -2043,6 +2044,7 @@ void Mod_LoadBrushModel (qmodel_t *mod, void *buffer)
 	dheader_t	*header;
 	dmodel_t 	*bm;
 	float		radius; //johnfitz
+	lightmapoverrides_t	lit2overrides; // ericw -- lit2 support
 
 	loadmodel->type = mod_brush;
 
@@ -2078,10 +2080,10 @@ void Mod_LoadBrushModel (qmodel_t *mod, void *buffer)
 	Mod_LoadEdges (&header->lumps[LUMP_EDGES], bsp2);
 	Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 	Mod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
-	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);
+	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING], &lit2overrides);
 	Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 	Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
-	Mod_LoadFaces (&header->lumps[LUMP_FACES], bsp2);
+	Mod_LoadFaces (&header->lumps[LUMP_FACES], bsp2, &lit2overrides);
 	Mod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], bsp2);
 	Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	Mod_LoadLeafs (&header->lumps[LUMP_LEAFS], bsp2);

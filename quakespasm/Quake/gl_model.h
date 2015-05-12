@@ -147,7 +147,7 @@ typedef struct msurface_s
 	int			firstedge;	// look up in model->surfedges[], negative numbers
 	int			numedges;	// are backwards edges
 
-	unsigned short		lmshift;	//texels>>lmshift = lightmap samples.
+	unsigned short		lmshift;	// ericw -- lit2 support; texels>>lmshift = lightmap samples.
 	short		texturemins[2];
 	short		extents[2];
 
@@ -474,16 +474,7 @@ typedef struct qmodel_s
 
 	byte		*visdata;
 	byte		*lightdata;
-	
-	// ericw -- lit2 support
-	uint		*lit2offsets; //[numsurfs];	//completely overrides the bsp lightmap info
-	ushort		*lit2extents;//[numsurfs*2];	//only to avoid precision issues. width+height pairs, actual lightmap sizes on disk (so +1).
-	byte		*lit2styles;//[numsurfs*4];	//completely overrides the bsp lightmap info
-	byte		*lit2shifts;//[numsurfs];		//default is 4 (1<<4=16), for 1/16th lightmap-to-texel ratio
-//	byte		*lit2litdata;//[lmsize*3];		//rgb data
-	byte		*lit2luxdata;//[lmsize*3];		//stn light dirs (unsigned bytes
-	// ericw --
-	
+
 	char		*entities;
 
 	int			bspversion;
