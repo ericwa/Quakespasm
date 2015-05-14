@@ -38,7 +38,7 @@ gltexture_t	*lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
 unsigned	blocklights[BLOCK_WIDTH*BLOCK_HEIGHT*3]; //johnfitz -- was 18*18, added lit support (*3) and loosened surface extents maximum (BLOCK_WIDTH*BLOCK_HEIGHT)
 
 typedef struct glRect_s {
-	unsigned char l,t,w,h;
+	int l,t,w,h;
 } glRect_t;
 
 glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
