@@ -718,20 +718,29 @@ void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 			if (i == 2)
 			{
 				const qlit2_t *ql2 = (const qlit2_t *)data;
-
-				unsigned int *offsets = (unsigned int*)(ql2+1);
-				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
-				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
-				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
-				unsigned char *litdata = shifts + ql2->numsurfs;
-				// unsigned char *luxdata = litdata + (ql2->lmsize*3);
-
-				lit2overrides->offsets = offsets;
-				lit2overrides->extents = extents;
-				lit2overrides->styles = styles;
-				lit2overrides->shifts = shifts;
-				loadmodel->lightdata = litdata;
-				return;
+				
+				if (ql2->numsurfs == loadmodel->numsurfaces)
+				{
+				    
+				    unsigned int *offsets = (unsigned int*)(ql2+1);
+				    unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
+				    unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
+				    unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
+				    unsigned char *litdata = shifts + ql2->numsurfs;
+				    // unsigned char *luxdata = litdata + (ql2->lmsize*3);
+				    
+				    lit2overrides->offsets = offsets;
+				    lit2overrides->extents = extents;
+				    lit2overrides->styles = styles;
+				    lit2overrides->shifts = shifts;
+				    loadmodel->lightdata = litdata;
+				    return;
+				}
+				else
+				{
+				    Con_Printf("Ignoring corrupt .lit2 (%d surfs, %d in bsp)\n", ql2->numsurfs, loadmodel->numsurfaces);
+				    Hunk_FreeToLowMark(mark);
+				}
 			}
 			else
 			{
@@ -1169,6 +1178,26 @@ void Mod_CalcSurfaceBounds (msurface_t *s)
 		if (s->maxs[2] < v->position[2])
 			s->maxs[2] = v->position[2];
 	}
+}
+
+
+/*
+=================
+Mod_LoadNumFaces
+
+ericw -- load loadmodel->numsurfaces early because we need it for .lit2 validation
+=================
+*/
+static void Mod_LoadNumFaces (lump_t *l, qboolean bsp2)
+{
+    if (bsp2)
+    {
+	loadmodel->numsurfaces = l->filelen / sizeof(dlface_t);
+    }
+    else
+    {
+	loadmodel->numsurfaces = l->filelen / sizeof(dsface_t);
+    }
 }
 
 /*
@@ -2080,6 +2109,7 @@ void Mod_LoadBrushModel (qmodel_t *mod, void *buffer)
 	Mod_LoadEdges (&header->lumps[LUMP_EDGES], bsp2);
 	Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 	Mod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
+	Mod_LoadNumFaces (&header->lumps[LUMP_FACES], bsp2); // ericw -- load loadmodel->numsurfaces early because we need it for .lit2 validation
 	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING], &lit2overrides);
 	Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 	Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
