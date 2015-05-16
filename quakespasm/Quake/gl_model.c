@@ -718,8 +718,9 @@ void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 			if (i == 2)
 			{
 				const qlit2_t *ql2 = (const qlit2_t *)data;
+				const int numsurfs = LittleLong(ql2->numsurfs);
 				
-				if (ql2->numsurfs == loadmodel->numsurfaces)
+				if (numsurfs == loadmodel->numsurfaces)
 				{
 				    
 				    unsigned int *offsets = (unsigned int*)(ql2+1);
@@ -738,8 +739,8 @@ void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 				}
 				else
 				{
-				    Con_Printf("Ignoring corrupt .lit2 (%d surfs, %d in bsp)\n", ql2->numsurfs, loadmodel->numsurfaces);
 				    Hunk_FreeToLowMark(mark);
+				    Con_Printf("Ignoring corrupt .lit2 (%d surfs, %d in bsp)\n", numsurfs, loadmodel->numsurfaces);
 				}
 			}
 			else
