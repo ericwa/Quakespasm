@@ -654,15 +654,15 @@ typedef struct
 {
 	unsigned int magic; //"QLIT"
 	unsigned int version; //2
-	unsigned int numsurfs;
-	unsigned int lmsize;	//samples, not bytes (same size as vanilla lighting lump in a q1 bsp).
+	unsigned int numsurfs;  //should be checked against the bsps' surface count
+	unsigned int numpoints; //total number of sample-points in the lit2
 
-	//uint		lmoffsets[numsurfs];	//completely overrides the bsp lightmap info
-	//ushort	lmextents[numsurfs*2];	//only to avoid precision issues. width+height pairs, actual lightmap sizes on disk (so +1).
-	//byte		lmstyles[numsurfs*4];	//completely overrides the bsp lightmap info
-	//byte		lmshifts[numsurfs];		//default is 4 (1<<4=16), for 1/16th lightmap-to-texel ratio
-	//byte		litdata[lmsize*3];		//rgb data
-	//byte		luxdata[lmsize*3];		//stn light dirs (unsigned bytes
+	//uint      lmoffsets[numsurfs];   //completely overrides the bsp lightmap info
+	//ushort   lmextents[numsurfs*2];   //only to avoid precision issues. width+height pairs, actual lightmap sizes on disk (so +1).
+	//byte      lmstyles[numsurfs*4];   //completely overrides the bsp lightmap info
+	//byte      lmshifts[numsurfs];      //default is 4 (1<<4=16), for 1/16th lightmap-to-texel ratio. minimum value is 0
+	//byte      litdata[numpoints*3];      //rgb data
+	//byte      luxdata[numpoints*3];      //stn light dirs (unsigned bytes
 } qlit2_t;
 
 typedef struct
@@ -682,7 +682,7 @@ Mod_LoadLighting -- johnfitz -- replaced with lit support code via lordhavoc
 */
 void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 {
-	int i, mark;
+	int i, j, mark;
 	byte *in, *out, *data;
 	byte d;
 	char litfilename[MAX_OSPATH];
@@ -717,19 +717,24 @@ void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 			i = LittleLong(((int *)data)[1]);
 			if (i == 2)
 			{
-				const qlit2_t *ql2 = (const qlit2_t *)data;
-				const int numsurfs = LittleLong(ql2->numsurfs);
-				
-				if (numsurfs == loadmodel->numsurfaces)
+				qlit2_t *ql2 = (qlit2_t *)data;
+				ql2->numsurfs = LittleLong(ql2->numsurfs);
+				ql2->numpoints = LittleLong(ql2->numpoints);
+
+				unsigned int *offsets = (unsigned int*)(ql2+1);
+				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
+				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
+				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
+				unsigned char *litdata = shifts + ql2->numsurfs;
+				// unsigned char *luxdata = litdata + (ql2->lmsize*3);
+
+				for (j = 0; j < ql2->numsurfs; j++)
+				    offsets[j] = LittleLong(offsets[j]);
+				for (j = 0; j < ql2->numsurfs*2; j++)
+				    extents[j] = LittleShort(extents[j]);
+			    
+				if (ql2->numsurfs == loadmodel->numsurfaces)
 				{
-				    
-				    unsigned int *offsets = (unsigned int*)(ql2+1);
-				    unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
-				    unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
-				    unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
-				    unsigned char *litdata = shifts + ql2->numsurfs;
-				    // unsigned char *luxdata = litdata + (ql2->lmsize*3);
-				    
 				    lit2overrides->offsets = offsets;
 				    lit2overrides->extents = extents;
 				    lit2overrides->styles = styles;
@@ -739,8 +744,8 @@ void Mod_LoadLighting (lump_t *l, lightmapoverrides_t *lit2overrides)
 				}
 				else
 				{
+				    Con_Printf("Ignoring corrupt .lit2 (%d surfs, %d in bsp)\n", ql2->numsurfs, loadmodel->numsurfaces);
 				    Hunk_FreeToLowMark(mark);
-				    Con_Printf("Ignoring corrupt .lit2 (%d surfs, %d in bsp)\n", numsurfs, loadmodel->numsurfaces);
 				}
 			}
 			else
