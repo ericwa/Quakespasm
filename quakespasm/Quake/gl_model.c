@@ -652,7 +652,7 @@ void Mod_LoadTextures (lump_t *l)
 
 typedef struct
 {
-	unsigned int magic; //"QLIT"
+	char magic[4]; //"QLIT"
 	unsigned int version; //2
 	unsigned int numsurfs;  //should be checked against the bsps' surface count
 	unsigned int numpoints; //total number of sample-points in the lit2
