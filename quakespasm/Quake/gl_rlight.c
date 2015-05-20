@@ -343,12 +343,13 @@ loc0:
 			if (surf->samples)
 			{
 				// LordHavoc: enhanced to interpolate lighting
+				const int sh = surf->lmshift;
 				byte *lightmap;
 				int maps, line3, dsfrac = ds & 15, dtfrac = dt & 15, r00 = 0, g00 = 0, b00 = 0, r01 = 0, g01 = 0, b01 = 0, r10 = 0, g10 = 0, b10 = 0, r11 = 0, g11 = 0, b11 = 0;
 				float scale;
-				line3 = ((surf->extents[0]>>4)+1)*3;
+				line3 = ((surf->extents[0]>>sh)+1)*3;
 
-				lightmap = surf->samples + ((dt>>4) * ((surf->extents[0]>>4)+1) + (ds>>4))*3; // LordHavoc: *3 for color
+				lightmap = surf->samples + ((dt>>sh) * ((surf->extents[0]>>sh)+1) + (ds>>sh))*3; // LordHavoc: *3 for color
 
 				for (maps = 0;maps < MAXLIGHTMAPS && surf->styles[maps] != 255;maps++)
 				{
@@ -357,7 +358,7 @@ loc0:
 					r01 += (float) lightmap[      3] * scale;g01 += (float) lightmap[      4] * scale;b01 += (float) lightmap[5] * scale;
 					r10 += (float) lightmap[line3+0] * scale;g10 += (float) lightmap[line3+1] * scale;b10 += (float) lightmap[line3+2] * scale;
 					r11 += (float) lightmap[line3+3] * scale;g11 += (float) lightmap[line3+4] * scale;b11 += (float) lightmap[line3+5] * scale;
-					lightmap += ((surf->extents[0]>>4)+1) * ((surf->extents[1]>>4)+1)*3; // LordHavoc: *3 for colored lighting
+					lightmap += ((surf->extents[0]>>sh)+1) * ((surf->extents[1]>>sh)+1)*3; // LordHavoc: *3 for colored lighting
 				}
 
 				color[0] += (float) ((int) ((((((((r11-r10) * dsfrac) >> 4) + r10)-((((r01-r00) * dsfrac) >> 4) + r00)) * dtfrac) >> 4) + ((((r01-r00) * dsfrac) >> 4) + r00)));
