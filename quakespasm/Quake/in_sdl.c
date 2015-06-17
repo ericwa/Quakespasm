@@ -698,8 +698,9 @@ void IN_Move (usercmd_t *cmd)
 	}
 
 	// add the joy look axis to mouse look
-	total_dx += moveDualAxis.right.x;
-	total_dy += moveDualAxis.right.y;
+	// ericw -- multiply by host_frametime (seconds/frame) to convert units/second to units/frame
+	total_dx += (moveDualAxis.right.x * host_frametime);
+	total_dy += (moveDualAxis.right.y * host_frametime);
 	//
 	// jeremiah sypult -- ENDjoystick
 
