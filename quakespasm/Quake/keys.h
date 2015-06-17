@@ -142,13 +142,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_MOUSE4		241
 #define K_MOUSE5		242
 
+// SDL2 game controller keys
+#define K_X360_DPAD_UP			256
+#define K_X360_DPAD_DOWN		257
+#define K_X360_DPAD_LEFT		258
+#define K_X360_DPAD_RIGHT		259
+#define K_X360_START			260
+#define K_X360_BACK				261
+#define K_X360_LEFT_THUMB		262
+#define K_X360_RIGHT_THUMB		263
+#define K_X360_LEFT_SHOULDER	264
+#define K_X360_RIGHT_SHOULDER	265
+#define K_X360_A				266
+#define K_X360_B				267
+#define K_X360_X				268
+#define K_X360_Y				269
+#define K_X360_LEFT_TRIGGER		270
+#define K_X360_RIGHT_TRIGGER	271
+#define K_X360_GUIDE			272
+
+#define	MAX_KEYS 273
 
 #define	MAXCMDLINE	256
 
 typedef enum {key_game, key_console, key_message, key_menu} keydest_t;
 
 extern keydest_t	key_dest;
-extern	char	*keybindings[256];
+extern	char	*keybindings[MAX_KEYS];
 
 extern	char	key_lines[32][MAXCMDLINE];
 extern	int		edit_line;

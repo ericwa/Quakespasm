@@ -137,7 +137,7 @@ static int	total_dx, total_dy = 0;
 
 /* joystick variables */
 cvar_t	joy_sensitivity = { "joy_sensitivity", "10", CVAR_NONE };
-cvar_t	joy_filter = { "joy_filter", "1", CVAR_NONE };
+cvar_t	joy_filter = { "joy_filter", "0", CVAR_NONE };
 cvar_t	joy_deadzone = { "joy_deadzone", "0.125", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
 cvar_t	joy_axismove_x = { "joy_axismove_x", "0", CVAR_NONE };
@@ -541,35 +541,39 @@ void IN_JoyAxisMove(Uint8 axis, Sint16 value)
 		Key_Event(K_CTRL, value >= 0);
 }
 
+static int IN_KeyForControllerButton(SDL_GameControllerButton button)
+{
+	switch (button)
+	{
+		case SDL_CONTROLLER_BUTTON_A: return K_X360_A;
+		case SDL_CONTROLLER_BUTTON_B: return K_X360_B;
+		case SDL_CONTROLLER_BUTTON_X: return K_X360_X;
+		case SDL_CONTROLLER_BUTTON_Y: return K_X360_Y;
+		case SDL_CONTROLLER_BUTTON_BACK: return K_X360_BACK;
+		case SDL_CONTROLLER_BUTTON_GUIDE: return K_X360_GUIDE;
+		case SDL_CONTROLLER_BUTTON_START: return K_X360_START;
+		case SDL_CONTROLLER_BUTTON_LEFTSTICK: return K_X360_LEFT_THUMB;
+		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return K_X360_RIGHT_THUMB;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return K_X360_LEFT_SHOULDER;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return K_X360_RIGHT_SHOULDER;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP: return K_X360_DPAD_UP;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return K_X360_DPAD_DOWN;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return K_X360_DPAD_LEFT;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return K_X360_DPAD_RIGHT;
+		default: return 0;
+	}
+}
+
 void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton button, qboolean down)
 {
-	int key = -1;
+	int key;
 	
 	if (instanceid != joy_active_instaceid)
 		return;
 	
-	switch (button)
-	{
-		case SDL_CONTROLLER_BUTTON_A: break;
-		case SDL_CONTROLLER_BUTTON_B: break;
-		case SDL_CONTROLLER_BUTTON_X: break;
-		case SDL_CONTROLLER_BUTTON_Y: break;
-		case SDL_CONTROLLER_BUTTON_BACK: break;
-		case SDL_CONTROLLER_BUTTON_GUIDE: break;
-		case SDL_CONTROLLER_BUTTON_START: break;
-		case SDL_CONTROLLER_BUTTON_LEFTSTICK: break;
-		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: break;
-		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: Key_Event(K_MWHEELDOWN, down); break;
-		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: Key_Event(K_MWHEELUP, down); break;
-		case SDL_CONTROLLER_BUTTON_DPAD_UP: break;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: break;
-		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: break;
-		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: break;
-		default:
-			return;
-	}
+	key = IN_KeyForControllerButton(button);
 
-	if (key != -1)
+	if (key)
 		Key_Event(key, down);
 }
 
@@ -597,12 +601,12 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, s
 			static qboolean ltrigdown = false;
 			if (axisValue > 0.1 && !ltrigdown)
 			{
-				Key_Event(K_SPACE, true);
+				Key_Event(K_X360_LEFT_TRIGGER, true);
 				ltrigdown = true;
 			}
 			if (axisValue <= 0.1 && ltrigdown)
 			{
-				Key_Event(K_SPACE, false);
+				Key_Event(K_X360_LEFT_TRIGGER, false);
 				ltrigdown = false;
 			}
 			break;
@@ -614,12 +618,12 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, s
 			static qboolean ltrigdown = false;
 			if (axisValue > 0.1 && !ltrigdown)
 			{
-				Key_Event(K_CTRL, true);
+				Key_Event(K_X360_RIGHT_TRIGGER, true);
 				ltrigdown = true;
 			}
 			if (axisValue <= 0.1 && ltrigdown)
 			{
-				Key_Event(K_CTRL, false);
+				Key_Event(K_X360_RIGHT_TRIGGER, false);
 				ltrigdown = false;
 			}
 			break;

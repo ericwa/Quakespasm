@@ -40,8 +40,6 @@ int		history_line = 0;
 
 keydest_t	key_dest;
 
-#define		MAX_KEYS 256
-
 char		*keybindings[MAX_KEYS];
 qboolean	consolekeys[MAX_KEYS];	// if true, can't be rebound while in console
 qboolean	menubound[MAX_KEYS];	// if true, can't be rebound while in menu
@@ -163,6 +161,24 @@ keyname_t keynames[] =
 	{"BACKQUOTE", '`'},	// because a raw backquote may toggle the console
 	{"TILDE", '~'},		// because a raw tilde may toggle the console
 
+	{"X360_DPAD_UP", K_X360_DPAD_UP},
+	{"X360_DPAD_DOWN", K_X360_DPAD_DOWN},
+	{"X360_DPAD_LEFT", K_X360_DPAD_LEFT},
+	{"X360_DPAD_RIGHT", K_X360_DPAD_RIGHT},
+	{"X360_START", K_X360_START},
+	{"X360_BACK", K_X360_BACK},
+	{"X360_LEFT_THUMB", K_X360_LEFT_THUMB},
+	{"X360_RIGHT_THUMB", K_X360_RIGHT_THUMB},
+	{"X360_LEFT_SHOULDER", K_X360_LEFT_SHOULDER},
+	{"X360_RIGHT_SHOULDER", K_X360_RIGHT_SHOULDER},
+	{"X360_A", K_X360_A},
+	{"X360_B", K_X360_B},
+	{"X360_X", K_X360_X},
+	{"X360_Y", K_X360_Y},
+	{"X360_LEFT_TRIGGER", K_X360_LEFT_TRIGGER},
+	{"X360_RIGHT_TRIGGER", K_X360_RIGHT_TRIGGER},
+	{"X360_GUIDE", K_X360_GUIDE},
+	
 	{NULL,		0}
 };
 
