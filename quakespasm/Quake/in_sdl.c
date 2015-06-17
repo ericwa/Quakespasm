@@ -76,6 +76,10 @@ typedef struct
 	joyAxis_t	right;		/* TODO: assumed look, rename? */
 } dualAxis_t;
 
+/* -1 is mentioned as the invalid instance ID in SDL_joystick.h */
+static SDL_JoystickID joy_active_instaceid = -1;
+static SDL_GameController *joy_active_controller = NULL;
+
 static int buttonremap[] =
 {
 	K_MOUSE1,
@@ -403,6 +407,29 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_axislook_y );
 	Cvar_RegisterVariable( &joy_axis_debug );
 
+	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
+		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
+	} else {
+		int i;
+		
+		for ( i = 0; i < SDL_NumJoysticks(); i++ )
+		{
+			if ( SDL_IsGameController(i) )
+			{
+				SDL_GameController *gamecontroller;
+				gamecontroller = SDL_GameControllerOpen(i);
+				if (gamecontroller)
+				{
+					Con_Printf("Opened controller %s\n", SDL_GameControllerNameForIndex(i));
+
+					joy_active_instaceid = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamecontroller));
+					joy_active_controller = gamecontroller;
+					break;
+				}
+			}
+		}
+	}
+	
 	if ( SDL_InitSubSystem( SDL_INIT_JOYSTICK ) == -1 ) {
 		Con_Printf( "WARNING: Could not initialize SDL Joystick\n" );
 	} else {
@@ -508,10 +535,103 @@ void IN_JoyAxisMove(Uint8 axis, Sint16 value)
 	}
 	
 	if ( axis == 2)
-		Key_Event(K_CTRL, value >= 0);
+		Key_Event(K_SPACE, value >= 0);
 	
 	if ( axis == 5)
-		Key_Event(K_SPACE, value >= 0);
+		Key_Event(K_CTRL, value >= 0);
+}
+
+void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton button, qboolean down)
+{
+	int key = -1;
+	
+	if (instanceid != joy_active_instaceid)
+		return;
+	
+	switch (button)
+	{
+		case SDL_CONTROLLER_BUTTON_A: break;
+		case SDL_CONTROLLER_BUTTON_B: break;
+		case SDL_CONTROLLER_BUTTON_X: break;
+		case SDL_CONTROLLER_BUTTON_Y: break;
+		case SDL_CONTROLLER_BUTTON_BACK: break;
+		case SDL_CONTROLLER_BUTTON_GUIDE: break;
+		case SDL_CONTROLLER_BUTTON_START: break;
+		case SDL_CONTROLLER_BUTTON_LEFTSTICK: break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: break;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: Key_Event(K_MWHEELDOWN, down); break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: Key_Event(K_MWHEELUP, down); break;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP: break;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: break;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: break;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: break;
+		default:
+			return;
+	}
+
+	if (key != -1)
+		Key_Event(key, down);
+}
+
+void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, short value)
+{
+	float axisValue = NormalizeJoyInputValue( value );
+
+	if (instanceid != joy_active_instaceid)
+		return;
+	
+	switch (axis)
+	{
+		// TODO: swap move/look cvar
+		case SDL_CONTROLLER_AXIS_LEFTX:
+			_rawDualAxis.left.x = axisValue; break;
+		case SDL_CONTROLLER_AXIS_LEFTY:
+			_rawDualAxis.left.y = axisValue; break;
+		case SDL_CONTROLLER_AXIS_RIGHTX:
+			_rawDualAxis.right.x = axisValue; break;
+		case SDL_CONTROLLER_AXIS_RIGHTY:
+			_rawDualAxis.right.y = axisValue; break;
+
+		case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
+		{
+			static qboolean ltrigdown = false;
+			if (axisValue > 0.1 && !ltrigdown)
+			{
+				Key_Event(K_SPACE, true);
+				ltrigdown = true;
+			}
+			if (axisValue <= 0.1 && ltrigdown)
+			{
+				Key_Event(K_SPACE, false);
+				ltrigdown = false;
+			}
+			break;
+		}
+
+
+		case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
+		{
+			static qboolean ltrigdown = false;
+			if (axisValue > 0.1 && !ltrigdown)
+			{
+				Key_Event(K_CTRL, true);
+				ltrigdown = true;
+			}
+			if (axisValue <= 0.1 && ltrigdown)
+			{
+				Key_Event(K_CTRL, false);
+				ltrigdown = false;
+			}
+			break;
+		}
+		default:
+			return; // ignore
+	}
+}
+
+void IN_ControllerAdded(SDL_GameControllerButton button, qboolean down)
+{
+	
 }
 
 void IN_Move (usercmd_t *cmd)
@@ -535,6 +655,10 @@ void IN_Move (usercmd_t *cmd)
 	_rawDualAxis._oldleft = _rawDualAxis.left;
 	_rawDualAxis._oldright = _rawDualAxis.right;
 	
+	// TODO: determine whether to apply deadzone before or after axis functions?
+	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, joy_deadzone.value );
+	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, joy_deadzone.value );
+	
 	// scale look speed before easing
 	moveDualAxis.right.x *= joy_sensitivity.value;
 	moveDualAxis.right.y *= joy_sensitivity.value;
@@ -548,10 +672,6 @@ void IN_Move (usercmd_t *cmd)
 		case 4: dualfunc( moveDualAxis, quartic );   break;
 		case 5: dualfunc( moveDualAxis, quintic );   break;
 	}
-
-	// TODO: determine whether to apply deadzone before or after axis functions?
-	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, joy_deadzone.value );
-	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, joy_deadzone.value );
 
 	// movements are not scaled by sensitivity
 	if ( moveDualAxis.left.x != 0.0f ) {
@@ -954,6 +1074,7 @@ void IN_SendKeyEvents (void)
 			IN_MouseMove(event.motion.xrel, event.motion.yrel);
 			break;
 
+#if 0
 		case SDL_JOYHATMOTION:
 			// TODO: VERIFY hat support, handle multiple hats?
 			IN_JoyHatEvent(event.jhat.hat, event.jhat.value);
@@ -978,7 +1099,47 @@ void IN_SendKeyEvents (void)
 			}
 			Key_Event(joyremap[event.jbutton.button], event.jbutton.state == SDL_PRESSED);
 			break;
+#endif
 
+#if defined(USE_SDL2)
+		case SDL_CONTROLLERAXISMOTION:
+			IN_ControllerAxis(event.caxis.which, event.caxis.axis, event.caxis.value);
+			break;
+		case SDL_CONTROLLERBUTTONDOWN:
+		case SDL_CONTROLLERBUTTONUP:
+			IN_ControllerButton(event.cbutton.which, event.cbutton.button, event.cbutton.state == SDL_PRESSED);
+			break;
+		case SDL_CONTROLLERDEVICEADDED:
+			if (joy_active_instaceid == -1)
+			{
+				joy_active_controller = SDL_GameControllerOpen(event.cdevice.which);
+				if (joy_active_controller == NULL)
+					Con_DPrintf("Couldn't open game controller\n");
+				else
+				{
+					SDL_Joystick *joy;
+					joy = SDL_GameControllerGetJoystick(joy_active_controller);
+					joy_active_instaceid = SDL_JoystickInstanceID(joy);
+				}
+			}
+			else
+				Con_DPrintf("Ignoring SDL_CONTROLLERDEVICEADDED\n");
+			break;
+		case SDL_CONTROLLERDEVICEREMOVED:
+			if (joy_active_instaceid != -1 && event.cdevice.which == joy_active_instaceid)
+			{
+				SDL_GameControllerClose(joy_active_controller);
+				joy_active_controller = NULL;
+				joy_active_instaceid = -1;
+			}
+			else
+				Con_DPrintf("Ignoring SDL_CONTROLLERDEVICEREMOVED\n");
+			break;
+		case SDL_CONTROLLERDEVICEREMAPPED:
+			Con_DPrintf("Unimplemented SDL_CONTROLLERDEVICEREMAPPED\n");
+			break;
+#endif
+				
 		case SDL_QUIT:
 			CL_Disconnect ();
 			Sys_Quit ();
