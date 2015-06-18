@@ -146,9 +146,9 @@ cvar_t	joy_axislook_x = { "joy_axislook_x", "3", CVAR_NONE };
 cvar_t	joy_axislook_y = { "joy_axislook_y", "4", CVAR_NONE };
 cvar_t	joy_axis_debug = { "joy_axis_debug", "0", CVAR_NONE };
 
-cvar_t in_acceleratetime = { "in_acceleratetime", "0.3", CVAR_NONE };
-cvar_t in_maxspeedadded = { "in_maxspeedadded", "2.0", CVAR_NONE };
-cvar_t in_threshold = { "in_threshold", "0.8", CVAR_NONE };
+cvar_t joy_acceleratetime = { "joy_acceleratetime", "0.3", CVAR_NONE };
+cvar_t joy_maxspeedadded = { "joy_maxspeedadded", "2.0", CVAR_NONE };
+cvar_t joy_acceleratestart = { "joy_acceleratestart", "0.8", CVAR_NONE };
 
 /* joystick support functions */
 
@@ -411,9 +411,9 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_axislook_y );
 	Cvar_RegisterVariable( &joy_axis_debug );
 
-	Cvar_RegisterVariable( &in_acceleratetime );
-	Cvar_RegisterVariable( &in_threshold );
-	Cvar_RegisterVariable( &in_maxspeedadded );
+	Cvar_RegisterVariable( &joy_acceleratetime );
+	Cvar_RegisterVariable( &joy_acceleratestart );
+	Cvar_RegisterVariable( &joy_maxspeedadded );
 	
 	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
 		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
@@ -692,22 +692,22 @@ void IN_Move (usercmd_t *cmd)
 	// apply threshold
 	{
 		double mag = sqrt(moveDualAxis.right.x*moveDualAxis.right.x + moveDualAxis.right.y*moveDualAxis.right.y);
-		if (mag >= in_threshold.value)
+		if (mag >= joy_acceleratestart.value)
 			in_timeoverthreshhold += host_frametime;
 		else
 			in_timeoverthreshhold = 0;
 
 		// clamp at 1.0s
-		if (in_timeoverthreshhold > in_acceleratetime.value)
-			in_timeoverthreshhold = in_acceleratetime.value;
+		if (in_timeoverthreshhold > joy_acceleratetime.value)
+			in_timeoverthreshhold = joy_acceleratetime.value;
 
 		// how long into the acceleration are we in [0,1]
-		double time_fraction = in_timeoverthreshhold / in_acceleratetime.value;
+		double time_fraction = in_timeoverthreshhold / joy_acceleratetime.value;
 		// give it some easing
 		time_fraction = time_fraction * time_fraction;
 		
-		moveDualAxis.right.x *= (1 + (in_maxspeedadded.value * time_fraction));
-		moveDualAxis.right.y *= (1 + (in_maxspeedadded.value * time_fraction));
+		moveDualAxis.right.x *= (1 + (joy_maxspeedadded.value * time_fraction));
+		moveDualAxis.right.y *= (1 + (joy_maxspeedadded.value * time_fraction));
 	}
 
 	// scale look speed after easing
