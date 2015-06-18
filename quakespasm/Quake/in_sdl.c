@@ -643,6 +643,10 @@ static float joyfunc(float f)
 	return pow(f, joy_function.value);
 }
 
+const double in_maxtimeoverthreshold = 1.0;
+double in_timeoverthreshhold = 0;
+double in_threshold = 0.8;
+
 void IN_Move (usercmd_t *cmd)
 {
 	int		dmx, dmy;
@@ -668,11 +672,30 @@ void IN_Move (usercmd_t *cmd)
 	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, joy_deadzone.value );
 	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, joy_deadzone.value );
 	
-	// scale look speed before easing
+	// easing
+	dualfunc( moveDualAxis, joyfunc );
+	
+	// apply threshold
+	{
+		double mag = sqrt(moveDualAxis.right.x*moveDualAxis.right.x + moveDualAxis.right.y*moveDualAxis.right.y);
+		if (mag >= in_threshold)
+			in_timeoverthreshhold += host_frametime;
+		else
+			in_timeoverthreshhold = 0;
+
+		// clamp at 1.0s
+		if (in_timeoverthreshhold > in_maxtimeoverthreshold)
+			in_timeoverthreshhold = in_maxtimeoverthreshold;
+
+		moveDualAxis.right.x *= (1 + 10 * in_timeoverthreshhold);
+		moveDualAxis.right.y *= (1 + 10 * in_timeoverthreshhold);
+	}
+
+	// scale look speed after easing
 	moveDualAxis.right.x *= joy_sensitivity.value;
 	moveDualAxis.right.y *= joy_sensitivity.value;
-	
-	dualfunc( moveDualAxis, joyfunc );
+
+
 
 	// movements are not scaled by sensitivity
 	if ( moveDualAxis.left.x != 0.0f ) {
