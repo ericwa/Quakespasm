@@ -136,7 +136,7 @@ static dualAxis_t _rawDualAxis = {0};
 static int	total_dx, total_dy = 0;
 
 /* joystick variables */
-cvar_t	joy_sensitivity = { "joy_sensitivity", "10", CVAR_NONE };
+cvar_t	joy_sensitivity = { "joy_sensitivity", "100", CVAR_NONE };
 cvar_t	joy_filter = { "joy_filter", "0", CVAR_NONE };
 cvar_t	joy_deadzone = { "joy_deadzone", "0.125", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
@@ -638,6 +638,11 @@ void IN_ControllerAdded(SDL_GameControllerButton button, qboolean down)
 	
 }
 
+static float joyfunc(float f)
+{
+	return pow(f, joy_function.value);
+}
+
 void IN_Move (usercmd_t *cmd)
 {
 	int		dmx, dmy;
@@ -667,15 +672,7 @@ void IN_Move (usercmd_t *cmd)
 	moveDualAxis.right.x *= joy_sensitivity.value;
 	moveDualAxis.right.y *= joy_sensitivity.value;
 	
-	switch ( (int)joy_function.value ) {
-		default:
-		case 0: break;
-		case 1: dualfunc( moveDualAxis, sine );      break;
-		case 2: dualfunc( moveDualAxis, quadratic ); break;
-		case 3: dualfunc( moveDualAxis, cubic );     break;
-		case 4: dualfunc( moveDualAxis, quartic );   break;
-		case 5: dualfunc( moveDualAxis, quintic );   break;
-	}
+	dualfunc( moveDualAxis, joyfunc );
 
 	// movements are not scaled by sensitivity
 	if ( moveDualAxis.left.x != 0.0f ) {
