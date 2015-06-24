@@ -48,13 +48,6 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #include <IOKit/hidsystem/event_status_driver.h>
 #endif
 
-/* analog axis ease math functions */
-#define sine(x)      ((0.5f) * ( (1) - (cosf( (x) * M_PI )) ))
-#define quadratic(x) ((x) * (x))
-#define cubic(x)     ((x) * (x) * (x))
-#define quartic(x)   ((x) * (x) * (x) * (x))
-#define quintic(x)   ((x) * (x) * (x) * (x) * (x))
-
 /* dual axis utility macro */
 #define dualfunc(d,f) {        \
     d.left.x  = d.left.x < 0 ? -f( (float)-d.left.x ) : f( (float)d.left.x );  \
@@ -136,10 +129,10 @@ static dualAxis_t _rawDualAxis = {0};
 static int	total_dx, total_dy = 0;
 
 /* joystick variables */
-cvar_t	joy_sensitivity = { "joy_sensitivity", "1000", CVAR_NONE };
-cvar_t	joy_filter = { "joy_filter", "0", CVAR_NONE };
-cvar_t	joy_deadzone = { "joy_deadzone", "0.125", CVAR_NONE };
-cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
+cvar_t	joy_sensitivity_x = { "joy_sensitivity_x", "1000", CVAR_NONE };
+cvar_t	joy_sensitivity_y = { "joy_sensitivity_y", "600", CVAR_NONE };
+cvar_t	joy_deadzone = { "joy_deadzone", "0.240", CVAR_NONE };
+cvar_t	joy_function = { "joy_function", "1.25", CVAR_NONE };
 cvar_t	joy_axismove_x = { "joy_axismove_x", "0", CVAR_NONE };
 cvar_t	joy_axismove_y = { "joy_axismove_y", "1", CVAR_NONE };
 cvar_t	joy_axislook_x = { "joy_axislook_x", "3", CVAR_NONE };
@@ -147,7 +140,7 @@ cvar_t	joy_axislook_y = { "joy_axislook_y", "4", CVAR_NONE };
 cvar_t	joy_axis_debug = { "joy_axis_debug", "0", CVAR_NONE };
 
 cvar_t joy_acceleratetime = { "joy_acceleratetime", "0.3", CVAR_NONE };
-cvar_t joy_maxspeedadded = { "joy_maxspeedadded", "2.0", CVAR_NONE };
+cvar_t joy_maxspeed = { "joy_maxspeed", "2.0", CVAR_NONE };
 cvar_t joy_acceleratestart = { "joy_acceleratestart", "0.8", CVAR_NONE };
 
 /* joystick support functions */
@@ -171,18 +164,21 @@ static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
 	if ( magnitude < deadzone ) {
 		result.x = result.y = 0.0f;
 	} else {
-		joyAxis_t normalized;
-		float gradient;
-
-		if ( magnitude > 1.0f ) {
-			magnitude = 1.0f;
-		}
-
-		normalized.x = axis.x / magnitude;
-		normalized.y = axis.y / magnitude;
-		gradient = ( (magnitude - deadzone) / (1.0f - deadzone) );
-		result.x = normalized.x * gradient;
-		result.y = normalized.y * gradient;
+		result.x = axis.x;
+		result.y = axis.y;
+		
+//		joyAxis_t normalized;
+//		float gradient;
+//
+//		if ( magnitude > 1.0f ) {
+//			magnitude = 1.0f;
+//		}
+//
+//		normalized.x = axis.x / magnitude;
+//		normalized.y = axis.y / magnitude;
+//		gradient = ( (magnitude - deadzone) / (1.0f - deadzone) );
+//		result.x = normalized.x * gradient;
+//		result.y = normalized.y * gradient;
 	}
 
 	return result;
@@ -401,8 +397,8 @@ void IN_Init (void)
 	}
 
 	// BEGIN jeremiah sypult
-	Cvar_RegisterVariable( &joy_sensitivity );
-	Cvar_RegisterVariable( &joy_filter );
+	Cvar_RegisterVariable( &joy_sensitivity_x );
+	Cvar_RegisterVariable( &joy_sensitivity_y );
 	Cvar_RegisterVariable( &joy_deadzone );
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_axismove_x );
@@ -413,7 +409,7 @@ void IN_Init (void)
 
 	Cvar_RegisterVariable( &joy_acceleratetime );
 	Cvar_RegisterVariable( &joy_acceleratestart );
-	Cvar_RegisterVariable( &joy_maxspeedadded );
+	Cvar_RegisterVariable( &joy_maxspeed );
 	
 	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
 		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
@@ -667,12 +663,7 @@ void IN_Move (usercmd_t *cmd)
 	//
 	dualAxis_t moveDualAxis = {0};
 
-	if ( joy_filter.value ) {
-		moveDualAxis.left.x = ( _rawDualAxis.left.x + _rawDualAxis._oldleft.x ) * 0.5;
-		moveDualAxis.left.y = ( _rawDualAxis.left.y + _rawDualAxis._oldleft.y ) * 0.5;
-		moveDualAxis.right.x = ( _rawDualAxis.right.x + _rawDualAxis._oldright.x ) * 0.5;
-		moveDualAxis.right.y = ( _rawDualAxis.right.y + _rawDualAxis._oldright.y ) * 0.5;
-	} else {
+	{
 		moveDualAxis.left = _rawDualAxis.left;
 		moveDualAxis.right = _rawDualAxis.right;
 	}
@@ -706,13 +697,13 @@ void IN_Move (usercmd_t *cmd)
 		// give it some easing
 		time_fraction = time_fraction * time_fraction;
 		
-		moveDualAxis.right.x *= (1 + (joy_maxspeedadded.value * time_fraction));
-		moveDualAxis.right.y *= (1 + (joy_maxspeedadded.value * time_fraction));
+		moveDualAxis.right.x *= (joy_maxspeed.value * time_fraction);
+		moveDualAxis.right.y *= (joy_maxspeed.value * time_fraction);
 	}
 
 	// scale look speed after easing
-	moveDualAxis.right.x *= joy_sensitivity.value;
-	moveDualAxis.right.y *= joy_sensitivity.value;
+	moveDualAxis.right.x *= joy_sensitivity_x.value;
+	moveDualAxis.right.y *= joy_sensitivity_y.value;
 
 
 
