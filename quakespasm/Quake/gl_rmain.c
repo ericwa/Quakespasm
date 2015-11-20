@@ -756,6 +756,39 @@ void R_ShowBoundingBoxes (void)
 			VectorAdd (ed->v.mins, ed->v.origin, mins);
 			VectorAdd (ed->v.maxs, ed->v.origin, maxs);
 			R_EmitWireBox (mins, maxs);
+
+			// show the fixed-size, bsp hull bbox
+			if (r_showbboxes.value >= 2)
+			{
+				vec3_t		size, offset, hullbbox_origin;
+				edict_t		*world;
+				hull_t		*hull;
+
+				world = sv.edicts;
+
+				glColor3f(1, 0, 0);
+
+				// Pick the world hull that this entity clips against
+				VectorSubtract(ed->v.maxs, ed->v.mins, size);
+				if (size[0] < 3)
+					hull = &sv.worldmodel->hulls[0];
+				else if (size[0] <= 32)
+					hull = &sv.worldmodel->hulls[1];
+				else
+					hull = &sv.worldmodel->hulls[2];
+
+				// calculate an offset value to center the origin
+				VectorSubtract(hull->clip_mins, ed->v.mins, offset);
+				VectorAdd(offset, world->v.origin, offset);
+
+				// now, offset would be added to ed->v.origin and tested against the hull.
+				VectorAdd(offset, ed->v.origin, hullbbox_origin);
+
+				VectorAdd(hull->clip_mins, hullbbox_origin, mins);
+				VectorAdd(hull->clip_maxs, hullbbox_origin, maxs);
+				R_EmitWireBox(mins, maxs);
+				glColor3f(1, 1, 1);
+			}
 		}
 	}
 
