@@ -180,7 +180,7 @@ void CL_ParseStartSoundPacket(void)
 		Host_Error ("CL_ParseStartSoundPacket: ent = %i", ent);
 
 	for (i = 0; i < 3; i++)
-		pos[i] = MSG_ReadCoord ();
+		pos[i] = MSG_ReadCoord (cl.protocol, cl.protocolflags);
 
 	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 }
@@ -276,13 +276,20 @@ void CL_ParseServerInfo (void)
 // parse protocol version number
 	i = MSG_ReadLong ();
 	//johnfitz -- support multiple protocols
-	if (i != PROTOCOL_NETQUAKE && i != PROTOCOL_FITZQUAKE) {
+	if (i != PROTOCOL_NETQUAKE && i != PROTOCOL_FITZQUAKE && i != PROTOCOL_RMQ) {
 		Con_Printf ("\n"); //because there's no newline after serverinfo print
-		Host_Error ("Server returned version %i, not %i or %i", i, PROTOCOL_NETQUAKE, PROTOCOL_FITZQUAKE);
+		Host_Error ("Server returned version %i, not %i or %i or %i", i, PROTOCOL_NETQUAKE, PROTOCOL_FITZQUAKE, PROTOCOL_RMQ);
 	}
 	cl.protocol = i;
 	//johnfitz
 
+	if (cl.protocol == PROTOCOL_RMQ)
+	{
+		// mh - read protocol flags from server so that we know what protocol features to expect
+		cl.protocolflags = (unsigned int) MSG_ReadLong ();
+	}
+	else cl.protocolflags = 0;
+	
 // parse maxclients
 	cl.maxclients = MSG_ReadByte ();
 	if (cl.maxclients < 1 || cl.maxclients > MAX_SCOREBOARD)
@@ -428,7 +435,7 @@ void CL_ParseUpdate (int bits)
 	}
 
 	//johnfitz -- PROTOCOL_FITZQUAKE
-	if (cl.protocol == PROTOCOL_FITZQUAKE)
+	if (cl.protocol == PROTOCOL_FITZQUAKE || cl.protocol == PROTOCOL_RMQ)
 	{
 		if (bits & U_EXTEND1)
 			bits |= MSG_ReadByte() << 16;
@@ -502,29 +509,29 @@ void CL_ParseUpdate (int bits)
 	VectorCopy (ent->msg_angles[0], ent->msg_angles[1]);
 
 	if (bits & U_ORIGIN1)
-		ent->msg_origins[0][0] = MSG_ReadCoord ();
+		ent->msg_origins[0][0] = MSG_ReadCoord (cl.protocol, cl.protocolflags);
 	else
 		ent->msg_origins[0][0] = ent->baseline.origin[0];
 	if (bits & U_ANGLE1)
-		ent->msg_angles[0][0] = MSG_ReadAngle();
+		ent->msg_angles[0][0] = MSG_ReadAngle(cl.protocol, cl.protocolflags);
 	else
 		ent->msg_angles[0][0] = ent->baseline.angles[0];
 
 	if (bits & U_ORIGIN2)
-		ent->msg_origins[0][1] = MSG_ReadCoord ();
+		ent->msg_origins[0][1] = MSG_ReadCoord (cl.protocol, cl.protocolflags);
 	else
 		ent->msg_origins[0][1] = ent->baseline.origin[1];
 	if (bits & U_ANGLE2)
-		ent->msg_angles[0][1] = MSG_ReadAngle();
+		ent->msg_angles[0][1] = MSG_ReadAngle(cl.protocol, cl.protocolflags);
 	else
 		ent->msg_angles[0][1] = ent->baseline.angles[1];
 
 	if (bits & U_ORIGIN3)
-		ent->msg_origins[0][2] = MSG_ReadCoord ();
+		ent->msg_origins[0][2] = MSG_ReadCoord (cl.protocol, cl.protocolflags);
 	else
 		ent->msg_origins[0][2] = ent->baseline.origin[2];
 	if (bits & U_ANGLE3)
-		ent->msg_angles[0][2] = MSG_ReadAngle();
+		ent->msg_angles[0][2] = MSG_ReadAngle(cl.protocol, cl.protocolflags);
 	else
 		ent->msg_angles[0][2] = ent->baseline.angles[2];
 
@@ -539,7 +546,7 @@ void CL_ParseUpdate (int bits)
 	//johnfitz
 
 	//johnfitz -- PROTOCOL_FITZQUAKE and PROTOCOL_NEHAHRA
-	if (cl.protocol == PROTOCOL_FITZQUAKE)
+	if (cl.protocol == PROTOCOL_FITZQUAKE || cl.protocol == PROTOCOL_RMQ)
 	{
 		if (bits & U_ALPHA)
 			ent->alpha = MSG_ReadByte();
@@ -634,8 +641,8 @@ void CL_ParseBaseline (entity_t *ent, int version) //johnfitz -- added argument
 	ent->baseline.skin = MSG_ReadByte();
 	for (i = 0; i < 3; i++)
 	{
-		ent->baseline.origin[i] = MSG_ReadCoord ();
-		ent->baseline.angles[i] = MSG_ReadAngle ();
+		ent->baseline.origin[i] = MSG_ReadCoord (cl.protocol, cl.protocolflags);
+		ent->baseline.angles[i] = MSG_ReadAngle (cl.protocol, cl.protocolflags);
 	}
 
 	ent->baseline.alpha = (bits & B_ALPHA) ? MSG_ReadByte() : ENTALPHA_DEFAULT; //johnfitz -- PROTOCOL_FITZQUAKE
@@ -896,7 +903,7 @@ void CL_ParseStaticSound (int version) //johnfitz -- added argument
 	int			i;
 
 	for (i = 0; i < 3; i++)
-		org[i] = MSG_ReadCoord ();
+		org[i] = MSG_ReadCoord (cl.protocol, cl.protocolflags);
 
 	//johnfitz -- PROTOCOL_FITZQUAKE
 	if (version == 2)
@@ -987,8 +994,8 @@ void CL_ParseServerMessage (void)
 		case svc_version:
 			i = MSG_ReadLong ();
 			//johnfitz -- support multiple protocols
-			if (i != PROTOCOL_NETQUAKE && i != PROTOCOL_FITZQUAKE)
-				Host_Error ("Server returned version %i, not %i or %i", i, PROTOCOL_NETQUAKE, PROTOCOL_FITZQUAKE);
+			if (i != PROTOCOL_NETQUAKE && i != PROTOCOL_FITZQUAKE && i != PROTOCOL_RMQ)
+				Host_Error ("Server returned version %i, not %i or %i or %i", i, PROTOCOL_NETQUAKE, PROTOCOL_FITZQUAKE, PROTOCOL_RMQ);
 			cl.protocol = i;
 			//johnfitz
 			break;
@@ -1023,7 +1030,7 @@ void CL_ParseServerMessage (void)
 
 		case svc_setangle:
 			for (i=0 ; i<3 ; i++)
-				cl.viewangles[i] = MSG_ReadAngle ();
+				cl.viewangles[i] = MSG_ReadAngle (cl.protocol, cl.protocolflags);
 			break;
 
 		case svc_setview:
