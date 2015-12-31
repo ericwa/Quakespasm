@@ -27,6 +27,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PROTOCOL_NETQUAKE	15 //johnfitz -- standard quake protocol
 #define PROTOCOL_FITZQUAKE	666 //johnfitz -- added new protocol for fitzquake 0.85
+#define PROTOCOL_RMQ		999
+
+// PROTOCOL_RMQ protocol flags
+#define PRFL_SHORTANGLE		(1 << 1)
+#define PRFL_FLOATANGLE		(1 << 2)
+#define PRFL_24BITCOORD		(1 << 3)
+#define PRFL_FLOATCOORD		(1 << 4)
+#define PRFL_EDICTSCALE		(1 << 5)
+#define PRFL_ALPHASANITY	(1 << 6)	// cleanup insanity with alpha
+#define PRFL_INT32COORD		(1 << 7)
+#define PRFL_MOREFLAGS		(1 << 31)	// not supported
 
 // if the high bit of the servercmd is set, the low bits are fast update flags:
 #define	U_MOREBITS		(1<<0)
