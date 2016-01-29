@@ -1346,6 +1346,7 @@ static void GL_Init (void)
 
 	GLAlias_CreateShaders ();
 	GLWorld_CreateShaders ();
+	GLBrush_CreateShaders ();
 	GL_ClearBufferBindings ();	
 }
 

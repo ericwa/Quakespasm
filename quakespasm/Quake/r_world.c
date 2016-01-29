@@ -32,6 +32,77 @@ byte *SV_FatPVS (vec3_t org, qmodel_t *worldmodel);
 
 int vis_changed; //if true, force pvs to be refreshed
 
+static GLuint r_brush_program;
+
+// uniforms used in frag shader
+static GLuint clTimeLoc;
+static GLuint texLoc;
+
+/*
+
+
+*/
+
+/*
+=============
+GLBrush_CreateShaders
+=============
+*/
+void GLBrush_CreateShaders (void)
+{
+	const GLchar *vertSource = \
+	"#version 110\n"
+	"\n"
+	"void main()\n"
+	"{\n"
+	"	gl_TexCoord[0]  = gl_MultiTexCoord0;\n"
+	"	gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\n"
+	"	// fog\n"
+	"	vec3 ecPosition = vec3(gl_ModelViewMatrix * gl_Vertex);\n"
+	"	gl_FogFragCoord = abs(ecPosition.z);\n"
+	"}\n";
+	
+	const GLchar *fragSource = \
+	"#version 110\n"
+	"\n"
+	"uniform sampler2D Tex;\n"
+	"uniform float ClTime;\n"
+	"\n"
+	"// From RMQEngine:\n"
+	"#define M_PI 3.14159\n"
+	"#define RDT (ClTime * (128.0 / M_PI))\n"
+	"#define BYTEANGLE (360.0 / 256.0)\n"
+	"#define ANGLERAD (M_PI / 180.0)\n"
+	"#define TIMEMULT (BYTEANGLE * ANGLERAD)\n"
+	"#define WARPCALC(s, t) ((s + sin (((t * 2.0) + RDT) * TIMEMULT) * 8.0) * (1.0 / 64.0))\n"
+	"\n"
+	"void main()\n"
+	"{\n"
+	"   vec2 texc = vec2(WARPCALC(gl_TexCoord[0].x * 64.0, gl_TexCoord[0].y * 64.0), WARPCALC(gl_TexCoord[0].y * 64.0, gl_TexCoord[0].x * 64.0));\n"
+	"	vec4 result = texture2D(Tex, texc);\n"
+	"	result = clamp(result, 0.0, 1.0);\n"
+	"	// apply GL_EXP2 fog (from the orange book)\n"
+	"	float fog = exp(-gl_Fog.density * gl_Fog.density * gl_FogFragCoord * gl_FogFragCoord);\n"
+	"	fog = clamp(fog, 0.0, 1.0);\n"
+	"	result = mix(gl_Fog.color, result, fog);\n"
+	"	result.a = 0.4;//gl_Color.a;\n"
+	"	gl_FragColor = result;\n"
+	"}\n";
+	
+	if (!gl_glsl_alias_able)
+		return;
+	
+	r_brush_program = GL_CreateProgram (vertSource, fragSource, 0, NULL);
+	
+	if (r_brush_program != 0)
+	{
+		// get uniform locations
+		clTimeLoc = GL_GetUniformLocation (&r_brush_program, "ClTime");
+		texLoc = GL_GetUniformLocation (&r_brush_program, "Tex");
+	}
+}
+
+
 //==============================================================================
 //
 // SETUP CHAINS
@@ -1010,6 +1081,106 @@ void R_DrawTextureChains_GLSL (qmodel_t *model, entity_t *ent, texchain_t chain)
 	}
 }
 
+void R_DrawTextureChains_GLSL_Water (qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	qboolean	bound;
+	float		entalpha;
+	
+	GL_UseProgramFunc (r_brush_program);
+	
+	// Bind the buffers
+	GL_BindBuffer (GL_ARRAY_BUFFER, gl_bmodel_vbo);
+	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, 0); // indices come from client memory!
+	
+	// Setup vertex array pointers
+	glVertexPointer (3, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0));
+	glEnableClientState (GL_VERTEX_ARRAY);
+	
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glTexCoordPointer (2, GL_FLOAT, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
+	glEnableClientState (GL_TEXTURE_COORD_ARRAY);
+	
+	// set uniforms
+	GL_Uniform1iFunc (texLoc, 0); // TEXTURE0
+	GL_Uniform1fFunc (clTimeLoc, cl.time);
+
+#if 0 
+	for (i=0 ; i<model->numtextures ; i++)
+	{
+		t = model->textures[i];
+		if (!t || !t->texturechains[chain] || !(t->texturechains[chain]->flags & SURF_DRAWTURB))
+			continue;
+		bound = false;
+		entalpha = 1.0f;
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					entalpha = GL_WaterAlphaForEntitySurface (ent, s);
+					R_BeginTransparentDrawing (entalpha);
+					GL_Bind (t->gltexture);
+					bound = true;
+				}
+				for (p = s->polys->next; p; p = p->next)
+				{
+					DrawWaterPoly (p);
+					rs_brushpasses++;
+				}
+			}
+		R_EndTransparentDrawing (entalpha);
+	}
+	
+	
+#endif
+	
+	for (i=0 ; i<model->numtextures ; i++)
+	{
+		t = model->textures[i];
+		
+		if (!t || !t->texturechains[chain] || !(t->texturechains[chain]->flags & SURF_DRAWTURB))
+			continue;
+		
+		R_ClearBatch ();
+		
+		bound = false;
+		entalpha = 1.0f;
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					entalpha = GL_WaterAlphaForEntitySurface (ent, s);
+					R_BeginTransparentDrawing (entalpha);
+					GL_Bind (t->gltexture);	
+					bound = true;
+				}
+				
+				R_BatchSurface (s);
+				rs_brushpasses++;
+			}
+		
+		R_FlushBatch ();
+		R_EndTransparentDrawing (entalpha);
+	}
+	
+	// Reset TMU states
+	GL_SelectTexture (GL_TEXTURE0_ARB);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	
+	// Disable client state
+	glDisableClientState (GL_VERTEX_ARRAY);
+	
+	GL_ClientActiveTextureFunc (GL_TEXTURE0_ARB);
+	glDisableClientState (GL_TEXTURE_COORD_ARRAY);
+	
+	// Disable program
+	GL_UseProgramFunc (0);
+}
+
 /*
 =============
 R_DrawWorld -- johnfitz -- rewritten
@@ -1215,7 +1386,7 @@ void R_DrawWorld_Water (void)
 	if (!r_drawworld_cheatsafe)
 		return;
 
-	R_DrawTextureChains_Water (cl.worldmodel, NULL, chain_world);
+	R_DrawTextureChains_GLSL_Water (cl.worldmodel, NULL, chain_world);
 }
 
 /*
