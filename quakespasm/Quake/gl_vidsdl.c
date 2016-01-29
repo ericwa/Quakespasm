@@ -1269,6 +1269,7 @@ static void GL_Init (void)
 	//johnfitz
 
 	GLAlias_CreateShaders ();
+	GLBrush_CreateShaders ();
 	GL_ClearBufferBindings ();	
 }
 

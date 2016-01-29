@@ -367,6 +367,7 @@ GLuint GL_CreateProgram (const GLchar *vertSource, const GLchar *fragSource, int
 void R_DeleteShaders (void);
 
 void GLAlias_CreateShaders (void);
+void GLBrush_CreateShaders (void);
 void GL_DrawAliasShadow (entity_t *e);
 void DrawGLTriangleFan (glpoly_t *p);
 void DrawGLPoly (glpoly_t *p);
