@@ -586,7 +586,7 @@ void R_DrawBrushModel (entity_t *e)
 	}
 
 	R_DrawTextureChains (clmodel, e, chain_model);
-	R_DrawTextureChains_Water (clmodel, e, chain_model);
+	R_DrawTextureChains_GLSL_Water (clmodel, e, chain_model);
 
 	glPopMatrix ();
 }

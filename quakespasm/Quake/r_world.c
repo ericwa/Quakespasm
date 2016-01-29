@@ -37,6 +37,7 @@ static GLuint r_brush_program;
 // uniforms used in frag shader
 static GLuint clTimeLoc;
 static GLuint texLoc;
+static GLuint waterAlphaLoc;
 
 /*
 
@@ -67,6 +68,7 @@ void GLBrush_CreateShaders (void)
 	"\n"
 	"uniform sampler2D Tex;\n"
 	"uniform float ClTime;\n"
+	"uniform float WaterAlpha;\n"
 	"\n"
 	"// From RMQEngine:\n"
 	"#define M_PI 3.14159\n"
@@ -78,14 +80,14 @@ void GLBrush_CreateShaders (void)
 	"\n"
 	"void main()\n"
 	"{\n"
-	"   vec2 texc = vec2(WARPCALC(gl_TexCoord[0].x * 64.0, gl_TexCoord[0].y * 64.0), WARPCALC(gl_TexCoord[0].y * 64.0, gl_TexCoord[0].x * 64.0));\n"
+	"   vec2 texc = vec2(WARPCALC(gl_TexCoord[0].x * 128.0, gl_TexCoord[0].y * 128.0), WARPCALC(gl_TexCoord[0].y * 128.0, gl_TexCoord[0].x * 128.0));\n"
 	"	vec4 result = texture2D(Tex, texc);\n"
 	"	result = clamp(result, 0.0, 1.0);\n"
 	"	// apply GL_EXP2 fog (from the orange book)\n"
 	"	float fog = exp(-gl_Fog.density * gl_Fog.density * gl_FogFragCoord * gl_FogFragCoord);\n"
 	"	fog = clamp(fog, 0.0, 1.0);\n"
 	"	result = mix(gl_Fog.color, result, fog);\n"
-	"	result.a = 0.4;//gl_Color.a;\n"
+	"	result.a = WaterAlpha;\n"
 	"	gl_FragColor = result;\n"
 	"}\n";
 	
@@ -99,6 +101,7 @@ void GLBrush_CreateShaders (void)
 		// get uniform locations
 		clTimeLoc = GL_GetUniformLocation (&r_brush_program, "ClTime");
 		texLoc = GL_GetUniformLocation (&r_brush_program, "Tex");
+		waterAlphaLoc = GL_GetUniformLocation (&r_brush_program, "WaterAlpha");
 	}
 }
 
@@ -1071,6 +1074,7 @@ void R_DrawTextureChains_GLSL_Water (qmodel_t *model, entity_t *ent, texchain_t 
 				{
 					entalpha = GL_WaterAlphaForEntitySurface (ent, s);
 					R_BeginTransparentDrawing (entalpha);
+					GL_Uniform1fFunc (waterAlphaLoc, entalpha);
 					GL_Bind (t->gltexture);	
 					bound = true;
 				}
