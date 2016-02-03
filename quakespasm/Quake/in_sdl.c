@@ -135,10 +135,15 @@ static dualAxis_t _rawDualAxis = {0};
 /* total accumulated mouse movement since last frame */
 static int	total_dx, total_dy = 0;
 
+/* deadzones from XInput documentation */
+cvar_t	joy_deadzone_l = { "joy_deadzone_l", "7849", CVAR_NONE };
+cvar_t	joy_deadzone_r = { "joy_deadzone_r", "8689", CVAR_NONE };
+cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
+
 /* joystick variables */
-cvar_t	joy_sensitivity = { "joy_sensitivity", "10", CVAR_NONE };
+cvar_t	joy_sensitivity = { "joy_sensitivity", "10000", CVAR_NONE };
 cvar_t	joy_filter = { "joy_filter", "0", CVAR_NONE };
-cvar_t	joy_deadzone = { "joy_deadzone", "0.125", CVAR_NONE };
+//cvar_t	joy_deadzone = { "joy_deadzone", "0.125", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
 cvar_t	joy_axismove_x = { "joy_axismove_x", "0", CVAR_NONE };
 cvar_t	joy_axismove_y = { "joy_axismove_y", "1", CVAR_NONE };
@@ -148,11 +153,9 @@ cvar_t	joy_axis_debug = { "joy_axis_debug", "0", CVAR_NONE };
 
 /* joystick support functions */
 
-static float NormalizeJoyInputValue (const Sint16 input)
+static float Sint16ToPlusMinusOne (const Sint16 input)
 {
-	Uint16 convert = (Uint16)(32768 + input);
-	float output = (convert / 32767.5f) - 1.0f;
-	return output;
+	return (float)input / 32768.0f;
 }
 
 /*
@@ -399,7 +402,9 @@ void IN_Init (void)
 	// BEGIN jeremiah sypult
 	Cvar_RegisterVariable( &joy_sensitivity );
 	Cvar_RegisterVariable( &joy_filter );
-	Cvar_RegisterVariable( &joy_deadzone );
+	Cvar_RegisterVariable( &joy_deadzone_l );
+	Cvar_RegisterVariable( &joy_deadzone_r );
+	Cvar_RegisterVariable( &joy_deadzone_trigger );
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_axismove_x );
 	Cvar_RegisterVariable( &joy_axismove_y );
@@ -508,7 +513,8 @@ void IN_JoyHatEvent(Uint8 hat, Uint8 value)
 
 void IN_JoyAxisMove(Uint8 axis, Sint16 value)
 {
-	float axisValue = NormalizeJoyInputValue( value );
+#if 0
+	float axisValue = Sint16ToPlusMinusOne( value );
 	Uint8 axisMap[] = {
 		(Uint8)joy_axismove_x.value,
 		(Uint8)joy_axismove_y.value,
@@ -539,6 +545,7 @@ void IN_JoyAxisMove(Uint8 axis, Sint16 value)
 	
 	if ( axis == 5)
 		Key_Event(K_CTRL, value >= 0);
+#endif
 }
 
 static int IN_KeyForControllerButton(SDL_GameControllerButton button)
@@ -577,10 +584,11 @@ void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton but
 		Key_Event(key, down);
 }
 
-void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, short value)
+void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, SInt16 value)
 {
-	float axisValue = NormalizeJoyInputValue( value );
-
+	float axisValue = Sint16ToPlusMinusOne( value );
+	const float triggerThreshold = Sint16ToPlusMinusOne(joy_deadzone_trigger.value);
+	
 	if (instanceid != joy_active_instaceid)
 		return;
 	
@@ -599,12 +607,12 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, s
 		case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
 		{
 			static qboolean ltrigdown = false;
-			if (axisValue > 0.1 && !ltrigdown)
+			if (axisValue > triggerThreshold && !ltrigdown)
 			{
 				Key_Event(K_X360_LEFT_TRIGGER, true);
 				ltrigdown = true;
 			}
-			if (axisValue <= 0.1 && ltrigdown)
+			if (axisValue <= triggerThreshold && ltrigdown)
 			{
 				Key_Event(K_X360_LEFT_TRIGGER, false);
 				ltrigdown = false;
@@ -616,12 +624,12 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, s
 		case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
 		{
 			static qboolean ltrigdown = false;
-			if (axisValue > 0.1 && !ltrigdown)
+			if (axisValue > triggerThreshold && !ltrigdown)
 			{
 				Key_Event(K_X360_RIGHT_TRIGGER, true);
 				ltrigdown = true;
 			}
-			if (axisValue <= 0.1 && ltrigdown)
+			if (axisValue <= triggerThreshold && ltrigdown)
 			{
 				Key_Event(K_X360_RIGHT_TRIGGER, false);
 				ltrigdown = false;
@@ -659,13 +667,8 @@ void IN_Move (usercmd_t *cmd)
 	_rawDualAxis._oldleft = _rawDualAxis.left;
 	_rawDualAxis._oldright = _rawDualAxis.right;
 	
-	// TODO: determine whether to apply deadzone before or after axis functions?
-	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, joy_deadzone.value );
-	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, joy_deadzone.value );
-	
-	// scale look speed before easing
-	moveDualAxis.right.x *= joy_sensitivity.value;
-	moveDualAxis.right.y *= joy_sensitivity.value;
+	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
+	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
 	
 	switch ( (int)joy_function.value ) {
 		default:
@@ -699,13 +702,13 @@ void IN_Move (usercmd_t *cmd)
 
 	// add the joy look axis to mouse look
 	// ericw -- multiply by host_frametime (seconds/frame) to convert units/second to units/frame
-	total_dx += (moveDualAxis.right.x * host_frametime);
-	total_dy += (moveDualAxis.right.y * host_frametime);
+	float joy_dx = (moveDualAxis.right.x * joy_sensitivity.value * host_frametime);
+	float joy_dy = (moveDualAxis.right.y * joy_sensitivity.value * host_frametime);
 	//
 	// jeremiah sypult -- ENDjoystick
 
-	dmx = total_dx * sensitivity.value;
-	dmy = total_dy * sensitivity.value;
+	dmx = (total_dx * sensitivity.value) + joy_dx;
+	dmy = (total_dy * sensitivity.value) + joy_dy;
 
 	total_dx = 0;
 	total_dy = 0;
