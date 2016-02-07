@@ -571,9 +571,26 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 	}
 }
 
+// adapted from DP
+static int IN_EmulatedKeyForControllerKey(int button)
+{
+	switch (button)
+	{
+		case K_X360_DPAD_UP: return K_UPARROW;
+		case K_X360_DPAD_DOWN: return K_DOWNARROW;
+		case K_X360_DPAD_LEFT: return K_LEFTARROW;
+		case K_X360_DPAD_RIGHT: return K_RIGHTARROW;
+		case K_X360_START: return K_ESCAPE;
+		case K_X360_BACK: return K_ESCAPE;
+		case K_X360_A: return K_ENTER;
+		case K_X360_B: return K_ESCAPE;
+		default: return 0;
+	}
+}
+
 void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton button, qboolean down)
 {
-	int key;
+	int key, emulatedkey;
 	
 	if (instanceid != joy_active_instaceid)
 		return;
@@ -582,9 +599,14 @@ void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton but
 
 	if (key)
 		Key_Event(key, down);
+
+	// also send emulated keyboard key
+	emulatedkey = IN_EmulatedKeyForControllerKey(key);
+	if (emulatedkey)
+		Key_Event(emulatedkey, down);
 }
 
-void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, SInt16 value)
+void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, Sint16 value)
 {
 	float axisValue = Sint16ToPlusMinusOne( value );
 	const float triggerThreshold = Sint16ToPlusMinusOne(joy_deadzone_trigger.value);
