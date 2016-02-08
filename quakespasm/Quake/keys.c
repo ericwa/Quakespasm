@@ -996,8 +996,7 @@ void Key_Event (int key, qboolean down)
 	{
 		int emukey = IN_EmulatedKeyForControllerKey(key);
 		
-		if (key_dest == key_menu
-			&& !key_inputgrab.active)
+		if (key_dest == key_game)
 		{
 			key = emukey;
 		}

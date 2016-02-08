@@ -924,7 +924,7 @@ int SCR_ModalMessage (const char *text, float timeout) //johnfitz -- timeout
 	} while (lastchar != 'y' && lastchar != 'Y' &&
 		 lastchar != 'n' && lastchar != 'N' &&
 		 lastkey != K_ESCAPE &&
-		 lastkey != K_X360_B && lastkey != K_X360_A &&
+		 lastkey != K_ENTER && //ericw -- K_ENTER used by x360 controller
 		 time2 <= time1);
 	Key_EndInputGrab ();
 
@@ -935,7 +935,7 @@ int SCR_ModalMessage (const char *text, float timeout) //johnfitz -- timeout
 		return false;
 	//johnfitz
 
-	return (lastchar == 'y' || lastchar == 'Y' || lastkey == K_X360_A);
+	return (lastchar == 'y' || lastchar == 'Y' || lastkey == K_ENTER);
 }
 
 
