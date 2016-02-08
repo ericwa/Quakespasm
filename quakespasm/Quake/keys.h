@@ -159,6 +159,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_X360_Y				269
 #define K_X360_LEFT_TRIGGER		270
 #define K_X360_RIGHT_TRIGGER	271
+#if 0
 #define K_X360_LEFT_THUMB_UP	272
 #define K_X360_LEFT_THUMB_DOWN	273
 #define K_X360_LEFT_THUMB_LEFT	274
@@ -167,7 +168,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_X360_RIGHT_THUMB_DOWN	277
 #define K_X360_RIGHT_THUMB_LEFT	278
 #define K_X360_RIGHT_THUMB_RIGHT	279
-
+#endif
 #define	MAX_KEYS 280
 
 #define	MAXCMDLINE	256

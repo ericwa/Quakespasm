@@ -178,6 +178,7 @@ keyname_t keynames[] =
 	{"X360_LEFT_TRIGGER", K_X360_LEFT_TRIGGER},
 	{"X360_RIGHT_TRIGGER", K_X360_RIGHT_TRIGGER},
 	//{"X360_GUIDE", K_X360_GUIDE},
+#if 0
 	{"K_X360_LEFT_THUMB_UP", K_X360_LEFT_THUMB_UP},
 	{"K_X360_LEFT_THUMB_DOWN", K_X360_LEFT_THUMB_DOWN},
 	{"K_X360_LEFT_THUMB_LEFT", K_X360_LEFT_THUMB_LEFT},
@@ -186,7 +187,7 @@ keyname_t keynames[] =
 	{"K_X360_RIGHT_THUMB_DOWN", K_X360_RIGHT_THUMB_DOWN},
 	{"K_X360_RIGHT_THUMB_LEFT", K_X360_RIGHT_THUMB_LEFT},
 	{"K_X360_RIGHT_THUMB_RIGHT", K_X360_RIGHT_THUMB_RIGHT},
-	
+#endif
 	{NULL,		0}
 };
 
@@ -947,6 +948,7 @@ void Key_GetGrabbedInput (int *lastkey, int *lastchar)
 		*lastchar = key_inputgrab.lastchar;
 }
 
+#if 0
 static int IN_IsControllerKey(int button)
 {
 	return button >= K_X360_DPAD_UP && button <= K_X360_RIGHT_THUMB_RIGHT;
@@ -980,6 +982,7 @@ static int IN_EmulatedKeyForControllerKey(int button)
 		default: return button;
 	}
 }
+#endif
 
 /*
 ===================
@@ -997,6 +1000,7 @@ void Key_Event (int key, qboolean down)
 	if (key < 0 || key >= MAX_KEYS)
 		return;
 
+#if 0
 	if (IN_IsControllerKey(key))
 	{
 		int emukey = IN_EmulatedKeyForControllerKey(key);
@@ -1016,6 +1020,7 @@ void Key_Event (int key, qboolean down)
 			}
 		}
 	}
+#endif
 	
 // handle fullscreen toggle
 	if (down && (key == K_ENTER || key == K_KP_ENTER) && keydown[K_ALT])
@@ -1032,7 +1037,7 @@ void Key_Event (int key, qboolean down)
 			if (key_dest == key_game && !con_forcedup)
 				return; // ignore autorepeats in game mode
 		}
-		else if (key >= 200 && !keybindings[key] && !IN_IsControllerThumbKey(key))
+		else if (key >= 200 && !keybindings[key])
 			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString(key));
 	}
 	else if (!keydown[key])

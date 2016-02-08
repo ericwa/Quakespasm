@@ -523,19 +523,19 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 	{
 		// TODO: swap move/look cvar
 		case SDL_CONTROLLER_AXIS_LEFTX:
-			IN_ControllerAxisButton(_rawDualAxis.left.x, axisValue, K_X360_LEFT_THUMB_LEFT, K_X360_LEFT_THUMB_RIGHT);
+//			IN_ControllerAxisButton(_rawDualAxis.left.x, axisValue, K_X360_LEFT_THUMB_LEFT, K_X360_LEFT_THUMB_RIGHT);
 			_rawDualAxis.left.x = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_LEFTY:
-			IN_ControllerAxisButton(_rawDualAxis.left.y, axisValue, K_X360_LEFT_THUMB_UP, K_X360_LEFT_THUMB_DOWN);
+			//IN_ControllerAxisButton(_rawDualAxis.left.y, axisValue, K_X360_LEFT_THUMB_UP, K_X360_LEFT_THUMB_DOWN);
 			_rawDualAxis.left.y = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_RIGHTX:
-			IN_ControllerAxisButton(_rawDualAxis.right.x, axisValue, K_X360_RIGHT_THUMB_LEFT, K_X360_RIGHT_THUMB_RIGHT);
+			//IN_ControllerAxisButton(_rawDualAxis.right.x, axisValue, K_X360_RIGHT_THUMB_LEFT, K_X360_RIGHT_THUMB_RIGHT);
 			_rawDualAxis.right.x = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_RIGHTY:
-			IN_ControllerAxisButton(_rawDualAxis.right.y, axisValue, K_X360_RIGHT_THUMB_UP, K_X360_RIGHT_THUMB_DOWN);
+			//IN_ControllerAxisButton(_rawDualAxis.right.y, axisValue, K_X360_RIGHT_THUMB_UP, K_X360_RIGHT_THUMB_DOWN);
 			_rawDualAxis.right.y = axisValue;
 			break;
 
