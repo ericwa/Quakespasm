@@ -70,8 +70,6 @@ typedef struct
 
 typedef struct
 {
-	joyAxis_t	_oldleft;
-	joyAxis_t	_oldright;
 	joyAxis_t	left;		/* TODO: assumed move, rename */
 	joyAxis_t	right;		/* TODO: assumed look, rename? */
 } dualAxis_t;
@@ -107,6 +105,7 @@ cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
 /* joystick variables */
 cvar_t	joy_sensitivity = { "joy_sensitivity", "10000", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
+cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 
 /* joystick support functions */
 
@@ -362,6 +361,7 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_deadzone_r );
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
 	Cvar_RegisterVariable( &joy_function );
+	Cvar_RegisterVariable( &joy_swapmovelook );
 
 	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
 		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
@@ -383,28 +383,6 @@ void IN_Init (void)
 					break;
 				}
 			}
-		}
-	}
-	
-	if ( SDL_InitSubSystem( SDL_INIT_JOYSTICK ) == -1 ) {
-		Con_Printf( "WARNING: Could not initialize SDL Joystick\n" );
-	} else {
-		int i;
-		SDL_JoystickEventState( SDL_ENABLE );
-
-		for ( i = 0; i < SDL_NumJoysticks(); i++ ) {
-			//if ( ! SDL_JoystickOpened( i ) ) {
-				SDL_Joystick* controller = SDL_JoystickOpen( i );
-
-				if ( controller ) {
-					Con_Printf( "%s\n     axes: %d\n  buttons: %d\n    balls: %d\n     hats: %d\n",
-							    SDL_JoystickName( i ),
-							    SDL_JoystickNumAxes( controller ),
-							    SDL_JoystickNumButtons( controller ),
-							    SDL_JoystickNumBalls( controller ),
-							    SDL_JoystickNumHats( controller ) );
-				}
-			//}
 		}
 	}
 	// END jeremiah sypult
@@ -546,11 +524,16 @@ void IN_Move (usercmd_t *cmd)
 	//
 	dualAxis_t moveDualAxis = {0};
 
-	moveDualAxis.left = _rawDualAxis.left;
-	moveDualAxis.right = _rawDualAxis.right;
-
-	_rawDualAxis._oldleft = _rawDualAxis.left;
-	_rawDualAxis._oldright = _rawDualAxis.right;
+	if (!joy_swapmovelook.value)
+	{
+		moveDualAxis.left = _rawDualAxis.left;
+		moveDualAxis.right = _rawDualAxis.right;
+	}
+	else
+	{
+		moveDualAxis.left = _rawDualAxis.right;
+		moveDualAxis.right = _rawDualAxis.left;
+	}
 	
 	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
 	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
