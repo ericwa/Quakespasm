@@ -93,42 +93,6 @@ static int buttonremap[] =
 	K_MOUSE5
 };
 
-static int joyremap[] =
-{
-	K_JOY1,
-	K_JOY2,
-	K_JOY3,
-	K_JOY4,
-	K_AUX1,
-	K_AUX2,
-	K_AUX3,
-	K_AUX4,
-	K_AUX5,
-	K_AUX6,
-	K_AUX7,
-	K_AUX8,
-	K_AUX9,
-	K_AUX10,
-	K_AUX11,
-	K_AUX12,
-	K_AUX13,
-	K_AUX14,
-	K_AUX15,
-	K_AUX16,
-	K_AUX17,
-	K_AUX18,
-	K_AUX19,
-	K_AUX20,
-	K_AUX21,
-	K_AUX22,
-	K_AUX23,
-	K_AUX24,
-	K_AUX25,
-	K_AUX26,
-	K_AUX27,
-	K_AUX28
-};
-
 static qboolean	no_mouse = false;
 static dualAxis_t _rawDualAxis = {0};
 
@@ -142,14 +106,7 @@ cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
 
 /* joystick variables */
 cvar_t	joy_sensitivity = { "joy_sensitivity", "10000", CVAR_NONE };
-cvar_t	joy_filter = { "joy_filter", "0", CVAR_NONE };
-//cvar_t	joy_deadzone = { "joy_deadzone", "0.125", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
-cvar_t	joy_axismove_x = { "joy_axismove_x", "0", CVAR_NONE };
-cvar_t	joy_axismove_y = { "joy_axismove_y", "1", CVAR_NONE };
-cvar_t	joy_axislook_x = { "joy_axislook_x", "3", CVAR_NONE };
-cvar_t	joy_axislook_y = { "joy_axislook_y", "4", CVAR_NONE };
-cvar_t	joy_axis_debug = { "joy_axis_debug", "0", CVAR_NONE };
 
 /* joystick support functions */
 
@@ -401,16 +358,10 @@ void IN_Init (void)
 
 	// BEGIN jeremiah sypult
 	Cvar_RegisterVariable( &joy_sensitivity );
-	Cvar_RegisterVariable( &joy_filter );
 	Cvar_RegisterVariable( &joy_deadzone_l );
 	Cvar_RegisterVariable( &joy_deadzone_r );
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
 	Cvar_RegisterVariable( &joy_function );
-	Cvar_RegisterVariable( &joy_axismove_x );
-	Cvar_RegisterVariable( &joy_axismove_y );
-	Cvar_RegisterVariable( &joy_axislook_x );
-	Cvar_RegisterVariable( &joy_axislook_y );
-	Cvar_RegisterVariable( &joy_axis_debug );
 
 	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
 		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
@@ -484,68 +435,6 @@ void IN_MouseMove(int dx, int dy)
 {
 	total_dx += dx;
 	total_dy += dy;
-}
-
-void IN_JoyHatEvent(Uint8 hat, Uint8 value)
-{
-	// map hat to K_AUX29 - K_AUX32
-	// value flags: 1 = up, 2 = right, 4 = down, 8 = left
-	static Uint8 _oldValue = 0;
-	int i;
-
-	for (i=0; i<4; i++)
-	{
-		if ( (value & (1<<i)) && !(_oldValue & (1<<i)) )
-		{
-			// hat enabled
-			Key_Event(K_AUX29+i, true);
-		}
-		
-		if ( !(value & (1<<i)) && (_oldValue & (1<<i)) )
-		{
-			// hat disabled
-			Key_Event(K_AUX29+i, false);
-		}
-	}
-
-	_oldValue = value;
-}
-
-void IN_JoyAxisMove(Uint8 axis, Sint16 value)
-{
-#if 0
-	float axisValue = Sint16ToPlusMinusOne( value );
-	Uint8 axisMap[] = {
-		(Uint8)joy_axismove_x.value,
-		(Uint8)joy_axismove_y.value,
-		(Uint8)joy_axislook_x.value,
-		(Uint8)joy_axislook_y.value
-	};
-
-	// map the incoming axis to the cvars defining which axis index controls movement.
-	if ( axisMap[0] == axis ) {
-		_rawDualAxis.left.x = axisValue;
-	} else if ( axisMap[1] == axis ) {
-		_rawDualAxis.left.y = axisValue;
-	} else if ( axisMap[2] == axis ) {
-		_rawDualAxis.right.x = axisValue;
-	} else if ( axisMap[3] == axis ) {
-		_rawDualAxis.right.y = axisValue;
-	}
-
-	if ( joy_axis_debug.value ) {
-		Sint16 deadzone = joy_deadzone.value * 32767.6f;
-		if ( value < -deadzone || value > deadzone ) {
-			Con_Printf( "joy axis %i, value %i\n", axis, value );
-		}
-	}
-	
-	if ( axis == 2)
-		Key_Event(K_SPACE, value >= 0);
-	
-	if ( axis == 5)
-		Key_Event(K_CTRL, value >= 0);
-#endif
 }
 
 static int IN_KeyForControllerButton(SDL_GameControllerButton button)
@@ -700,15 +589,8 @@ void IN_Move (usercmd_t *cmd)
 	//
 	dualAxis_t moveDualAxis = {0};
 
-	if ( joy_filter.value ) {
-		moveDualAxis.left.x = ( _rawDualAxis.left.x + _rawDualAxis._oldleft.x ) * 0.5;
-		moveDualAxis.left.y = ( _rawDualAxis.left.y + _rawDualAxis._oldleft.y ) * 0.5;
-		moveDualAxis.right.x = ( _rawDualAxis.right.x + _rawDualAxis._oldright.x ) * 0.5;
-		moveDualAxis.right.y = ( _rawDualAxis.right.y + _rawDualAxis._oldright.y ) * 0.5;
-	} else {
-		moveDualAxis.left = _rawDualAxis.left;
-		moveDualAxis.right = _rawDualAxis.right;
-	}
+	moveDualAxis.left = _rawDualAxis.left;
+	moveDualAxis.right = _rawDualAxis.right;
 
 	_rawDualAxis._oldleft = _rawDualAxis.left;
 	_rawDualAxis._oldright = _rawDualAxis.right;
@@ -1127,33 +1009,6 @@ void IN_SendKeyEvents (void)
 		case SDL_MOUSEMOTION:
 			IN_MouseMove(event.motion.xrel, event.motion.yrel);
 			break;
-
-#if 0
-		case SDL_JOYHATMOTION:
-			// TODO: VERIFY hat support, handle multiple hats?
-			IN_JoyHatEvent(event.jhat.hat, event.jhat.value);
-			break;
-
-		case SDL_JOYBALLMOTION:
-			// TODO: VERIFY joyball support, assignment other than mouse?
-			IN_MouseMove(event.jball.xrel, event.jball.yrel);
-			break;
-
-		case SDL_JOYAXISMOTION:
-			IN_JoyAxisMove(event.jaxis.axis, event.jaxis.value);
-			break;
-
-		case SDL_JOYBUTTONDOWN:
-		case SDL_JOYBUTTONUP:
-			if (event.jbutton.button > sizeof(joyremap) / sizeof(joyremap[0]))
-			{
-				Con_Printf ("Ignored event for joy button %d\n",
-							event.button.button);
-				break;
-			}
-			Key_Event(joyremap[event.jbutton.button], event.jbutton.state == SDL_PRESSED);
-			break;
-#endif
 
 #if defined(USE_SDL2)
 		case SDL_CONTROLLERAXISMOTION:
