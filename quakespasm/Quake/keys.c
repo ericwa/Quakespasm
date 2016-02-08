@@ -952,6 +952,11 @@ static int IN_IsControllerKey(int button)
 	return button >= K_X360_DPAD_UP && button <= K_X360_RIGHT_THUMB_RIGHT;
 }
 
+static int IN_IsControllerThumbKey(int button)
+{
+	return button >= K_X360_LEFT_THUMB_UP && button <= K_X360_RIGHT_THUMB_RIGHT;
+}
+
 static int IN_EmulatedKeyForControllerKey(int button)
 {
 	switch (button)
@@ -964,10 +969,10 @@ static int IN_EmulatedKeyForControllerKey(int button)
 		case K_X360_LEFT_THUMB_DOWN: return K_DOWNARROW;
 		case K_X360_LEFT_THUMB_LEFT: return K_LEFTARROW;
 		case K_X360_LEFT_THUMB_RIGHT: return K_RIGHTARROW;
-		case K_X360_RIGHT_THUMB_UP: return K_UPARROW;
-		case K_X360_RIGHT_THUMB_DOWN: return K_DOWNARROW;
-		case K_X360_RIGHT_THUMB_LEFT: return K_LEFTARROW;
-		case K_X360_RIGHT_THUMB_RIGHT: return K_RIGHTARROW;
+//		case K_X360_RIGHT_THUMB_UP: return K_UPARROW;
+//		case K_X360_RIGHT_THUMB_DOWN: return K_DOWNARROW;
+//		case K_X360_RIGHT_THUMB_LEFT: return K_LEFTARROW;
+//		case K_X360_RIGHT_THUMB_RIGHT: return K_RIGHTARROW;
 //		case K_X360_START: return K_ESCAPE;
 //		case K_X360_BACK: return K_ESCAPE;
 		case K_X360_A: return K_ENTER;
@@ -996,7 +1001,7 @@ void Key_Event (int key, qboolean down)
 	{
 		int emukey = IN_EmulatedKeyForControllerKey(key);
 		
-		if (key_dest == key_game)
+		if (key_dest != key_game)
 		{
 			key = emukey;
 		}
@@ -1027,7 +1032,7 @@ void Key_Event (int key, qboolean down)
 			if (key_dest == key_game && !con_forcedup)
 				return; // ignore autorepeats in game mode
 		}
-		else if (key >= 200 && !keybindings[key])
+		else if (key >= 200 && !keybindings[key] && !IN_IsControllerThumbKey(key))
 			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString(key));
 	}
 	else if (!keydown[key])
