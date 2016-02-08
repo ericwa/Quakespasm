@@ -947,6 +947,35 @@ void Key_GetGrabbedInput (int *lastkey, int *lastchar)
 		*lastchar = key_inputgrab.lastchar;
 }
 
+static int IN_IsControllerKey(int button)
+{
+	return button >= K_X360_DPAD_UP && button <= K_X360_RIGHT_THUMB_RIGHT;
+}
+
+static int IN_EmulatedKeyForControllerKey(int button)
+{
+	switch (button)
+	{
+		case K_X360_DPAD_UP: return K_UPARROW;
+		case K_X360_DPAD_DOWN: return K_DOWNARROW;
+		case K_X360_DPAD_LEFT: return K_LEFTARROW;
+		case K_X360_DPAD_RIGHT: return K_RIGHTARROW;
+		case K_X360_LEFT_THUMB_UP: return K_UPARROW;
+		case K_X360_LEFT_THUMB_DOWN: return K_DOWNARROW;
+		case K_X360_LEFT_THUMB_LEFT: return K_LEFTARROW;
+		case K_X360_LEFT_THUMB_RIGHT: return K_RIGHTARROW;
+		case K_X360_RIGHT_THUMB_UP: return K_UPARROW;
+		case K_X360_RIGHT_THUMB_DOWN: return K_DOWNARROW;
+		case K_X360_RIGHT_THUMB_LEFT: return K_LEFTARROW;
+		case K_X360_RIGHT_THUMB_RIGHT: return K_RIGHTARROW;
+//		case K_X360_START: return K_ESCAPE;
+//		case K_X360_BACK: return K_ESCAPE;
+		case K_X360_A: return K_ENTER;
+		case K_X360_B: return K_ESCAPE;
+		default: return button;
+	}
+}
+
 /*
 ===================
 Key_Event
@@ -963,6 +992,27 @@ void Key_Event (int key, qboolean down)
 	if (key < 0 || key >= MAX_KEYS)
 		return;
 
+	if (IN_IsControllerKey(key))
+	{
+		int emukey = IN_EmulatedKeyForControllerKey(key);
+		
+		if (key_dest == key_menu
+			&& !key_inputgrab.active)
+		{
+			key = emukey;
+		}
+		else
+		{
+			// handle keyup when leaving menu with an emulated key
+			if (!down &&
+				!keydown[key] &&
+				keydown[emukey])
+			{
+				key = emukey;
+			}
+		}
+	}
+	
 // handle fullscreen toggle
 	if (down && (key == K_ENTER || key == K_KP_ENTER) && keydown[K_ALT])
 	{

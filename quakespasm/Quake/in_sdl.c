@@ -556,9 +556,9 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 		case SDL_CONTROLLER_BUTTON_B: return K_X360_B;
 		case SDL_CONTROLLER_BUTTON_X: return K_X360_X;
 		case SDL_CONTROLLER_BUTTON_Y: return K_X360_Y;
-		case SDL_CONTROLLER_BUTTON_BACK: return K_X360_BACK;
+		case SDL_CONTROLLER_BUTTON_BACK: return K_ESCAPE;
 		//case SDL_CONTROLLER_BUTTON_GUIDE: return K_X360_GUIDE;
-		case SDL_CONTROLLER_BUTTON_START: return K_X360_START;
+		case SDL_CONTROLLER_BUTTON_START: return K_ESCAPE;
 		case SDL_CONTROLLER_BUTTON_LEFTSTICK: return K_X360_LEFT_THUMB;
 		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return K_X360_RIGHT_THUMB;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return K_X360_LEFT_SHOULDER;
@@ -601,9 +601,9 @@ void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton but
 		Key_Event(key, down);
 
 	// also send emulated keyboard key
-	emulatedkey = IN_EmulatedKeyForControllerKey(key);
-	if (emulatedkey)
-		Key_Event(emulatedkey, down);
+//	emulatedkey = IN_EmulatedKeyForControllerKey(key);
+//	if (emulatedkey)
+//		Key_Event(emulatedkey, down);
 }
 
 #define DOWN_THRESHOLD 0.5
@@ -638,7 +638,7 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 			_rawDualAxis.left.x = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_LEFTY:
-			IN_ControllerAxisButton(_rawDualAxis.left.y, axisValue, K_X360_LEFT_THUMB_DOWN, K_X360_LEFT_THUMB_UP);
+			IN_ControllerAxisButton(_rawDualAxis.left.y, axisValue, K_X360_LEFT_THUMB_UP, K_X360_LEFT_THUMB_DOWN);
 			_rawDualAxis.left.y = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_RIGHTX:
@@ -646,7 +646,7 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 			_rawDualAxis.right.x = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_RIGHTY:
-			IN_ControllerAxisButton(_rawDualAxis.right.y, axisValue, K_X360_RIGHT_THUMB_DOWN, K_X360_RIGHT_THUMB_UP);
+			IN_ControllerAxisButton(_rawDualAxis.right.y, axisValue, K_X360_RIGHT_THUMB_UP, K_X360_RIGHT_THUMB_DOWN);
 			_rawDualAxis.right.y = axisValue;
 			break;
 
