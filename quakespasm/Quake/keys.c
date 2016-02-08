@@ -161,10 +161,6 @@ keyname_t keynames[] =
 	{"BACKQUOTE", '`'},	// because a raw backquote may toggle the console
 	{"TILDE", '~'},		// because a raw tilde may toggle the console
 
-	{"X360_DPAD_UP", K_X360_DPAD_UP},
-	{"X360_DPAD_DOWN", K_X360_DPAD_DOWN},
-	{"X360_DPAD_LEFT", K_X360_DPAD_LEFT},
-	{"X360_DPAD_RIGHT", K_X360_DPAD_RIGHT},
 	{"X360_START", K_X360_START},
 	{"X360_BACK", K_X360_BACK},
 	{"X360_LEFT_THUMB", K_X360_LEFT_THUMB},
@@ -178,16 +174,6 @@ keyname_t keynames[] =
 	{"X360_LEFT_TRIGGER", K_X360_LEFT_TRIGGER},
 	{"X360_RIGHT_TRIGGER", K_X360_RIGHT_TRIGGER},
 	//{"X360_GUIDE", K_X360_GUIDE},
-#if 0
-	{"K_X360_LEFT_THUMB_UP", K_X360_LEFT_THUMB_UP},
-	{"K_X360_LEFT_THUMB_DOWN", K_X360_LEFT_THUMB_DOWN},
-	{"K_X360_LEFT_THUMB_LEFT", K_X360_LEFT_THUMB_LEFT},
-	{"K_X360_LEFT_THUMB_RIGHT", K_X360_LEFT_THUMB_RIGHT},
-	{"K_X360_RIGHT_THUMB_UP", K_X360_RIGHT_THUMB_UP},
-	{"K_X360_RIGHT_THUMB_DOWN", K_X360_RIGHT_THUMB_DOWN},
-	{"K_X360_RIGHT_THUMB_LEFT", K_X360_RIGHT_THUMB_LEFT},
-	{"K_X360_RIGHT_THUMB_RIGHT", K_X360_RIGHT_THUMB_RIGHT},
-#endif
 	{NULL,		0}
 };
 
@@ -948,42 +934,6 @@ void Key_GetGrabbedInput (int *lastkey, int *lastchar)
 		*lastchar = key_inputgrab.lastchar;
 }
 
-#if 0
-static int IN_IsControllerKey(int button)
-{
-	return button >= K_X360_DPAD_UP && button <= K_X360_RIGHT_THUMB_RIGHT;
-}
-
-static int IN_IsControllerThumbKey(int button)
-{
-	return button >= K_X360_LEFT_THUMB_UP && button <= K_X360_RIGHT_THUMB_RIGHT;
-}
-
-static int IN_EmulatedKeyForControllerKey(int button)
-{
-	switch (button)
-	{
-		case K_X360_DPAD_UP: return K_UPARROW;
-		case K_X360_DPAD_DOWN: return K_DOWNARROW;
-		case K_X360_DPAD_LEFT: return K_LEFTARROW;
-		case K_X360_DPAD_RIGHT: return K_RIGHTARROW;
-		case K_X360_LEFT_THUMB_UP: return K_UPARROW;
-		case K_X360_LEFT_THUMB_DOWN: return K_DOWNARROW;
-		case K_X360_LEFT_THUMB_LEFT: return K_LEFTARROW;
-		case K_X360_LEFT_THUMB_RIGHT: return K_RIGHTARROW;
-//		case K_X360_RIGHT_THUMB_UP: return K_UPARROW;
-//		case K_X360_RIGHT_THUMB_DOWN: return K_DOWNARROW;
-//		case K_X360_RIGHT_THUMB_LEFT: return K_LEFTARROW;
-//		case K_X360_RIGHT_THUMB_RIGHT: return K_RIGHTARROW;
-//		case K_X360_START: return K_ESCAPE;
-//		case K_X360_BACK: return K_ESCAPE;
-		case K_X360_A: return K_ENTER;
-		case K_X360_B: return K_ESCAPE;
-		default: return button;
-	}
-}
-#endif
-
 /*
 ===================
 Key_Event
@@ -999,28 +949,6 @@ void Key_Event (int key, qboolean down)
 
 	if (key < 0 || key >= MAX_KEYS)
 		return;
-
-#if 0
-	if (IN_IsControllerKey(key))
-	{
-		int emukey = IN_EmulatedKeyForControllerKey(key);
-		
-		if (key_dest != key_game)
-		{
-			key = emukey;
-		}
-		else
-		{
-			// handle keyup when leaving menu with an emulated key
-			if (!down &&
-				!keydown[key] &&
-				keydown[emukey])
-			{
-				key = emukey;
-			}
-		}
-	}
-#endif
 	
 // handle fullscreen toggle
 	if (down && (key == K_ENTER || key == K_KP_ENTER) && keydown[K_ALT])

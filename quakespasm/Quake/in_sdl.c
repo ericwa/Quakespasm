@@ -446,40 +446,22 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 		case SDL_CONTROLLER_BUTTON_X: return K_X360_X;
 		case SDL_CONTROLLER_BUTTON_Y: return K_X360_Y;
 		case SDL_CONTROLLER_BUTTON_BACK: return K_ESCAPE;
-		//case SDL_CONTROLLER_BUTTON_GUIDE: return K_X360_GUIDE;
 		case SDL_CONTROLLER_BUTTON_START: return K_ESCAPE;
 		case SDL_CONTROLLER_BUTTON_LEFTSTICK: return K_X360_LEFT_THUMB;
 		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return K_X360_RIGHT_THUMB;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return K_X360_LEFT_SHOULDER;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return K_X360_RIGHT_SHOULDER;
-		case SDL_CONTROLLER_BUTTON_DPAD_UP: return K_X360_DPAD_UP;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return K_X360_DPAD_DOWN;
-		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return K_X360_DPAD_LEFT;
-		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return K_X360_DPAD_RIGHT;
-		default: return 0;
-	}
-}
-
-// adapted from DP
-static int IN_EmulatedKeyForControllerKey(int button)
-{
-	switch (button)
-	{
-		case K_X360_DPAD_UP: return K_UPARROW;
-		case K_X360_DPAD_DOWN: return K_DOWNARROW;
-		case K_X360_DPAD_LEFT: return K_LEFTARROW;
-		case K_X360_DPAD_RIGHT: return K_RIGHTARROW;
-		case K_X360_START: return K_ESCAPE;
-		case K_X360_BACK: return K_ESCAPE;
-		case K_X360_A: return K_ENTER;
-		case K_X360_B: return K_ESCAPE;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP: return K_UPARROW;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return K_DOWNARROW;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return K_LEFTARROW;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return K_RIGHTARROW;
 		default: return 0;
 	}
 }
 
 void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton button, qboolean down)
 {
-	int key, emulatedkey;
+	int key;
 	
 	if (instanceid != joy_active_instaceid)
 		return;
@@ -488,27 +470,6 @@ void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton but
 
 	if (key)
 		Key_Event(key, down);
-
-	// also send emulated keyboard key
-//	emulatedkey = IN_EmulatedKeyForControllerKey(key);
-//	if (emulatedkey)
-//		Key_Event(emulatedkey, down);
-}
-
-#define DOWN_THRESHOLD 0.5
-#define UP_THRESHOLD 0.25
-
-void IN_ControllerAxisButton(float oldval, float newval, int negativekey, int positivekey)
-{
-	if (!(oldval < -DOWN_THRESHOLD) && (newval < -DOWN_THRESHOLD))
-		Key_Event(negativekey, true);
-	else if (!(oldval > -UP_THRESHOLD) && (newval > -UP_THRESHOLD))
-		Key_Event(negativekey, false);
-	
-	if (!(oldval > DOWN_THRESHOLD) && (newval > DOWN_THRESHOLD))
-		Key_Event(positivekey, true);
-	else if (!(oldval < UP_THRESHOLD) && (newval < UP_THRESHOLD))
-		Key_Event(positivekey, false);
 }
 
 void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, Sint16 value)
@@ -523,19 +484,15 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 	{
 		// TODO: swap move/look cvar
 		case SDL_CONTROLLER_AXIS_LEFTX:
-//			IN_ControllerAxisButton(_rawDualAxis.left.x, axisValue, K_X360_LEFT_THUMB_LEFT, K_X360_LEFT_THUMB_RIGHT);
 			_rawDualAxis.left.x = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_LEFTY:
-			//IN_ControllerAxisButton(_rawDualAxis.left.y, axisValue, K_X360_LEFT_THUMB_UP, K_X360_LEFT_THUMB_DOWN);
 			_rawDualAxis.left.y = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_RIGHTX:
-			//IN_ControllerAxisButton(_rawDualAxis.right.x, axisValue, K_X360_RIGHT_THUMB_LEFT, K_X360_RIGHT_THUMB_RIGHT);
 			_rawDualAxis.right.x = axisValue;
 			break;
 		case SDL_CONTROLLER_AXIS_RIGHTY:
-			//IN_ControllerAxisButton(_rawDualAxis.right.y, axisValue, K_X360_RIGHT_THUMB_UP, K_X360_RIGHT_THUMB_DOWN);
 			_rawDualAxis.right.y = axisValue;
 			break;
 

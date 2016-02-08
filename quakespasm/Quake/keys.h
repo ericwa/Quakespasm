@@ -143,10 +143,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_MOUSE5		242
 
 // SDL2 game controller keys
-#define K_X360_DPAD_UP			256
-#define K_X360_DPAD_DOWN		257
-#define K_X360_DPAD_LEFT		258
-#define K_X360_DPAD_RIGHT		259
 #define K_X360_START			260
 #define K_X360_BACK				261
 #define K_X360_LEFT_THUMB		262
@@ -159,16 +155,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_X360_Y				269
 #define K_X360_LEFT_TRIGGER		270
 #define K_X360_RIGHT_TRIGGER	271
-#if 0
-#define K_X360_LEFT_THUMB_UP	272
-#define K_X360_LEFT_THUMB_DOWN	273
-#define K_X360_LEFT_THUMB_LEFT	274
-#define K_X360_LEFT_THUMB_RIGHT	275
-#define K_X360_RIGHT_THUMB_UP	276
-#define K_X360_RIGHT_THUMB_DOWN	277
-#define K_X360_RIGHT_THUMB_LEFT	278
-#define K_X360_RIGHT_THUMB_RIGHT	279
-#endif
 #define	MAX_KEYS 280
 
 #define	MAXCMDLINE	256
