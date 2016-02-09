@@ -78,6 +78,8 @@ typedef struct
 static SDL_JoystickID joy_active_instaceid = -1;
 static SDL_GameController *joy_active_controller = NULL;
 
+static qboolean	no_mouse = false;
+
 static int buttonremap[] =
 {
 	K_MOUSE1,
@@ -91,7 +93,6 @@ static int buttonremap[] =
 	K_MOUSE5
 };
 
-static qboolean	no_mouse = false;
 static dualAxis_t _rawDualAxis = {0};
 
 /* total accumulated mouse movement since last frame */
@@ -367,7 +368,7 @@ void IN_Init (void)
 		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
 	} else {
 		int i;
-		
+
 		for ( i = 0; i < SDL_NumJoysticks(); i++ )
 		{
 			if ( SDL_IsGameController(i) )
@@ -460,7 +461,6 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 	
 	switch (axis)
 	{
-		// TODO: swap move/look cvar
 		case SDL_CONTROLLER_AXIS_LEFTX:
 			_rawDualAxis.left.x = axisValue;
 			break;

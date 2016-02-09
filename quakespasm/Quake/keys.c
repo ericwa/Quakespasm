@@ -173,7 +173,7 @@ keyname_t keynames[] =
 	{"X360_Y", K_X360_Y},
 	{"X360_LEFT_TRIGGER", K_X360_LEFT_TRIGGER},
 	{"X360_RIGHT_TRIGGER", K_X360_RIGHT_TRIGGER},
-	//{"X360_GUIDE", K_X360_GUIDE},
+
 	{NULL,		0}
 };
 
@@ -949,7 +949,7 @@ void Key_Event (int key, qboolean down)
 
 	if (key < 0 || key >= MAX_KEYS)
 		return;
-	
+
 // handle fullscreen toggle
 	if (down && (key == K_ENTER || key == K_KP_ENTER) && keydown[K_ALT])
 	{

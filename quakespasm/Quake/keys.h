@@ -155,7 +155,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_X360_Y				269
 #define K_X360_LEFT_TRIGGER		270
 #define K_X360_RIGHT_TRIGGER	271
-#define	MAX_KEYS 280
+#define	MAX_KEYS 272
 
 #define	MAXCMDLINE	256
 
