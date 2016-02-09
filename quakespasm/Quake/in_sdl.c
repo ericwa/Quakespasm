@@ -364,6 +364,18 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_swapmovelook );
 
+	char controllerdb[MAX_OSPATH];
+	int mappings_added;
+	q_snprintf (controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", com_basedir);
+	mappings_added = SDL_GameControllerAddMappingsFromFile(controllerdb);
+	Con_Printf("Added %d controller mappings from '%s'", mappings_added, controllerdb);
+	if (host_parms->userdir != host_parms->basedir)
+	{
+		q_snprintf (controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", host_parms->userdir);
+		mappings_added = SDL_GameControllerAddMappingsFromFile(controllerdb);
+		Con_Printf("Added %d controller mappings from '%s'", mappings_added, controllerdb);
+	}
+	
 	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
 		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
 	} else {
