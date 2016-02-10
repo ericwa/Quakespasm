@@ -48,6 +48,19 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #include <IOKit/hidsystem/event_status_driver.h>
 #endif
 
+// Joystick support based on code from Jeremiah Sypult
+
+/* joystick variables */
+/* deadzones from XInput documentation */
+cvar_t	joy_deadzone_l = { "joy_deadzone_l", "7849", CVAR_NONE };
+cvar_t	joy_deadzone_r = { "joy_deadzone_r", "8689", CVAR_NONE };
+cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
+cvar_t	joy_sensitivity = { "joy_sensitivity", "10000", CVAR_NONE };
+cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
+cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
+cvar_t	joy_enabled = { "joy_enabled", "1", CVAR_NONE };
+
+#if defined(USE_SDL2)
 /* analog axis ease math functions */
 #define sine(x)      ((0.5f) * ( (1) - (cosf( (x) * M_PI )) ))
 #define quadratic(x) ((x) * (x))
@@ -78,6 +91,49 @@ typedef struct
 static SDL_JoystickID joy_active_instaceid = -1;
 static SDL_GameController *joy_active_controller = NULL;
 
+static dualAxis_t _rawDualAxis = {0};
+static float triggerLeft, triggerRight;
+
+/* joystick support functions */
+
+static float Sint16ToPlusMinusOne (const Sint16 input)
+{
+	return (float)input / 32768.0f;
+}
+
+/*
+ // adapted in part from:
+ // http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
+ */
+static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
+{
+	joyAxis_t result = {0};
+	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
+	
+	if ( magnitude < deadzone ) {
+		result.x = result.y = 0.0f;
+	} else {
+		joyAxis_t normalized;
+		float gradient;
+		
+		if ( magnitude > 1.0f ) {
+			magnitude = 1.0f;
+		}
+		
+		normalized.x = axis.x / magnitude;
+		normalized.y = axis.y / magnitude;
+		gradient = ( (magnitude - deadzone) / (1.0f - deadzone) );
+		result.x = normalized.x * gradient;
+		result.y = normalized.y * gradient;
+	}
+	
+	return result;
+}
+#endif
+
+/* total accumulated mouse movement since last frame */
+static int	total_dx, total_dy = 0;
+
 static qboolean	no_mouse = false;
 
 static int buttonremap[] =
@@ -92,57 +148,6 @@ static int buttonremap[] =
 	K_MOUSE4,
 	K_MOUSE5
 };
-
-static dualAxis_t _rawDualAxis = {0};
-
-/* total accumulated mouse movement since last frame */
-static int	total_dx, total_dy = 0;
-
-/* deadzones from XInput documentation */
-cvar_t	joy_deadzone_l = { "joy_deadzone_l", "7849", CVAR_NONE };
-cvar_t	joy_deadzone_r = { "joy_deadzone_r", "8689", CVAR_NONE };
-cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
-
-/* joystick variables */
-cvar_t	joy_sensitivity = { "joy_sensitivity", "10000", CVAR_NONE };
-cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
-cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
-
-/* joystick support functions */
-
-static float Sint16ToPlusMinusOne (const Sint16 input)
-{
-	return (float)input / 32768.0f;
-}
-
-/*
-// adapted in part from:
-// http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
-*/
-static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
-{
-	joyAxis_t result = {0};
-	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
-
-	if ( magnitude < deadzone ) {
-		result.x = result.y = 0.0f;
-	} else {
-		joyAxis_t normalized;
-		float gradient;
-
-		if ( magnitude > 1.0f ) {
-			magnitude = 1.0f;
-		}
-
-		normalized.x = axis.x / magnitude;
-		normalized.y = axis.y / magnitude;
-		gradient = ( (magnitude - deadzone) / (1.0f - deadzone) );
-		result.x = normalized.x * gradient;
-		result.y = normalized.y * gradient;
-	}
-
-	return result;
-}
 
 static int IN_FilterMouseEvents (const SDL_Event *event)
 {
@@ -335,6 +340,63 @@ void IN_Deactivate (qboolean free_cursor)
 	IN_BeginIgnoringMouseEvents();
 }
 
+void IN_StartupJoystick (void)
+{
+#if defined(USE_SDL2)
+	int i;
+	int nummappings;
+	char controllerdb[MAX_OSPATH];
+	SDL_GameController *gamecontroller;
+	
+	if (COM_CheckParm("-nojoy"))
+		return;
+	
+	// Load additional SDL2 controller definitions from gamecontrollerdb.txt
+	q_snprintf (controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", com_basedir);
+	nummappings = SDL_GameControllerAddMappingsFromFile(controllerdb);
+	if (nummappings)
+		Con_Printf("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
+	
+	// Also try host_parms->userdir
+	if (host_parms->userdir != host_parms->basedir)
+	{
+		q_snprintf (controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", host_parms->userdir);
+		nummappings = SDL_GameControllerAddMappingsFromFile(controllerdb);
+		if (nummappings)
+			Con_Printf("%d mappings loaded from gamecontrollerdb.txt\n", nummappings);
+	}
+	
+	if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == -1 )
+	{
+		Con_Printf("WARNING: Could not initialize SDL Game Controller\n");
+		return;
+	}
+
+	for (i = 0; i < SDL_NumJoysticks(); i++)
+	{
+		if ( SDL_IsGameController(i) )
+		{
+			gamecontroller = SDL_GameControllerOpen(i);
+			if (gamecontroller)
+			{
+				Con_Printf("detected controller: %s\n", SDL_GameControllerNameForIndex(i));
+				
+				joy_active_instaceid = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamecontroller));
+				joy_active_controller = gamecontroller;
+				break;
+			}
+		}
+	}
+#endif
+}
+
+void IN_ShutdownJoystick (void)
+{
+#if defined(USE_SDL2)
+	SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+#endif
+}
+
 void IN_Init (void)
 {
 	textmode = Key_TextEntry();
@@ -355,62 +417,27 @@ void IN_Init (void)
 		/* discard all mouse events when input is deactivated */
 		IN_BeginIgnoringMouseEvents();
 	}
-
-	// BEGIN jeremiah sypult
+	
+#ifdef MACOS_X_ACCELERATION_HACK
+	Cvar_RegisterVariable(&in_disablemacosxmouseaccel);
+#endif
+	Cvar_RegisterVariable(&in_debugkeys);
 	Cvar_RegisterVariable( &joy_sensitivity );
 	Cvar_RegisterVariable( &joy_deadzone_l );
 	Cvar_RegisterVariable( &joy_deadzone_r );
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_swapmovelook );
-
-	char controllerdb[MAX_OSPATH];
-	int mappings_added;
-	q_snprintf (controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", com_basedir);
-	mappings_added = SDL_GameControllerAddMappingsFromFile(controllerdb);
-	Con_Printf("Added %d controller mappings from '%s'", mappings_added, controllerdb);
-	if (host_parms->userdir != host_parms->basedir)
-	{
-		q_snprintf (controllerdb, sizeof(controllerdb), "%s/gamecontrollerdb.txt", host_parms->userdir);
-		mappings_added = SDL_GameControllerAddMappingsFromFile(controllerdb);
-		Con_Printf("Added %d controller mappings from '%s'", mappings_added, controllerdb);
-	}
-	
-	if ( SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ) == -1 ) {
-		Con_Printf( "WARNING: Could not initialize SDL Game Controller\n" );
-	} else {
-		int i;
-
-		for ( i = 0; i < SDL_NumJoysticks(); i++ )
-		{
-			if ( SDL_IsGameController(i) )
-			{
-				SDL_GameController *gamecontroller;
-				gamecontroller = SDL_GameControllerOpen(i);
-				if (gamecontroller)
-				{
-					Con_Printf("Opened controller %s\n", SDL_GameControllerNameForIndex(i));
-
-					joy_active_instaceid = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamecontroller));
-					joy_active_controller = gamecontroller;
-					break;
-				}
-			}
-		}
-	}
-	// END jeremiah sypult
-
-#ifdef MACOS_X_ACCELERATION_HACK
-	Cvar_RegisterVariable(&in_disablemacosxmouseaccel);
-#endif
-	Cvar_RegisterVariable(&in_debugkeys);
+	Cvar_RegisterVariable( &joy_enabled );
 
 	IN_Activate();
+	IN_StartupJoystick();
 }
 
 void IN_Shutdown (void)
 {
 	IN_Deactivate(true);
+	IN_ShutdownJoystick();
 }
 
 void IN_Commands (void)
@@ -428,6 +455,7 @@ void IN_MouseMove(int dx, int dy)
 	total_dy += dy;
 }
 
+#if defined(USE_SDL2)
 static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 {
 	switch (button)
@@ -488,50 +516,37 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 
 		case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
 		{
-			static qboolean ltrigdown = false;
-			if (axisValue > triggerThreshold && !ltrigdown)
-			{
+			const qboolean wasdown = triggerLeft > triggerThreshold;
+			if (axisValue > triggerThreshold && !wasdown)
 				Key_Event(K_X360_LEFT_TRIGGER, true);
-				ltrigdown = true;
-			}
-			if (axisValue <= triggerThreshold && ltrigdown)
-			{
+			else if (axisValue <= triggerThreshold && wasdown)
 				Key_Event(K_X360_LEFT_TRIGGER, false);
-				ltrigdown = false;
-			}
+			triggerLeft = axisValue;
 			break;
 		}
 
-
 		case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
 		{
-			static qboolean ltrigdown = false;
-			if (axisValue > triggerThreshold && !ltrigdown)
-			{
+			const qboolean wasdown = triggerRight > triggerThreshold;
+			if (axisValue > triggerThreshold && !wasdown)
 				Key_Event(K_X360_RIGHT_TRIGGER, true);
-				ltrigdown = true;
-			}
-			if (axisValue <= triggerThreshold && ltrigdown)
-			{
+			else if (axisValue <= triggerThreshold && wasdown)
 				Key_Event(K_X360_RIGHT_TRIGGER, false);
-				ltrigdown = false;
-			}
+			triggerRight = axisValue;
 			break;
 		}
 		default:
 			return; // ignore
 	}
 }
-
-void IN_ControllerAdded(SDL_GameControllerButton button, qboolean down)
-{
-	
-}
+#endif
 
 void IN_Move (usercmd_t *cmd)
 {
 	int		dmx, dmy;
+	float	joy_dx = 0.0f, joy_dy = 0.0f;
 
+#if defined(USE_SDL2)
 	// jeremiah sypult -- BEGIN joystick
 	//
 	dualAxis_t moveDualAxis = {0};
@@ -582,8 +597,9 @@ void IN_Move (usercmd_t *cmd)
 
 	// add the joy look axis to mouse look
 	// ericw -- multiply by host_frametime (seconds/frame) to convert units/second to units/frame
-	float joy_dx = (moveDualAxis.right.x * joy_sensitivity.value * host_frametime);
-	float joy_dy = (moveDualAxis.right.y * joy_sensitivity.value * host_frametime);
+	joy_dx = (moveDualAxis.right.x * joy_sensitivity.value * host_frametime);
+	joy_dy = (moveDualAxis.right.y * joy_sensitivity.value * host_frametime);
+#endif
 	//
 	// jeremiah sypult -- ENDjoystick
 
@@ -997,7 +1013,7 @@ void IN_SendKeyEvents (void)
 				Con_DPrintf("Ignoring SDL_CONTROLLERDEVICEREMOVED\n");
 			break;
 		case SDL_CONTROLLERDEVICEREMAPPED:
-			Con_DPrintf("Unimplemented SDL_CONTROLLERDEVICEREMAPPED\n");
+			Con_DPrintf("Ignoring SDL_CONTROLLERDEVICEREMAPPED\n");
 			break;
 #endif
 				
