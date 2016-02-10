@@ -449,7 +449,7 @@ extern cvar_t cl_maxpitch; /* johnfitz -- variable pitch clamping */
 extern cvar_t cl_minpitch; /* johnfitz -- variable pitch clamping */
 
 
-void IN_MouseMove(int dx, int dy)
+void IN_MouseMotion(int dx, int dy)
 {
 	total_dx += dx;
 	total_dy += dy;
@@ -541,10 +541,13 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 }
 #endif
 
-void IN_Move (usercmd_t *cmd)
+void IN_JoyMove (usercmd_t *cmd)
 {
 	int		dmx, dmy;
 	float	joy_dx = 0.0f, joy_dy = 0.0f;
+
+	if (!joy_enabled.value)
+		return;
 
 #if defined(USE_SDL2)
 	// jeremiah sypult -- BEGIN joystick
@@ -603,11 +606,8 @@ void IN_Move (usercmd_t *cmd)
 	//
 	// jeremiah sypult -- ENDjoystick
 
-	dmx = (total_dx * sensitivity.value) + joy_dx;
-	dmy = (total_dy * sensitivity.value) + joy_dy;
-
-	total_dx = 0;
-	total_dy = 0;
+	dmx = joy_dx;
+	dmy = joy_dy;
 
 	if ( (in_strafe.state & 1) || (lookstrafe.value && (in_mlook.state & 1) ))
 		cmd->sidemove += m_side.value * dmx;
@@ -636,6 +636,51 @@ void IN_Move (usercmd_t *cmd)
 		else
 			cmd->forwardmove -= m_forward.value * dmy;
 	}
+}
+
+void IN_MouseMove(usercmd_t *cmd)
+{
+	int		dmx, dmy;
+
+	dmx = total_dx * sensitivity.value;
+	dmy = total_dy * sensitivity.value;
+
+	total_dx = 0;
+	total_dy = 0;
+
+	if ((in_strafe.state & 1) || (lookstrafe.value && (in_mlook.state & 1)))
+		cmd->sidemove += m_side.value * dmx;
+	else
+		cl.viewangles[YAW] -= m_yaw.value * dmx;
+
+	if (in_mlook.state & 1)
+	{
+		if (dmx || dmy)
+			V_StopPitchDrift();
+	}
+
+	if ((in_mlook.state & 1) && !(in_strafe.state & 1))
+	{
+		cl.viewangles[PITCH] += m_pitch.value * dmy;
+		/* johnfitz -- variable pitch clamping */
+		if (cl.viewangles[PITCH] > cl_maxpitch.value)
+			cl.viewangles[PITCH] = cl_maxpitch.value;
+		if (cl.viewangles[PITCH] < cl_minpitch.value)
+			cl.viewangles[PITCH] = cl_minpitch.value;
+	}
+	else
+	{
+		if ((in_strafe.state & 1) && noclip_anglehack)
+			cmd->upmove -= m_forward.value * dmy;
+		else
+			cmd->forwardmove -= m_forward.value * dmy;
+	}
+}
+
+void IN_Move(usercmd_t *cmd)
+{
+	IN_JoyMove(cmd);
+	IN_MouseMove(cmd);
 }
 
 void IN_ClearStates (void)
@@ -975,7 +1020,7 @@ void IN_SendKeyEvents (void)
 #endif
 
 		case SDL_MOUSEMOTION:
-			IN_MouseMove(event.motion.xrel, event.motion.yrel);
+			IN_MouseMotion(event.motion.xrel, event.motion.yrel);
 			break;
 
 #if defined(USE_SDL2)
@@ -1027,4 +1072,3 @@ void IN_SendKeyEvents (void)
 		}
 	}
 }
-
