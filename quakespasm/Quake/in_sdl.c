@@ -55,7 +55,7 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 cvar_t	joy_deadzone_l = { "joy_deadzone_l", "7849", CVAR_NONE };
 cvar_t	joy_deadzone_r = { "joy_deadzone_r", "8689", CVAR_NONE };
 cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
-cvar_t	joy_sensitivity = { "joy_sensitivity", "10000", CVAR_NONE };
+cvar_t	joy_sensitivity = { "joy_sensitivity", "1.5", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 cvar_t	joy_enabled = { "joy_enabled", "1", CVAR_NONE };
@@ -543,8 +543,7 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 
 void IN_JoyMove (usercmd_t *cmd)
 {
-	int		dmx, dmy;
-	float	joy_dx = 0.0f, joy_dy = 0.0f;
+	float	speed, aspeed;
 
 	if (!joy_enabled.value)
 		return;
@@ -578,64 +577,35 @@ void IN_JoyMove (usercmd_t *cmd)
 		case 5: dualfunc( moveDualAxis, quintic );   break;
 	}
 
+	if (in_speed.state & 1)
+		speed = cl_movespeedkey.value;
+	else
+		speed = 1;
+	aspeed = speed * host_frametime;
+
 	// movements are not scaled by sensitivity
-	if ( moveDualAxis.left.x != 0.0f ) {
-		cmd->sidemove += (cl_sidespeed.value * moveDualAxis.left.x);
-	}
-	if ( moveDualAxis.left.y != 0.0f ) {
-		cmd->forwardmove -= (cl_forwardspeed.value * moveDualAxis.left.y);
-	}
+	cmd->sidemove += (cl_sidespeed.value * speed * moveDualAxis.left.x);
+	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveDualAxis.left.y);
 
-	//
-	// adjust for speed key
-	//
-	if (cl_forwardspeed.value > 200 && cl_movespeedkey.value)
-		cmd->forwardmove /= cl_movespeedkey.value;
-	if ((cl_forwardspeed.value > 200) ^ (in_speed.state & 1))
-	{
-		cmd->forwardmove *= cl_movespeedkey.value;
-		cmd->sidemove *= cl_movespeedkey.value;
-		cmd->upmove *= cl_movespeedkey.value;
-	}
+	if (in_speed.state & 1)
+		speed = cl_anglespeedkey.value;
+	else
+		speed = 1;
+	aspeed = speed * host_frametime;
 
-	// add the joy look axis to mouse look
-	// ericw -- multiply by host_frametime (seconds/frame) to convert units/second to units/frame
-	joy_dx = (moveDualAxis.right.x * joy_sensitivity.value * host_frametime);
-	joy_dy = (moveDualAxis.right.y * joy_sensitivity.value * host_frametime);
+	// FIXME: Change back to joy_yaw/pitchsensitivity?
+	cl.viewangles[YAW] -= (moveDualAxis.right.x * joy_sensitivity.value) * aspeed * cl_yawspeed.value;
+	cl.viewangles[PITCH] += (moveDualAxis.right.y * joy_sensitivity.value) * aspeed * cl_pitchspeed.value;
+
+	if (moveDualAxis.right.x != 0 || moveDualAxis.right.y != 0)
+		V_StopPitchDrift();
+
+	/* johnfitz -- variable pitch clamping */
+	if (cl.viewangles[PITCH] > cl_maxpitch.value)
+		cl.viewangles[PITCH] = cl_maxpitch.value;
+	if (cl.viewangles[PITCH] < cl_minpitch.value)
+		cl.viewangles[PITCH] = cl_minpitch.value;
 #endif
-	//
-	// jeremiah sypult -- ENDjoystick
-
-	dmx = joy_dx;
-	dmy = joy_dy;
-
-	if ( (in_strafe.state & 1) || (lookstrafe.value && (in_mlook.state & 1) ))
-		cmd->sidemove += m_side.value * dmx;
-	else
-		cl.viewangles[YAW] -= m_yaw.value * dmx;
-
-	if (in_mlook.state & 1)
-	{
-		if (dmx || dmy)
-			V_StopPitchDrift ();
-	}
-
-	if ( (in_mlook.state & 1) && !(in_strafe.state & 1))
-	{
-		cl.viewangles[PITCH] += m_pitch.value * dmy;
-		/* johnfitz -- variable pitch clamping */
-		if (cl.viewangles[PITCH] > cl_maxpitch.value)
-			cl.viewangles[PITCH] = cl_maxpitch.value;
-		if (cl.viewangles[PITCH] < cl_minpitch.value)
-			cl.viewangles[PITCH] = cl_minpitch.value;
-	}
-	else
-	{
-		if ((in_strafe.state & 1) && noclip_anglehack)
-			cmd->upmove -= m_forward.value * dmy;
-		else
-			cmd->forwardmove -= m_forward.value * dmy;
-	}
 }
 
 void IN_MouseMove(usercmd_t *cmd)
