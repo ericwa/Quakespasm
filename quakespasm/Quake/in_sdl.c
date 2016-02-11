@@ -48,8 +48,6 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #include <IOKit/hidsystem/event_status_driver.h>
 #endif
 
-// Joystick support based on code from Jeremiah Sypult
-
 /* joystick variables */
 /* deadzones from XInput documentation */
 cvar_t	joy_deadzone_l = { "joy_deadzone_l", "7849", CVAR_NONE };
@@ -58,81 +56,13 @@ cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
 cvar_t	joy_sensitivity = { "joy_sensitivity", "1.5", CVAR_NONE };
 cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
-cvar_t	joy_enabled = { "joy_enabled", "1", CVAR_NONE };
+cvar_t	joy_enable = { "joy_enable", "1", CVAR_NONE };
 
 #if defined(USE_SDL2)
-/* analog axis ease math functions */
-#define sine(x)      ((0.5f) * ( (1) - (cosf( (x) * M_PI )) ))
-#define quadratic(x) ((x) * (x))
-#define cubic(x)     ((x) * (x) * (x))
-#define quartic(x)   ((x) * (x) * (x) * (x))
-#define quintic(x)   ((x) * (x) * (x) * (x) * (x))
-
-/* dual axis utility macro */
-#define dualfunc(d,f) {        \
-    d.left.x  = d.left.x < 0 ? -f( (float)-d.left.x ) : f( (float)d.left.x );  \
-    d.left.y  = d.left.y < 0 ? -f( (float)-d.left.y ) : f( (float)d.left.y );  \
-    d.right.x  = d.right.x < 0 ? -f( (float)-d.right.x ) : f( (float)d.right.x );  \
-    d.right.y  = d.right.y < 0 ? -f( (float)-d.right.y ) : f( (float)d.right.y );  }
-
-typedef struct
-{
-	float x;
-	float y;
-} joyAxis_t;
-
-typedef struct
-{
-	joyAxis_t	left;		/* TODO: assumed move, rename */
-	joyAxis_t	right;		/* TODO: assumed look, rename? */
-} dualAxis_t;
-
 /* -1 is mentioned as the invalid instance ID in SDL_joystick.h */
 static SDL_JoystickID joy_active_instaceid = -1;
 static SDL_GameController *joy_active_controller = NULL;
-
-static dualAxis_t _rawDualAxis = {0};
-static float triggerLeft, triggerRight;
-
-/* joystick support functions */
-
-static float Sint16ToPlusMinusOne (const Sint16 input)
-{
-	return (float)input / 32768.0f;
-}
-
-/*
- // adapted in part from:
- // http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
- */
-static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
-{
-	joyAxis_t result = {0};
-	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
-	
-	if ( magnitude < deadzone ) {
-		result.x = result.y = 0.0f;
-	} else {
-		joyAxis_t normalized;
-		float gradient;
-		
-		if ( magnitude > 1.0f ) {
-			magnitude = 1.0f;
-		}
-		
-		normalized.x = axis.x / magnitude;
-		normalized.y = axis.y / magnitude;
-		gradient = ( (magnitude - deadzone) / (1.0f - deadzone) );
-		result.x = normalized.x * gradient;
-		result.y = normalized.y * gradient;
-	}
-	
-	return result;
-}
 #endif
-
-/* total accumulated mouse movement since last frame */
-static int	total_dx, total_dy = 0;
 
 static qboolean	no_mouse = false;
 
@@ -148,6 +78,9 @@ static int buttonremap[] =
 	K_MOUSE4,
 	K_MOUSE5
 };
+
+/* total accumulated mouse movement since last frame */
+static int	total_dx, total_dy = 0;
 
 static int IN_FilterMouseEvents (const SDL_Event *event)
 {
@@ -428,7 +361,7 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_swapmovelook );
-	Cvar_RegisterVariable( &joy_enabled );
+	Cvar_RegisterVariable( &joy_enable );
 
 	IN_Activate();
 	IN_StartupJoystick();
@@ -456,6 +389,73 @@ void IN_MouseMotion(int dx, int dy)
 }
 
 #if defined(USE_SDL2)
+// Joystick support based on code from Jeremiah Sypult
+
+/* analog axis ease math functions */
+#define sine(x)      ((0.5f) * ( (1) - (cosf( (x) * M_PI )) ))
+#define quadratic(x) ((x) * (x))
+#define cubic(x)     ((x) * (x) * (x))
+#define quartic(x)   ((x) * (x) * (x) * (x))
+#define quintic(x)   ((x) * (x) * (x) * (x) * (x))
+
+/* dual axis utility macro */
+#define dualfunc(d,f) {        \
+d.left.x  = d.left.x < 0 ? -f( (float)-d.left.x ) : f( (float)d.left.x );  \
+d.left.y  = d.left.y < 0 ? -f( (float)-d.left.y ) : f( (float)d.left.y );  \
+d.right.x  = d.right.x < 0 ? -f( (float)-d.right.x ) : f( (float)d.right.x );  \
+d.right.y  = d.right.y < 0 ? -f( (float)-d.right.y ) : f( (float)d.right.y );  }
+
+typedef struct
+{
+	float x;
+	float y;
+} joyAxis_t;
+
+typedef struct
+{
+	joyAxis_t	left;		/* TODO: assumed move, rename */
+	joyAxis_t	right;		/* TODO: assumed look, rename? */
+} dualAxis_t;
+
+static dualAxis_t _rawDualAxis = {0};
+static float triggerLeft, triggerRight;
+
+/* joystick support functions */
+
+static float Sint16ToPlusMinusOne (const Sint16 input)
+{
+	return (float)input / 32768.0f;
+}
+
+/*
+ // adapted in part from:
+ // http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
+ */
+static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
+{
+	joyAxis_t result = {0};
+	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
+	
+	if ( magnitude < deadzone ) {
+		result.x = result.y = 0.0f;
+	} else {
+		joyAxis_t normalized;
+		float gradient;
+		
+		if ( magnitude > 1.0f ) {
+			magnitude = 1.0f;
+		}
+		
+		normalized.x = axis.x / magnitude;
+		normalized.y = axis.y / magnitude;
+		gradient = ( (magnitude - deadzone) / (1.0f - deadzone) );
+		result.x = normalized.x * gradient;
+		result.y = normalized.y * gradient;
+	}
+	
+	return result;
+}
+
 static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 {
 	switch (button)
@@ -545,7 +545,7 @@ void IN_JoyMove (usercmd_t *cmd)
 {
 	float	speed, aspeed;
 
-	if (!joy_enabled.value)
+	if (!joy_enable.value)
 		return;
 
 #if defined(USE_SDL2)
