@@ -390,6 +390,7 @@ void IN_MouseMotion(int dx, int dy)
 
 #if defined(USE_SDL2)
 // Joystick support based on code from Jeremiah Sypult
+// https://github.com/jeremiah-sypult/Quakespasm-Rift
 
 /* analog axis ease math functions */
 #define sine(x)      ((0.5f) * ( (1) - (cosf( (x) * M_PI )) ))
@@ -543,29 +544,22 @@ void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, S
 
 void IN_JoyMove (usercmd_t *cmd)
 {
+#if defined(USE_SDL2)
 	float	speed, aspeed;
+	dualAxis_t moveDualAxis = {0};
 
 	if (!joy_enable.value)
 		return;
 
-#if defined(USE_SDL2)
-	// jeremiah sypult -- BEGIN joystick
-	//
-	dualAxis_t moveDualAxis = {0};
+	moveDualAxis.left = ApplyJoyDeadzone( _rawDualAxis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
+	moveDualAxis.right = ApplyJoyDeadzone( _rawDualAxis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
 
-	if (!joy_swapmovelook.value)
+	if (joy_swapmovelook.value)
 	{
-		moveDualAxis.left = _rawDualAxis.left;
-		moveDualAxis.right = _rawDualAxis.right;
+		joyAxis_t temp = moveDualAxis.left;
+		moveDualAxis.left = moveDualAxis.right;
+		moveDualAxis.right = temp;
 	}
-	else
-	{
-		moveDualAxis.left = _rawDualAxis.right;
-		moveDualAxis.right = _rawDualAxis.left;
-	}
-	
-	moveDualAxis.left = ApplyJoyDeadzone( moveDualAxis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
-	moveDualAxis.right = ApplyJoyDeadzone( moveDualAxis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
 	
 	switch ( (int)joy_function.value ) {
 		default:
