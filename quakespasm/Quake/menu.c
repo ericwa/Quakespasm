@@ -1341,14 +1341,14 @@ void M_Menu_Keys_f (void)
 }
 
 
-void M_FindKeysForCommand (const char *command, int *twokeys)
+void M_FindKeysForCommand (const char *command, int *threekeys)
 {
 	int		count;
 	int		j;
 	int		l;
 	char	*b;
 
-	twokeys[0] = twokeys[1] = -1;
+	threekeys[0] = threekeys[1] = threekeys[2] = -1;
 	l = strlen(command);
 	count = 0;
 
@@ -1359,9 +1359,9 @@ void M_FindKeysForCommand (const char *command, int *twokeys)
 			continue;
 		if (!strncmp (b, command, l) )
 		{
-			twokeys[count] = j;
+			threekeys[count] = j;
 			count++;
-			if (count == 2)
+			if (count == 3)
 				break;
 		}
 	}
@@ -1390,7 +1390,7 @@ extern qpic_t	*pic_up, *pic_down;
 void M_Keys_Draw (void)
 {
 	int		i, x, y;
-	int		keys[2];
+	int		keys[3];
 	const char	*name;
 	qpic_t	*p;
 
@@ -1422,8 +1422,15 @@ void M_Keys_Draw (void)
 			x = strlen(name) * 8;
 			if (keys[1] != -1)
 			{
+				name = Key_KeynumToString (keys[1]);
 				M_Print (140 + x + 8, y, "or");
-				M_Print (140 + x + 32, y, Key_KeynumToString (keys[1]));
+				M_Print (140 + x + 32, y, name);
+				x = x + 32 + strlen(name) * 8;
+				if (keys[2] != -1)
+				{
+					M_Print (140 + x + 8, y, "or");
+					M_Print (140 + x + 32, y, Key_KeynumToString (keys[2]));
+				}
 			}
 		}
 	}
@@ -1438,7 +1445,7 @@ void M_Keys_Draw (void)
 void M_Keys_Key (int k)
 {
 	char	cmd[80];
-	int		keys[2];
+	int		keys[3];
 
 	if (bind_grab)
 	{	// defining a key
@@ -1482,7 +1489,7 @@ void M_Keys_Key (int k)
 	case K_X360_A:
 		M_FindKeysForCommand (bindnames[keys_cursor][0], keys);
 		S_LocalSound ("misc/menu2.wav");
-		if (keys[1] != -1)
+		if (keys[2] != -1)
 			M_UnbindCommand (bindnames[keys_cursor][0]);
 		bind_grab = true;
 		IN_Activate(); // activate to allow mouse key binding
