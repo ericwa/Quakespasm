@@ -492,6 +492,35 @@ void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton but
 		Key_Event(key, down);
 }
 
+// from lordhavoc
+static void IN_KeyEventForButton(qboolean oldbutton, qboolean newbutton, int key, double *timer)
+{
+	if (oldbutton)
+	{
+		if (newbutton)
+		{
+			if (realtime >= *timer)
+			{
+				Key_Event(key, true);
+				*timer = realtime + 0.1;
+			}
+		}
+		else
+		{
+			Key_Event(key, false);
+			*timer = 0;
+		}
+	}
+	else
+	{
+		if (newbutton)
+		{
+			Key_Event(key, true);
+			*timer = realtime + 0.5;
+		}
+	}
+}
+
 void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, Sint16 value)
 {
 	float axisValue = Sint16ToPlusMinusOne( value );
