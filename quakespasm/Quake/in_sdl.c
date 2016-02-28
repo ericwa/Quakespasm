@@ -373,11 +373,6 @@ void IN_Shutdown (void)
 	IN_ShutdownJoystick();
 }
 
-void IN_Commands (void)
-{
-/* TODO: implement this for joystick support */
-}
-
 extern cvar_t cl_maxpitch; /* johnfitz -- variable pitch clamping */
 extern cvar_t cl_minpitch; /* johnfitz -- variable pitch clamping */
 
@@ -418,8 +413,20 @@ typedef struct
 	joyAxis_t	right;		/* TODO: assumed look, rename? */
 } dualAxis_t;
 
-static dualAxis_t _rawDualAxis = {0};
-static float triggerLeft, triggerRight;
+typedef struct buttonstate_s
+{
+	qboolean buttondown[SDL_CONTROLLER_BUTTON_MAX];
+} buttonstate_t;
+
+typedef struct axisstate_s
+{
+		float axisvalue[SDL_CONTROLLER_AXIS_MAX]; // normalized to +-1
+} axisstate_t;
+
+static buttonstate_t buttonstate;
+static axisstate_t axisstate;
+
+static double in_joybuttontimer[SDL_CONTROLLER_BUTTON_MAX];
 
 /* joystick support functions */
 
@@ -479,19 +486,6 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 	}
 }
 
-void IN_ControllerButton(SDL_JoystickID instanceid, SDL_GameControllerButton button, qboolean down)
-{
-	int key;
-	
-	if (instanceid != joy_active_instaceid)
-		return;
-	
-	key = IN_KeyForControllerButton(button);
-
-	if (key)
-		Key_Event(key, down);
-}
-
 // from lordhavoc
 static void IN_KeyEventForButton(qboolean oldbutton, qboolean newbutton, int key, double *timer)
 {
@@ -521,53 +515,54 @@ static void IN_KeyEventForButton(qboolean oldbutton, qboolean newbutton, int key
 	}
 }
 
-void IN_ControllerAxis(SDL_JoystickID instanceid, SDL_GameControllerAxis axis, Sint16 value)
+void IN_Commands (void)
 {
-	float axisValue = Sint16ToPlusMinusOne( value );
-	const float triggerThreshold = Sint16ToPlusMinusOne(joy_deadzone_trigger.value);
+	buttonstate_t newbuttonstate;
+	axisstate_t newaxisstate;
+	int i;
 	
-	if (instanceid != joy_active_instaceid)
+	if (!joy_enable.value)
 		return;
 	
-	switch (axis)
+	if (!joy_active_controller)
+		return;
+	
+	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
 	{
-		case SDL_CONTROLLER_AXIS_LEFTX:
-			_rawDualAxis.left.x = axisValue;
-			break;
-		case SDL_CONTROLLER_AXIS_LEFTY:
-			_rawDualAxis.left.y = axisValue;
-			break;
-		case SDL_CONTROLLER_AXIS_RIGHTX:
-			_rawDualAxis.right.x = axisValue;
-			break;
-		case SDL_CONTROLLER_AXIS_RIGHTY:
-			_rawDualAxis.right.y = axisValue;
-			break;
-
-		case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
-		{
-			const qboolean wasdown = triggerLeft > triggerThreshold;
-			if (axisValue > triggerThreshold && !wasdown)
-				Key_Event(K_X360_LEFT_TRIGGER, true);
-			else if (axisValue <= triggerThreshold && wasdown)
-				Key_Event(K_X360_LEFT_TRIGGER, false);
-			triggerLeft = axisValue;
-			break;
-		}
-
-		case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
-		{
-			const qboolean wasdown = triggerRight > triggerThreshold;
-			if (axisValue > triggerThreshold && !wasdown)
-				Key_Event(K_X360_RIGHT_TRIGGER, true);
-			else if (axisValue <= triggerThreshold && wasdown)
-				Key_Event(K_X360_RIGHT_TRIGGER, false);
-			triggerRight = axisValue;
-			break;
-		}
-		default:
-			return; // ignore
+		newbuttonstate.buttondown[i] = SDL_GameControllerGetButton(joy_active_controller, i);
 	}
+	
+	for (i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++)
+	{
+		newaxisstate.axisvalue[i] = SDL_GameControllerGetAxis(joy_active_controller, i) / 32768.0f;
+	}
+	
+	// emit key events for buttons
+	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
+		IN_KeyEventForButton(buttonstate.buttondown[i], newbuttonstate.buttondown[i], IN_KeyForControllerButton(i), &in_joybuttontimer[i]);
+	
+	// emit emulated buttons from axis positions
+	static double emulated[10];
+	if (key_dest != key_game)
+	{
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -0.25, K_LEFTARROW, &emulated[0]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > 0.25, K_RIGHTARROW, &emulated[1]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -0.25, K_UPARROW, &emulated[2]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > 0.25, K_DOWNARROW, &emulated[3]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -0.25, K_LEFTARROW, &emulated[4]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > 0.25, K_RIGHTARROW, &emulated[5]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -0.25, K_UPARROW, &emulated[6]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > 0.25, K_DOWNARROW, &emulated[7]);
+	}
+
+	const float triggerThreshold = Sint16ToPlusMinusOne(joy_deadzone_trigger.value);
+	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold,
+						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold, K_X360_LEFT_TRIGGER, &emulated[8]);
+	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
+						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold, K_X360_RIGHT_TRIGGER, &emulated[9]);
+	
+	buttonstate = newbuttonstate;
+	axisstate = newaxisstate;
 }
 #endif
 
@@ -579,9 +574,16 @@ void IN_JoyMove (usercmd_t *cmd)
 
 	if (!joy_enable.value)
 		return;
-
-	moveDualAxis.left = ApplyJoyDeadzone( _rawDualAxis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
-	moveDualAxis.right = ApplyJoyDeadzone( _rawDualAxis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
+	
+	if (!joy_active_controller)
+		return;
+	
+	// processs axis
+	dualAxis_t axis = { {axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX], axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY]},
+						{axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX], axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY]} };
+	
+	moveDualAxis.left = ApplyJoyDeadzone( axis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
+	moveDualAxis.right = ApplyJoyDeadzone( axis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
 
 	if (joy_swapmovelook.value)
 	{
@@ -1017,13 +1019,6 @@ void IN_SendKeyEvents (void)
 			break;
 
 #if defined(USE_SDL2)
-		case SDL_CONTROLLERAXISMOTION:
-			IN_ControllerAxis(event.caxis.which, event.caxis.axis, event.caxis.value);
-			break;
-		case SDL_CONTROLLERBUTTONDOWN:
-		case SDL_CONTROLLERBUTTONUP:
-			IN_ControllerButton(event.cbutton.which, event.cbutton.button, event.cbutton.state == SDL_PRESSED);
-			break;
 		case SDL_CONTROLLERDEVICEADDED:
 			if (joy_active_instaceid == -1)
 			{
