@@ -49,12 +49,11 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #endif
 
 /* joystick variables */
-/* deadzones from XInput documentation */
-cvar_t	joy_deadzone_l = { "joy_deadzone_l", "7849", CVAR_NONE };
-cvar_t	joy_deadzone_r = { "joy_deadzone_r", "8689", CVAR_NONE };
+cvar_t	joy_deadzone = { "joy_deadzone", "0.2", CVAR_NONE };
 cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
-cvar_t	joy_sensitivity = { "joy_sensitivity", "1.5", CVAR_NONE };
-cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
+cvar_t	joy_yawsensitivity = { "joy_yawsensitivity", "360", CVAR_NONE };
+cvar_t	joy_pitchsensitivity = { "joy_pitchsensitivity", "100", CVAR_NONE };
+cvar_t	joy_function = { "joy_function", "3", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 cvar_t	joy_enable = { "joy_enable", "1", CVAR_NONE };
 
@@ -355,9 +354,9 @@ void IN_Init (void)
 	Cvar_RegisterVariable(&in_disablemacosxmouseaccel);
 #endif
 	Cvar_RegisterVariable(&in_debugkeys);
-	Cvar_RegisterVariable( &joy_sensitivity );
-	Cvar_RegisterVariable( &joy_deadzone_l );
-	Cvar_RegisterVariable( &joy_deadzone_r );
+	Cvar_RegisterVariable( &joy_yawsensitivity );
+	Cvar_RegisterVariable( &joy_pitchsensitivity );
+	Cvar_RegisterVariable( &joy_deadzone );
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_swapmovelook );
@@ -386,20 +385,6 @@ void IN_MouseMotion(int dx, int dy)
 #if defined(USE_SDL2)
 // Joystick support based on code from Jeremiah Sypult
 // https://github.com/jeremiah-sypult/Quakespasm-Rift
-
-/* analog axis ease math functions */
-#define sine(x)      ((0.5f) * ( (1) - (cosf( (x) * M_PI )) ))
-#define quadratic(x) ((x) * (x))
-#define cubic(x)     ((x) * (x) * (x))
-#define quartic(x)   ((x) * (x) * (x) * (x))
-#define quintic(x)   ((x) * (x) * (x) * (x) * (x))
-
-/* dual axis utility macro */
-#define dualfunc(d,f) {        \
-d.left.x  = d.left.x < 0 ? -f( (float)-d.left.x ) : f( (float)d.left.x );  \
-d.left.y  = d.left.y < 0 ? -f( (float)-d.left.y ) : f( (float)d.left.y );  \
-d.right.x  = d.right.x < 0 ? -f( (float)-d.right.x ) : f( (float)d.right.x );  \
-d.right.y  = d.right.y < 0 ? -f( (float)-d.right.y ) : f( (float)d.right.y );  }
 
 typedef struct
 {
@@ -435,10 +420,32 @@ static float Sint16ToPlusMinusOne (const Sint16 input)
 	return (float)input / 32768.0f;
 }
 
-/*
- // adapted in part from:
- // http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
- */
+static joyAxis_t ApplyAccel(joyAxis_t axis)
+{
+	joyAxis_t result = {0};
+#if 0
+	
+	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) ); // expected to be in [0,1]
+	
+	if (magnitude == 0)
+		return result;
+	
+	float func_applied = powf(magnitude, joy_function.value);
+	
+	float scalefactor = func_applied / magnitude;
+	
+	result.x = axis.x * scalefactor;
+	result.y = axis.y * scalefactor;
+#else
+	result.x = powf(axis.x, joy_function.value);
+	result.y = powf(axis.y, joy_function.value);
+	
+	if (axis.x < 0 && result.x > 0) result.x *= -1;
+	if (axis.y < 0 && result.y > 0) result.y *= -1;
+#endif
+	return result;
+}
+
 static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
 {
 	joyAxis_t result = {0};
@@ -582,24 +589,17 @@ void IN_JoyMove (usercmd_t *cmd)
 	dualAxis_t axis = { {axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX], axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY]},
 						{axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX], axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY]} };
 	
-	moveDualAxis.left = ApplyJoyDeadzone( axis.left, Sint16ToPlusMinusOne(joy_deadzone_l.value) );
-	moveDualAxis.right = ApplyJoyDeadzone( axis.right, Sint16ToPlusMinusOne(joy_deadzone_r.value) );
+	moveDualAxis.left = ApplyJoyDeadzone( axis.left, joy_deadzone.value );
+	moveDualAxis.right = ApplyJoyDeadzone( axis.right, joy_deadzone.value );
 
+	moveDualAxis.left = ApplyAccel(moveDualAxis.left);
+	moveDualAxis.right = ApplyAccel(moveDualAxis.right);
+	
 	if (joy_swapmovelook.value)
 	{
 		joyAxis_t temp = moveDualAxis.left;
 		moveDualAxis.left = moveDualAxis.right;
 		moveDualAxis.right = temp;
-	}
-	
-	switch ( (int)joy_function.value ) {
-		default:
-		case 0: break;
-		case 1: dualfunc( moveDualAxis, sine );      break;
-		case 2: dualfunc( moveDualAxis, quadratic ); break;
-		case 3: dualfunc( moveDualAxis, cubic );     break;
-		case 4: dualfunc( moveDualAxis, quartic );   break;
-		case 5: dualfunc( moveDualAxis, quintic );   break;
 	}
 
 	if (in_speed.state & 1)
@@ -612,15 +612,9 @@ void IN_JoyMove (usercmd_t *cmd)
 	cmd->sidemove += (cl_sidespeed.value * speed * moveDualAxis.left.x);
 	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveDualAxis.left.y);
 
-	if (in_speed.state & 1)
-		speed = cl_anglespeedkey.value;
-	else
-		speed = 1;
-	aspeed = speed * host_frametime;
-
 	// FIXME: Change back to joy_yaw/pitchsensitivity?
-	cl.viewangles[YAW] -= (moveDualAxis.right.x * joy_sensitivity.value) * aspeed * cl_yawspeed.value;
-	cl.viewangles[PITCH] += (moveDualAxis.right.y * joy_sensitivity.value) * aspeed * cl_pitchspeed.value;
+	cl.viewangles[YAW] -= moveDualAxis.right.x * joy_yawsensitivity.value * host_frametime;
+	cl.viewangles[PITCH] += moveDualAxis.right.y * joy_pitchsensitivity.value * host_frametime;
 
 	if (moveDualAxis.right.x != 0 || moveDualAxis.right.y != 0)
 		V_StopPitchDrift();
