@@ -58,10 +58,6 @@ cvar_t	joy_function = { "joy_function", "2", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 cvar_t	joy_enable = { "joy_enable", "1", CVAR_NONE };
 
-cvar_t joy_acceleratetime = { "joy_acceleratetime", "2", CVAR_NONE };
-cvar_t joy_maxspeedadded = { "joy_maxspeedadded", "2", CVAR_NONE };
-cvar_t joy_acceleratestart = { "joy_acceleratestart", "0.8", CVAR_NONE };
-
 #if defined(USE_SDL2)
 /* -1 is mentioned as the invalid instance ID in SDL_joystick.h */
 static SDL_JoystickID joy_active_instaceid = -1;
@@ -366,11 +362,7 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_function );
 	Cvar_RegisterVariable( &joy_swapmovelook );
 	Cvar_RegisterVariable( &joy_enable );
-	
-	Cvar_RegisterVariable( &joy_acceleratetime );
-	Cvar_RegisterVariable( &joy_acceleratestart );
-	Cvar_RegisterVariable( &joy_maxspeedadded );
-	
+
 	IN_Activate();
 	IN_StartupJoystick();
 }
@@ -577,7 +569,7 @@ void IN_Commands (void)
 void IN_JoyMove (usercmd_t *cmd)
 {
 #if defined(USE_SDL2)
-	float	speed, aspeed, accel;
+	float	speed, aspeed;
 	dualAxis_t moveDualAxis = {0};
 
 	if (!joy_enable.value)
@@ -609,27 +601,6 @@ void IN_JoyMove (usercmd_t *cmd)
 		case 4: dualfunc( moveDualAxis, quartic );   break;
 		case 5: dualfunc( moveDualAxis, quintic );   break;
 	}
-	
-	// acceleration
-	{
-		static double in_timeoverthreshhold;
-		
-		double mag = sqrt(moveDualAxis.right.x*moveDualAxis.right.x + moveDualAxis.right.y*moveDualAxis.right.y);
-		if (mag >= joy_acceleratestart.value)
-			in_timeoverthreshhold += host_frametime;
-		else
-			in_timeoverthreshhold = 0;
-
-		// clamp
-		in_timeoverthreshhold = q_min(in_timeoverthreshhold, joy_acceleratetime.value);
-		
-		// how long into the acceleration are we in [0,1]
-		double time_fraction = in_timeoverthreshhold / joy_acceleratetime.value;
-		// give it some easing
-		time_fraction = time_fraction * time_fraction;
-		
-		accel = (1 + (joy_maxspeedadded.value * time_fraction));
-	}
 
 	if (in_speed.state & 1)
 		speed = cl_movespeedkey.value;
@@ -648,8 +619,8 @@ void IN_JoyMove (usercmd_t *cmd)
 	aspeed = speed * host_frametime;
 
 	// FIXME: Change back to joy_yaw/pitchsensitivity?
-	cl.viewangles[YAW] -= (moveDualAxis.right.x * joy_sensitivity.value) * aspeed * accel * cl_yawspeed.value;
-	cl.viewangles[PITCH] += (moveDualAxis.right.y * joy_sensitivity.value) * aspeed * accel * cl_pitchspeed.value;
+	cl.viewangles[YAW] -= (moveDualAxis.right.x * joy_sensitivity.value) * aspeed * cl_yawspeed.value;
+	cl.viewangles[PITCH] += (moveDualAxis.right.y * joy_sensitivity.value) * aspeed * cl_pitchspeed.value;
 
 	if (moveDualAxis.right.x != 0 || moveDualAxis.right.y != 0)
 		V_StopPitchDrift();
