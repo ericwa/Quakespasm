@@ -276,7 +276,7 @@ void M_Main_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		IN_Activate();
 		key_dest = key_game;
 		m_state = m_none;
@@ -301,7 +301,7 @@ void M_Main_Key (int key)
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		m_entersound = true;
 
 		switch (m_main_cursor)
@@ -366,7 +366,7 @@ void M_SinglePlayer_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Main_f ();
 		break;
 
@@ -384,7 +384,7 @@ void M_SinglePlayer_Key (int key)
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		m_entersound = true;
 
 		switch (m_singleplayer_cursor)
@@ -518,13 +518,13 @@ void M_Load_Key (int k)
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_SinglePlayer_f ();
 		break;
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		S_LocalSound ("misc/menu2.wav");
 		if (!loadable[load_cursor])
 			return;
@@ -564,13 +564,13 @@ void M_Save_Key (int k)
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_SinglePlayer_f ();
 		break;
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		m_state = m_none;
 		IN_Activate();
 		key_dest = key_game;
@@ -636,7 +636,7 @@ void M_MultiPlayer_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Main_f ();
 		break;
 
@@ -654,7 +654,7 @@ void M_MultiPlayer_Key (int key)
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		m_entersound = true;
 		switch (m_multiplayer_cursor)
 		{
@@ -745,7 +745,7 @@ void M_Setup_Key (int k)
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_MultiPlayer_f ();
 		break;
 
@@ -785,7 +785,7 @@ forward:
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		if (setup_cursor == 0 || setup_cursor == 1)
 			return;
 
@@ -938,7 +938,7 @@ again:
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_MultiPlayer_f ();
 		break;
 
@@ -956,7 +956,7 @@ again:
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		m_entersound = true;
 		M_Menu_LanConfig_f ();
 		break;
@@ -1235,13 +1235,13 @@ void M_Options_Key (int k)
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Main_f ();
 		break;
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		m_entersound = true;
 		switch (options_cursor)
 		{
@@ -1464,7 +1464,7 @@ void M_Keys_Key (int k)
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Options_f ();
 		break;
 
@@ -1486,7 +1486,7 @@ void M_Keys_Key (int k)
 
 	case K_ENTER:		// go into bind mode
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		M_FindKeysForCommand (bindnames[keys_cursor][0], keys);
 		S_LocalSound ("misc/menu2.wav");
 		if (keys[2] != -1)
@@ -1552,7 +1552,7 @@ void M_Help_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Main_f ();
 		break;
 
@@ -1782,7 +1782,7 @@ void M_LanConfig_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Net_f ();
 		break;
 
@@ -1802,7 +1802,7 @@ void M_LanConfig_Key (int key)
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		if (lanConfig_cursor == 0)
 			break;
 
@@ -2294,7 +2294,7 @@ void M_GameOptions_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_Net_f ();
 		break;
 
@@ -2328,7 +2328,7 @@ void M_GameOptions_Key (int key)
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		S_LocalSound ("misc/menu2.wav");
 		if (gameoptions_cursor == 0)
 		{
@@ -2460,7 +2460,7 @@ void M_ServerList_Key (int k)
 	switch (k)
 	{
 	case K_ESCAPE:
-	case K_X360_B:
+	case K_BBUTTON:
 		M_Menu_LanConfig_f ();
 		break;
 
@@ -2486,7 +2486,7 @@ void M_ServerList_Key (int k)
 
 	case K_ENTER:
 	case K_KP_ENTER:
-	case K_X360_A:
+	case K_ABUTTON:
 		S_LocalSound ("misc/menu2.wav");
 		m_return_state = m_state;
 		m_return_onerror = true;

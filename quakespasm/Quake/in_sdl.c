@@ -475,16 +475,16 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 {
 	switch (button)
 	{
-		case SDL_CONTROLLER_BUTTON_A: return K_X360_A;
-		case SDL_CONTROLLER_BUTTON_B: return K_X360_B;
-		case SDL_CONTROLLER_BUTTON_X: return K_X360_X;
-		case SDL_CONTROLLER_BUTTON_Y: return K_X360_Y;
+		case SDL_CONTROLLER_BUTTON_A: return K_ABUTTON;
+		case SDL_CONTROLLER_BUTTON_B: return K_BBUTTON;
+		case SDL_CONTROLLER_BUTTON_X: return K_XBUTTON;
+		case SDL_CONTROLLER_BUTTON_Y: return K_YBUTTON;
 		case SDL_CONTROLLER_BUTTON_BACK: return K_ESCAPE;
 		case SDL_CONTROLLER_BUTTON_START: return K_ESCAPE;
-		case SDL_CONTROLLER_BUTTON_LEFTSTICK: return K_X360_LEFT_THUMB;
-		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return K_X360_RIGHT_THUMB;
-		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return K_X360_LEFT_SHOULDER;
-		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return K_X360_RIGHT_SHOULDER;
+		case SDL_CONTROLLER_BUTTON_LEFTSTICK: return K_LTHUMB;
+		case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return K_RTHUMB;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return K_LSHOULDER;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return K_RSHOULDER;
 		case SDL_CONTROLLER_BUTTON_DPAD_UP: return K_UPARROW;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return K_DOWNARROW;
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return K_LEFTARROW;
@@ -568,9 +568,9 @@ void IN_Commands (void)
 
 	const float triggerThreshold = Sint16ToPlusMinusOne(joy_deadzone_trigger.value);
 	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold,
-						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold, K_X360_LEFT_TRIGGER, &emulated[8]);
+						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold, K_LTRIGGER, &emulated[8]);
 	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
-						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold, K_X360_RIGHT_TRIGGER, &emulated[9]);
+						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold, K_RTRIGGER, &emulated[9]);
 	
 	axisstate = newaxisstate;
 }
