@@ -494,37 +494,39 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 }
 
 // from lordhavoc
-static void IN_KeyEventForButton(qboolean oldbutton, qboolean newbutton, int key, double *timer)
+static void IN_KeyEventForButton(qboolean wasdown, qboolean isdown, int key, double *timer)
 {
-	if (oldbutton)
+	// we can't use `realtime` for key repeats because it is not monotomic
+	const double currenttime = Sys_DoubleTime();
+	
+	if (wasdown)
 	{
-		if (newbutton)
+		if (isdown)
 		{
-			if (realtime >= *timer)
+			if (currenttime >= *timer)
 			{
+				*timer = currenttime + 0.1;
 				Key_Event(key, true);
-				*timer = realtime + 0.1;
 			}
 		}
 		else
 		{
-			Key_Event(key, false);
 			*timer = 0;
+			Key_Event(key, false);
 		}
 	}
 	else
 	{
-		if (newbutton)
+		if (isdown)
 		{
+			*timer = currenttime + 0.5;
 			Key_Event(key, true);
-			*timer = realtime + 0.5;
 		}
 	}
 }
 
 void IN_Commands (void)
 {
-	buttonstate_t newbuttonstate;
 	axisstate_t newaxisstate;
 	int i;
 	
@@ -533,20 +535,22 @@ void IN_Commands (void)
 	
 	if (!joy_active_controller)
 		return;
-	
+
+	// emit key events for buttons
 	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
 	{
-		newbuttonstate.buttondown[i] = SDL_GameControllerGetButton(joy_active_controller, i);
+		qboolean newstate = SDL_GameControllerGetButton(joy_active_controller, i);
+		qboolean oldstate = buttonstate.buttondown[i];
+		
+		buttonstate.buttondown[i] = newstate;
+		
+		IN_KeyEventForButton(oldstate, newstate, IN_KeyForControllerButton(i), &in_joybuttontimer[i]);
 	}
 	
 	for (i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++)
 	{
 		newaxisstate.axisvalue[i] = SDL_GameControllerGetAxis(joy_active_controller, i) / 32768.0f;
 	}
-	
-	// emit key events for buttons
-	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
-		IN_KeyEventForButton(buttonstate.buttondown[i], newbuttonstate.buttondown[i], IN_KeyForControllerButton(i), &in_joybuttontimer[i]);
 	
 	// emit emulated buttons from axis positions
 	static double emulated[10];
@@ -568,7 +572,6 @@ void IN_Commands (void)
 	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
 						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold, K_X360_RIGHT_TRIGGER, &emulated[9]);
 	
-	buttonstate = newbuttonstate;
 	axisstate = newaxisstate;
 }
 #endif
