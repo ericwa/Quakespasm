@@ -50,10 +50,10 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 
 /* joystick variables */
 cvar_t	joy_deadzone = { "joy_deadzone", "0.2", CVAR_NONE };
-cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "30", CVAR_NONE };
-cvar_t	joy_yawsensitivity = { "joy_yawsensitivity", "360", CVAR_NONE };
-cvar_t	joy_pitchsensitivity = { "joy_pitchsensitivity", "100", CVAR_NONE };
-cvar_t	joy_function = { "joy_function", "3", CVAR_NONE };
+cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "0.001", CVAR_NONE };
+cvar_t	joy_sensitivity_yaw = { "joy_sensitivity_yaw", "360", CVAR_NONE };
+cvar_t	joy_sensitivity_pitch = { "joy_sensitivity_pitch", "150", CVAR_NONE };
+cvar_t	joy_exponent = { "joy_exponent", "3", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 cvar_t	joy_enable = { "joy_enable", "1", CVAR_NONE };
 
@@ -354,11 +354,11 @@ void IN_Init (void)
 	Cvar_RegisterVariable(&in_disablemacosxmouseaccel);
 #endif
 	Cvar_RegisterVariable(&in_debugkeys);
-	Cvar_RegisterVariable( &joy_yawsensitivity );
-	Cvar_RegisterVariable( &joy_pitchsensitivity );
+	Cvar_RegisterVariable( &joy_sensitivity_yaw );
+	Cvar_RegisterVariable( &joy_sensitivity_pitch );
 	Cvar_RegisterVariable( &joy_deadzone );
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
-	Cvar_RegisterVariable( &joy_function );
+	Cvar_RegisterVariable( &joy_exponent );
 	Cvar_RegisterVariable( &joy_swapmovelook );
 	Cvar_RegisterVariable( &joy_enable );
 
@@ -430,15 +430,15 @@ static joyAxis_t ApplyAccel(joyAxis_t axis)
 	if (magnitude == 0)
 		return result;
 	
-	float func_applied = powf(magnitude, joy_function.value);
+	float func_applied = powf(magnitude, joy_exponent.value);
 	
 	float scalefactor = func_applied / magnitude;
 	
 	result.x = axis.x * scalefactor;
 	result.y = axis.y * scalefactor;
 #else
-	result.x = powf(axis.x, joy_function.value);
-	result.y = powf(axis.y, joy_function.value);
+	result.x = powf(axis.x, joy_exponent.value);
+	result.y = powf(axis.y, joy_exponent.value);
 	
 	if (axis.x < 0 && result.x > 0) result.x *= -1;
 	if (axis.y < 0 && result.y > 0) result.y *= -1;
@@ -566,7 +566,7 @@ void IN_Commands (void)
 		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > 0.25, K_DOWNARROW, &emulated[7]);
 	}
 
-	const float triggerThreshold = Sint16ToPlusMinusOne(joy_deadzone_trigger.value);
+	const float triggerThreshold = joy_deadzone_trigger.value;
 	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold,
 						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold, K_LTRIGGER, &emulated[8]);
 	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
@@ -616,8 +616,8 @@ void IN_JoyMove (usercmd_t *cmd)
 	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveDualAxis.left.y);
 
 	// FIXME: Change back to joy_yaw/pitchsensitivity?
-	cl.viewangles[YAW] -= moveDualAxis.right.x * joy_yawsensitivity.value * host_frametime;
-	cl.viewangles[PITCH] += moveDualAxis.right.y * joy_pitchsensitivity.value * host_frametime;
+	cl.viewangles[YAW] -= moveDualAxis.right.x * joy_sensitivity_yaw.value * host_frametime;
+	cl.viewangles[PITCH] += moveDualAxis.right.y * joy_sensitivity_pitch.value * host_frametime;
 
 	if (moveDualAxis.right.x != 0 || moveDualAxis.right.y != 0)
 		V_StopPitchDrift();
