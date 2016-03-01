@@ -399,7 +399,7 @@ typedef struct joy_buttonstate_s
 
 typedef struct axisstate_s
 {
-		float axisvalue[SDL_CONTROLLER_AXIS_MAX]; // normalized to +-1
+	float axisvalue[SDL_CONTROLLER_AXIS_MAX]; // normalized to +-1
 } joyaxisstate_t;
 
 static joybuttonstate_t joy_buttonstate;
