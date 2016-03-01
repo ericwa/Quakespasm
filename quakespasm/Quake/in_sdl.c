@@ -53,6 +53,7 @@ cvar_t	joy_deadzone = { "joy_deadzone", "0.2", CVAR_NONE };
 cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "0.001", CVAR_NONE };
 cvar_t	joy_sensitivity_yaw = { "joy_sensitivity_yaw", "360", CVAR_NONE };
 cvar_t	joy_sensitivity_pitch = { "joy_sensitivity_pitch", "150", CVAR_NONE };
+cvar_t	joy_invert = { "joy_invert", "0", CVAR_NONE };
 cvar_t	joy_exponent = { "joy_exponent", "3", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 cvar_t	joy_enable = { "joy_enable", "1", CVAR_NONE };
@@ -358,6 +359,7 @@ void IN_Init (void)
 	Cvar_RegisterVariable( &joy_sensitivity_pitch );
 	Cvar_RegisterVariable( &joy_deadzone );
 	Cvar_RegisterVariable( &joy_deadzone_trigger );
+	Cvar_RegisterVariable( &joy_invert );
 	Cvar_RegisterVariable( &joy_exponent );
 	Cvar_RegisterVariable( &joy_swapmovelook );
 	Cvar_RegisterVariable( &joy_enable );
@@ -617,7 +619,7 @@ void IN_JoyMove (usercmd_t *cmd)
 
 	// FIXME: Change back to joy_yaw/pitchsensitivity?
 	cl.viewangles[YAW] -= moveDualAxis.right.x * joy_sensitivity_yaw.value * host_frametime;
-	cl.viewangles[PITCH] += moveDualAxis.right.y * joy_sensitivity_pitch.value * host_frametime;
+	cl.viewangles[PITCH] += moveDualAxis.right.y * joy_sensitivity_pitch.value * (joy_invert.value ? -1.0 : 1.0) * host_frametime;
 
 	if (moveDualAxis.right.x != 0 || moveDualAxis.right.y != 0)
 		V_StopPitchDrift();
