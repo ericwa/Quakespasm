@@ -349,7 +349,7 @@ void IN_Init (void)
 		/* discard all mouse events when input is deactivated */
 		IN_BeginIgnoringMouseEvents();
 	}
-	
+
 #ifdef MACOS_X_ACCELERATION_HACK
 	Cvar_RegisterVariable(&in_disablemacosxmouseaccel);
 #endif
