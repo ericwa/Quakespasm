@@ -385,8 +385,6 @@ void IN_MouseMotion(int dx, int dy)
 }
 
 #if defined(USE_SDL2)
-// Joystick support based on code from Jeremiah Sypult
-// https://github.com/jeremiah-sypult/Quakespasm-Rift
 
 typedef struct joyaxis_s
 {
@@ -408,7 +406,15 @@ static joybuttonstate_t joy_buttonstate;
 static joyaxisstate_t joy_axisstate;
 
 static double joy_buttontimer[SDL_CONTROLLER_BUTTON_MAX];
+static double joy_emulatedkeytimer[10];
 
+/*
+================
+IN_ApplyEasing
+
+assumes axis values are in [-1, 1]. Raises the axis values to the given exponent, keeping signs.
+================
+*/
 static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 {
 	joyaxis_t result = {0};
@@ -422,6 +428,14 @@ static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 	return result;
 }
 
+/*
+================
+IN_ApplyDeadzone
+
+from https://github.com/jeremiah-sypult/Quakespasm-Rift
+and adapted from http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
+================
+*/
 static joyaxis_t IN_ApplyDeadzone(joyaxis_t axis, float deadzone)
 {
 	joyaxis_t result = {0};
@@ -447,6 +461,11 @@ static joyaxis_t IN_ApplyDeadzone(joyaxis_t axis, float deadzone)
 	return result;
 }
 
+/*
+================
+IN_KeyForControllerButton
+================
+*/
 static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 {
 	switch (button)
@@ -469,7 +488,16 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 	}
 }
 
-// from lordhavoc
+/*
+================
+IN_JoyKeyEvent
+
+Sends a Key_Event if a unpressed -> pressed or pressed -> unpressed transition occurred,
+and generates key repeats if the button is held down.
+
+Adapted from DarkPlaces by lordhavoc
+================
+*/
 static void IN_JoyKeyEvent(qboolean wasdown, qboolean isdown, int key, double *timer)
 {
 	// we can't use `realtime` for key repeats because it is not monotomic
@@ -501,8 +529,13 @@ static void IN_JoyKeyEvent(qboolean wasdown, qboolean isdown, int key, double *t
 	}
 }
 
-static double emulatedkey_timers[10];
+/*
+================
+IN_Commands
 
+Emit key events for game controller buttons, including emulated buttons for analog sticks/triggers
+================
+*/
 void IN_Commands (void)
 {
 	joyaxisstate_t newaxisstate;
@@ -536,24 +569,29 @@ void IN_Commands (void)
 	// emit emulated arrow keys so the analog sticks can be used in the menu
 	if (key_dest != key_game)
 	{
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, K_LEFTARROW, &emulatedkey_timers[0]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold, K_RIGHTARROW, &emulatedkey_timers[1]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, K_UPARROW, &emulatedkey_timers[2]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold, K_DOWNARROW, &emulatedkey_timers[3]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold, K_LEFTARROW, &emulatedkey_timers[4]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, K_RIGHTARROW, &emulatedkey_timers[5]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold, K_UPARROW, &emulatedkey_timers[6]);
-		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, K_DOWNARROW, &emulatedkey_timers[7]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, K_LEFTARROW, &joy_emulatedkeytimer[0]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold, K_RIGHTARROW, &joy_emulatedkeytimer[1]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, K_UPARROW, &joy_emulatedkeytimer[2]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold, K_DOWNARROW, &joy_emulatedkeytimer[3]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold, K_LEFTARROW, &joy_emulatedkeytimer[4]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, K_RIGHTARROW, &joy_emulatedkeytimer[5]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold, K_UPARROW, &joy_emulatedkeytimer[6]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, K_DOWNARROW, &joy_emulatedkeytimer[7]);
 	}
 	
 	// emit emulated keys for the analog triggers
-	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold, K_LTRIGGER, &emulatedkey_timers[8]);
-	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &emulatedkey_timers[9]);
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold, K_LTRIGGER, &joy_emulatedkeytimer[8]);
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &joy_emulatedkeytimer[9]);
 	
 	joy_axisstate = newaxisstate;
 }
 #endif
 
+/*
+================
+IN_JoyMove
+================
+*/
 void IN_JoyMove (usercmd_t *cmd)
 {
 #if defined(USE_SDL2)
@@ -566,7 +604,6 @@ void IN_JoyMove (usercmd_t *cmd)
 	if (!joy_active_controller)
 		return;
 	
-	// processs axis
 	moveAxis.x = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX];
 	moveAxis.y = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY];
 	lookAxis.x = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX];
