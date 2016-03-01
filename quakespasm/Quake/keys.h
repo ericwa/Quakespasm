@@ -143,17 +143,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define K_MOUSE5		242
 
 // SDL2 game controller keys
-#define K_LTHUMB	262
-#define K_RTHUMB	263
-#define K_LSHOULDER	264
-#define K_RSHOULDER	265
-#define K_ABUTTON		266
-#define K_BBUTTON		267
-#define K_XBUTTON		268
-#define K_YBUTTON		269
-#define K_LTRIGGER	270
-#define K_RTRIGGER	271
-#define	MAX_KEYS		272
+#define K_LTHUMB		243
+#define K_RTHUMB		244
+#define K_LSHOULDER		245
+#define K_RSHOULDER		246
+#define K_ABUTTON		247
+#define K_BBUTTON		248
+#define K_XBUTTON		249
+#define K_YBUTTON		250
+#define K_LTRIGGER		251
+#define K_RTRIGGER		252
+
+#define	MAX_KEYS		253
 
 #define	MAXCMDLINE	256
 
