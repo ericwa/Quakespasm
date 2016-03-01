@@ -555,17 +555,18 @@ void IN_Commands (void)
 	}
 	
 	// emit emulated buttons from axis positions
+	const float t = 0.9;
 	static double emulated[10];
 	if (key_dest != key_game)
 	{
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -0.25, K_LEFTARROW, &emulated[0]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > 0.25, K_RIGHTARROW, &emulated[1]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -0.25, K_UPARROW, &emulated[2]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > 0.25, K_DOWNARROW, &emulated[3]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -0.25, K_LEFTARROW, &emulated[4]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > 0.25, K_RIGHTARROW, &emulated[5]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -0.25, K_UPARROW, &emulated[6]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > 0.25, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > 0.25, K_DOWNARROW, &emulated[7]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, K_LEFTARROW, &emulated[0]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, K_RIGHTARROW, &emulated[1]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, K_UPARROW, &emulated[2]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, K_DOWNARROW, &emulated[3]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, K_LEFTARROW, &emulated[4]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, K_RIGHTARROW, &emulated[5]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, K_UPARROW, &emulated[6]);
+		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, K_DOWNARROW, &emulated[7]);
 	}
 
 	const float triggerThreshold = joy_deadzone_trigger.value;
