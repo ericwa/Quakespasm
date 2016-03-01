@@ -418,15 +418,45 @@ assumes axis values are in [-1, 1]. Raises the axis values to the given exponent
 static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 {
 	joyaxis_t result = {0};
-
-	result.x = powf(axis.x, exponent);
-	result.y = powf(axis.y, exponent);
+	float magnitude, eased_magnitude;
 	
-	if (axis.x < 0 && result.x > 0) result.x *= -1;
-	if (axis.y < 0 && result.y > 0) result.y *= -1;
+	magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
+
+	if (magnitude > 1)
+		magnitude = 1;
+	
+	if (magnitude == 0)
+		return result;
+	
+	eased_magnitude = powf(magnitude, exponent);
+	
+	result.x = axis.x * (eased_magnitude / magnitude);
+	result.y = axis.y * (eased_magnitude / magnitude);
+	return result;
+}
+
+/*
+================
+IN_ApplyMoveEasing
+
+clamps coordinates to a square with coordinates +/- sqrt(2)/2, then scales them to +/- 1.
+This is so when the stick is on a diagonal, it will have coordinates (1,1).
+================
+*/
+static joyaxis_t IN_ApplyMoveEasing(joyaxis_t axis)
+{
+	joyaxis_t result = {0};
+	const float v = sqrt(2)/2;
+	
+	result.x = q_max(-v, q_min(v, axis.x));
+	result.y = q_max(-v, q_min(v, axis.y));
+	
+	result.x /= v;
+	result.y /= v;
 
 	return result;
 }
+
 
 /*
 ================
@@ -619,7 +649,7 @@ void IN_JoyMove (usercmd_t *cmd)
 	moveAxis = IN_ApplyDeadzone(moveAxis, joy_deadzone.value);
 	lookAxis = IN_ApplyDeadzone(lookAxis, joy_deadzone.value);
 
-	moveAxis = IN_ApplyEasing(moveAxis, joy_exponent.value);
+	moveAxis = IN_ApplyMoveEasing(moveAxis);
 	lookAxis = IN_ApplyEasing(lookAxis, joy_exponent.value);
 	
 	if (in_speed.state & 1)
