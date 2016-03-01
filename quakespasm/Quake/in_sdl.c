@@ -388,30 +388,24 @@ void IN_MouseMotion(int dx, int dy)
 // Joystick support based on code from Jeremiah Sypult
 // https://github.com/jeremiah-sypult/Quakespasm-Rift
 
-typedef struct
+typedef struct joyaxis_s
 {
 	float x;
 	float y;
-} joyAxis_t;
+} joyaxis_t;
 
-typedef struct
-{
-	joyAxis_t	left;		/* TODO: assumed move, rename */
-	joyAxis_t	right;		/* TODO: assumed look, rename? */
-} dualAxis_t;
-
-typedef struct buttonstate_s
+typedef struct joy_buttonstate_s
 {
 	qboolean buttondown[SDL_CONTROLLER_BUTTON_MAX];
-} buttonstate_t;
+} joybuttonstate_t;
 
 typedef struct axisstate_s
 {
 		float axisvalue[SDL_CONTROLLER_AXIS_MAX]; // normalized to +-1
-} axisstate_t;
+} joyaxisstate_t;
 
-static buttonstate_t buttonstate;
-static axisstate_t axisstate;
+static joybuttonstate_t joy_buttonstate;
+static joyaxisstate_t joy_axisstate;
 
 static double in_joybuttontimer[SDL_CONTROLLER_BUTTON_MAX];
 
@@ -422,41 +416,28 @@ static float Sint16ToPlusMinusOne (const Sint16 input)
 	return (float)input / 32768.0f;
 }
 
-static joyAxis_t ApplyAccel(joyAxis_t axis)
+static joyaxis_t ApplyAccel(joyaxis_t axis, float exponent)
 {
-	joyAxis_t result = {0};
-#if 0
-	
-	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) ); // expected to be in [0,1]
-	
-	if (magnitude == 0)
-		return result;
-	
-	float func_applied = powf(magnitude, joy_exponent.value);
-	
-	float scalefactor = func_applied / magnitude;
-	
-	result.x = axis.x * scalefactor;
-	result.y = axis.y * scalefactor;
-#else
-	result.x = powf(axis.x, joy_exponent.value);
-	result.y = powf(axis.y, joy_exponent.value);
+	joyaxis_t result = {0};
+
+	result.x = powf(axis.x, exponent);
+	result.y = powf(axis.y, exponent);
 	
 	if (axis.x < 0 && result.x > 0) result.x *= -1;
 	if (axis.y < 0 && result.y > 0) result.y *= -1;
-#endif
+
 	return result;
 }
 
-static joyAxis_t ApplyJoyDeadzone(joyAxis_t axis, float deadzone)
+static joyaxis_t ApplyJoyDeadzone(joyaxis_t axis, float deadzone)
 {
-	joyAxis_t result = {0};
+	joyaxis_t result = {0};
 	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
 	
 	if ( magnitude < deadzone ) {
 		result.x = result.y = 0.0f;
 	} else {
-		joyAxis_t normalized;
+		joyaxis_t normalized;
 		float gradient;
 		
 		if ( magnitude > 1.0f ) {
@@ -529,7 +510,7 @@ static void IN_KeyEventForButton(qboolean wasdown, qboolean isdown, int key, dou
 
 void IN_Commands (void)
 {
-	axisstate_t newaxisstate;
+	joyaxisstate_t newaxisstate;
 	int i;
 	
 	if (!joy_enable.value)
@@ -542,9 +523,9 @@ void IN_Commands (void)
 	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
 	{
 		qboolean newstate = SDL_GameControllerGetButton(joy_active_controller, i);
-		qboolean oldstate = buttonstate.buttondown[i];
+		qboolean oldstate = joy_buttonstate.buttondown[i];
 		
-		buttonstate.buttondown[i] = newstate;
+		joy_buttonstate.buttondown[i] = newstate;
 		
 		IN_KeyEventForButton(oldstate, newstate, IN_KeyForControllerButton(i), &in_joybuttontimer[i]);
 	}
@@ -559,31 +540,31 @@ void IN_Commands (void)
 	static double emulated[10];
 	if (key_dest != key_game)
 	{
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, K_LEFTARROW, &emulated[0]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, K_RIGHTARROW, &emulated[1]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, K_UPARROW, &emulated[2]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, K_DOWNARROW, &emulated[3]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, K_LEFTARROW, &emulated[4]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, K_RIGHTARROW, &emulated[5]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, K_UPARROW, &emulated[6]);
-		IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, K_DOWNARROW, &emulated[7]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, K_LEFTARROW, &emulated[0]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, K_RIGHTARROW, &emulated[1]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, K_UPARROW, &emulated[2]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, K_DOWNARROW, &emulated[3]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, K_LEFTARROW, &emulated[4]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, K_RIGHTARROW, &emulated[5]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, K_UPARROW, &emulated[6]);
+		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, K_DOWNARROW, &emulated[7]);
 	}
 
 	const float triggerThreshold = joy_deadzone_trigger.value;
-	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold,
+	IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold,
 						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold, K_LTRIGGER, &emulated[8]);
-	IN_KeyEventForButton(axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
+	IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
 						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold, K_RTRIGGER, &emulated[9]);
 	
-	axisstate = newaxisstate;
+	joy_axisstate = newaxisstate;
 }
 #endif
 
 void IN_JoyMove (usercmd_t *cmd)
 {
 #if defined(USE_SDL2)
-	float	speed, aspeed;
-	dualAxis_t moveDualAxis = {0};
+	float	speed;
+	joyaxis_t moveAxis, lookAxis;
 
 	if (!joy_enable.value)
 		return;
@@ -592,37 +573,36 @@ void IN_JoyMove (usercmd_t *cmd)
 		return;
 	
 	// processs axis
-	dualAxis_t axis = { {axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX], axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY]},
-						{axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX], axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY]} };
-	
-	moveDualAxis.left = ApplyJoyDeadzone( axis.left, joy_deadzone.value );
-	moveDualAxis.right = ApplyJoyDeadzone( axis.right, joy_deadzone.value );
-
-	moveDualAxis.left = ApplyAccel(moveDualAxis.left);
-	moveDualAxis.right = ApplyAccel(moveDualAxis.right);
+	moveAxis.x = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX];
+	moveAxis.y = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY];
+	lookAxis.x = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX];
+	lookAxis.y = joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY];
 	
 	if (joy_swapmovelook.value)
 	{
-		joyAxis_t temp = moveDualAxis.left;
-		moveDualAxis.left = moveDualAxis.right;
-		moveDualAxis.right = temp;
+		joyaxis_t temp = moveAxis;
+		moveAxis = lookAxis;
+		lookAxis = temp;
 	}
+	
+	moveAxis = ApplyJoyDeadzone(moveAxis, joy_deadzone.value);
+	lookAxis = ApplyJoyDeadzone(lookAxis, joy_deadzone.value);
 
+	moveAxis = ApplyAccel(moveAxis, joy_exponent.value);
+	lookAxis = ApplyAccel(lookAxis, joy_exponent.value);
+	
 	if (in_speed.state & 1)
 		speed = cl_movespeedkey.value;
 	else
 		speed = 1;
-	aspeed = speed * host_frametime;
 
-	// movements are not scaled by sensitivity
-	cmd->sidemove += (cl_sidespeed.value * speed * moveDualAxis.left.x);
-	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveDualAxis.left.y);
+	cmd->sidemove += (cl_sidespeed.value * speed * moveAxis.x);
+	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveAxis.y);
 
-	// FIXME: Change back to joy_yaw/pitchsensitivity?
-	cl.viewangles[YAW] -= moveDualAxis.right.x * joy_sensitivity_yaw.value * host_frametime;
-	cl.viewangles[PITCH] += moveDualAxis.right.y * joy_sensitivity_pitch.value * (joy_invert.value ? -1.0 : 1.0) * host_frametime;
+	cl.viewangles[YAW] -= lookAxis.x * joy_sensitivity_yaw.value * host_frametime;
+	cl.viewangles[PITCH] += lookAxis.y * joy_sensitivity_pitch.value * (joy_invert.value ? -1.0 : 1.0) * host_frametime;
 
-	if (moveDualAxis.right.x != 0 || moveDualAxis.right.y != 0)
+	if (lookAxis.x != 0 || lookAxis.y != 0)
 		V_StopPitchDrift();
 
 	/* johnfitz -- variable pitch clamping */
