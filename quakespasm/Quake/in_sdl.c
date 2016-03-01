@@ -355,14 +355,14 @@ void IN_Init (void)
 	Cvar_RegisterVariable(&in_disablemacosxmouseaccel);
 #endif
 	Cvar_RegisterVariable(&in_debugkeys);
-	Cvar_RegisterVariable( &joy_sensitivity_yaw );
-	Cvar_RegisterVariable( &joy_sensitivity_pitch );
-	Cvar_RegisterVariable( &joy_deadzone );
-	Cvar_RegisterVariable( &joy_deadzone_trigger );
-	Cvar_RegisterVariable( &joy_invert );
-	Cvar_RegisterVariable( &joy_exponent );
-	Cvar_RegisterVariable( &joy_swapmovelook );
-	Cvar_RegisterVariable( &joy_enable );
+	Cvar_RegisterVariable(&joy_sensitivity_yaw);
+	Cvar_RegisterVariable(&joy_sensitivity_pitch);
+	Cvar_RegisterVariable(&joy_deadzone);
+	Cvar_RegisterVariable(&joy_deadzone_trigger);
+	Cvar_RegisterVariable(&joy_invert);
+	Cvar_RegisterVariable(&joy_exponent);
+	Cvar_RegisterVariable(&joy_swapmovelook);
+	Cvar_RegisterVariable(&joy_enable);
 
 	IN_Activate();
 	IN_StartupJoystick();
@@ -407,16 +407,9 @@ typedef struct axisstate_s
 static joybuttonstate_t joy_buttonstate;
 static joyaxisstate_t joy_axisstate;
 
-static double in_joybuttontimer[SDL_CONTROLLER_BUTTON_MAX];
+static double joy_buttontimer[SDL_CONTROLLER_BUTTON_MAX];
 
-/* joystick support functions */
-
-static float Sint16ToPlusMinusOne (const Sint16 input)
-{
-	return (float)input / 32768.0f;
-}
-
-static joyaxis_t ApplyAccel(joyaxis_t axis, float exponent)
+static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 {
 	joyaxis_t result = {0};
 
@@ -429,7 +422,7 @@ static joyaxis_t ApplyAccel(joyaxis_t axis, float exponent)
 	return result;
 }
 
-static joyaxis_t ApplyJoyDeadzone(joyaxis_t axis, float deadzone)
+static joyaxis_t IN_ApplyDeadzone(joyaxis_t axis, float deadzone)
 {
 	joyaxis_t result = {0};
 	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
@@ -477,7 +470,7 @@ static int IN_KeyForControllerButton(SDL_GameControllerButton button)
 }
 
 // from lordhavoc
-static void IN_KeyEventForButton(qboolean wasdown, qboolean isdown, int key, double *timer)
+static void IN_JoyKeyEvent(qboolean wasdown, qboolean isdown, int key, double *timer)
 {
 	// we can't use `realtime` for key repeats because it is not monotomic
 	const double currenttime = Sys_DoubleTime();
@@ -508,10 +501,14 @@ static void IN_KeyEventForButton(qboolean wasdown, qboolean isdown, int key, dou
 	}
 }
 
+static double emulatedkey_timers[10];
+
 void IN_Commands (void)
 {
 	joyaxisstate_t newaxisstate;
 	int i;
+	const float stickthreshold = 0.9;
+	const float triggerthreshold = joy_deadzone_trigger.value;
 	
 	if (!joy_enable.value)
 		return;
@@ -519,7 +516,7 @@ void IN_Commands (void)
 	if (!joy_active_controller)
 		return;
 
-	// emit key events for buttons
+	// emit key events for controller buttons
 	for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
 	{
 		qboolean newstate = SDL_GameControllerGetButton(joy_active_controller, i);
@@ -527,7 +524,8 @@ void IN_Commands (void)
 		
 		joy_buttonstate.buttondown[i] = newstate;
 		
-		IN_KeyEventForButton(oldstate, newstate, IN_KeyForControllerButton(i), &in_joybuttontimer[i]);
+		// NOTE: This can cause a reentrant call of IN_Commands, via SCR_ModalMessage when confirming a new game.
+		IN_JoyKeyEvent(oldstate, newstate, IN_KeyForControllerButton(i), &joy_buttontimer[i]);
 	}
 	
 	for (i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++)
@@ -535,26 +533,22 @@ void IN_Commands (void)
 		newaxisstate.axisvalue[i] = SDL_GameControllerGetAxis(joy_active_controller, i) / 32768.0f;
 	}
 	
-	// emit emulated buttons from axis positions
-	const float t = 0.9;
-	static double emulated[10];
+	// emit emulated arrow keys so the analog sticks can be used in the menu
 	if (key_dest != key_game)
 	{
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -t, K_LEFTARROW, &emulated[0]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > t, K_RIGHTARROW, &emulated[1]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -t, K_UPARROW, &emulated[2]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > t, K_DOWNARROW, &emulated[3]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -t, K_LEFTARROW, &emulated[4]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > t, K_RIGHTARROW, &emulated[5]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -t, K_UPARROW, &emulated[6]);
-		IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > t, K_DOWNARROW, &emulated[7]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] < -stickthreshold, K_LEFTARROW, &emulatedkey_timers[0]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTX] > stickthreshold, K_RIGHTARROW, &emulatedkey_timers[1]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] < -stickthreshold, K_UPARROW, &emulatedkey_timers[2]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_LEFTY] > stickthreshold, K_DOWNARROW, &emulatedkey_timers[3]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] < -stickthreshold, K_LEFTARROW, &emulatedkey_timers[4]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTX] > stickthreshold, K_RIGHTARROW, &emulatedkey_timers[5]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold,newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] < -stickthreshold, K_UPARROW, &emulatedkey_timers[6]);
+		IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_RIGHTY] > stickthreshold, K_DOWNARROW, &emulatedkey_timers[7]);
 	}
-
-	const float triggerThreshold = joy_deadzone_trigger.value;
-	IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold,
-						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerThreshold, K_LTRIGGER, &emulated[8]);
-	IN_KeyEventForButton(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold,
-						 newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerThreshold, K_RTRIGGER, &emulated[9]);
+	
+	// emit emulated keys for the analog triggers
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold,  newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERLEFT] > triggerthreshold, K_LTRIGGER, &emulatedkey_timers[8]);
+	IN_JoyKeyEvent(joy_axisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, newaxisstate.axisvalue[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] > triggerthreshold, K_RTRIGGER, &emulatedkey_timers[9]);
 	
 	joy_axisstate = newaxisstate;
 }
@@ -585,11 +579,11 @@ void IN_JoyMove (usercmd_t *cmd)
 		lookAxis = temp;
 	}
 	
-	moveAxis = ApplyJoyDeadzone(moveAxis, joy_deadzone.value);
-	lookAxis = ApplyJoyDeadzone(lookAxis, joy_deadzone.value);
+	moveAxis = IN_ApplyDeadzone(moveAxis, joy_deadzone.value);
+	lookAxis = IN_ApplyDeadzone(lookAxis, joy_deadzone.value);
 
-	moveAxis = ApplyAccel(moveAxis, joy_exponent.value);
-	lookAxis = ApplyAccel(lookAxis, joy_exponent.value);
+	moveAxis = IN_ApplyEasing(moveAxis, joy_exponent.value);
+	lookAxis = IN_ApplyEasing(lookAxis, joy_exponent.value);
 	
 	if (in_speed.state & 1)
 		speed = cl_movespeedkey.value;
