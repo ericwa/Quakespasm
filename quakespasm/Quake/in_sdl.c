@@ -51,7 +51,7 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 /* joystick variables */
 cvar_t	joy_deadzone = { "joy_deadzone", "0.2", CVAR_NONE };
 cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "0.001", CVAR_NONE };
-cvar_t	joy_sensitivity_yaw = { "joy_sensitivity_yaw", "360", CVAR_NONE };
+cvar_t	joy_sensitivity_yaw = { "joy_sensitivity_yaw", "300", CVAR_NONE };
 cvar_t	joy_sensitivity_pitch = { "joy_sensitivity_pitch", "150", CVAR_NONE };
 cvar_t	joy_invert = { "joy_invert", "0", CVAR_NONE };
 cvar_t	joy_exponent = { "joy_exponent", "3", CVAR_NONE };
