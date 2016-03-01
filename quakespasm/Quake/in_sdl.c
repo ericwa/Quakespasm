@@ -417,7 +417,7 @@ assumes axis values are in [-1, 1]. Raises the axis values to the given exponent
 */
 static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 {
-	joyaxis_t result;
+	joyaxis_t result = {0};
 	float magnitude, eased_magnitude;
 	
 	magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
@@ -446,7 +446,7 @@ so holding the stick on a diagonal gives the same speed boost as holding the for
 */
 static joyaxis_t IN_ApplyMoveEasing(joyaxis_t axis)
 {
-	joyaxis_t result;
+	joyaxis_t result = {0};
 	const float v = sqrtf(2.0f) / 2.0f;
 	
 	result.x = q_max(-v, q_min(v, axis.x));
@@ -469,7 +469,7 @@ and adapted from http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zon
 */
 static joyaxis_t IN_ApplyDeadzone(joyaxis_t axis, float deadzone)
 {
-	joyaxis_t result;
+	joyaxis_t result = {0};
 	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
 	
 	if ( magnitude < deadzone ) {
