@@ -417,7 +417,7 @@ assumes axis values are in [-1, 1]. Raises the axis values to the given exponent
 */
 static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 {
-	joyaxis_t result = {0};
+	joyaxis_t result;
 	float magnitude, eased_magnitude;
 	
 	magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
@@ -440,13 +440,14 @@ static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 IN_ApplyMoveEasing
 
 clamps coordinates to a square with coordinates +/- sqrt(2)/2, then scales them to +/- 1.
-This is so when the stick is on a diagonal, it will have coordinates (1,1).
+This wastes a bit of stick range, but gives the diagonals coordinates of (+/-1,+/-1),
+so holding the stick on a diagonal gives the same speed boost as holding the forward and strafe keyboard keys.
 ================
 */
 static joyaxis_t IN_ApplyMoveEasing(joyaxis_t axis)
 {
-	joyaxis_t result = {0};
-	const float v = sqrt(2)/2;
+	joyaxis_t result;
+	const float v = sqrtf(2.0f) / 2.0f;
 	
 	result.x = q_max(-v, q_min(v, axis.x));
 	result.y = q_max(-v, q_min(v, axis.y));
@@ -468,7 +469,7 @@ and adapted from http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zon
 */
 static joyaxis_t IN_ApplyDeadzone(joyaxis_t axis, float deadzone)
 {
-	joyaxis_t result = {0};
+	joyaxis_t result;
 	float magnitude = sqrtf( (axis.x * axis.x) + (axis.y * axis.y) );
 	
 	if ( magnitude < deadzone ) {
