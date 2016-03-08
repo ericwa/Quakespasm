@@ -49,12 +49,13 @@ static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 #endif
 
 // SDL2 Game Controller cvars
-cvar_t	joy_deadzone = { "joy_deadzone", "0.2", CVAR_NONE };
+cvar_t	joy_deadzone = { "joy_deadzone", "0.175", CVAR_NONE };
 cvar_t	joy_deadzone_trigger = { "joy_deadzone_trigger", "0.001", CVAR_NONE };
 cvar_t	joy_sensitivity_yaw = { "joy_sensitivity_yaw", "300", CVAR_NONE };
 cvar_t	joy_sensitivity_pitch = { "joy_sensitivity_pitch", "150", CVAR_NONE };
 cvar_t	joy_invert = { "joy_invert", "0", CVAR_NONE };
 cvar_t	joy_exponent = { "joy_exponent", "3", CVAR_NONE };
+cvar_t	joy_accel = { "joy_accel", "2000", CVAR_NONE };
 cvar_t	joy_swapmovelook = { "joy_swapmovelook", "0", CVAR_NONE };
 cvar_t	joy_enable = { "joy_enable", "1", CVAR_NONE };
 
@@ -370,6 +371,7 @@ void IN_Init (void)
 	Cvar_RegisterVariable(&joy_deadzone_trigger);
 	Cvar_RegisterVariable(&joy_invert);
 	Cvar_RegisterVariable(&joy_exponent);
+	Cvar_RegisterVariable(&joy_accel);
 	Cvar_RegisterVariable(&joy_swapmovelook);
 	Cvar_RegisterVariable(&joy_enable);
 
@@ -416,6 +418,9 @@ static joyaxisstate_t joy_axisstate;
 static double joy_buttontimer[SDL_CONTROLLER_BUTTON_MAX];
 static double joy_emulatedkeytimer[10];
 
+static vec_t joy_targetspeed; // absolute value
+static vec_t joy_currspeed; // absolute value
+
 /*
 ================
 IN_ApplyEasing
@@ -440,6 +445,41 @@ static joyaxis_t IN_ApplyEasing(joyaxis_t axis, float exponent)
 	
 	result.x = axis.x * (eased_magnitude / magnitude);
 	result.y = axis.y * (eased_magnitude / magnitude);
+	return result;
+}
+
+/*
+================
+IN_ApplyEasing
+
+assumes axis values are in [-1, 1]. Raises the axis values to the given exponent, keeping signs.
+================
+*/
+static joyaxis_t IN_ApplyAcceleration(joyaxis_t axis)
+{
+	joyaxis_t result = { 0 };
+	const vec_t stick_magnitude = sqrtf((axis.x * axis.x) + (axis.y * axis.y));
+
+	if (stick_magnitude == 0)
+		return result; // stick is at 0
+	if (joy_accel.value == 0)
+		return axis; // acceleration is disabled
+
+	joy_targetspeed = stick_magnitude;
+
+	if (joy_targetspeed > joy_currspeed)
+	{
+		vec_t accel = joy_accel.value / joy_sensitivity_yaw.value;
+		joy_currspeed += host_frametime * accel;
+		joy_currspeed = q_min(joy_targetspeed, joy_currspeed);
+	}
+	else
+	{
+		joy_currspeed = joy_targetspeed;
+	}
+
+	result.x = axis.x * (joy_currspeed / stick_magnitude);
+	result.y = axis.y * (joy_currspeed / stick_magnitude);
 	return result;
 }
 
@@ -662,6 +702,7 @@ void IN_JoyMove (usercmd_t *cmd)
 
 	moveAxis = IN_ApplyMoveEasing(moveAxis);
 	lookAxis = IN_ApplyEasing(lookAxis, joy_exponent.value);
+	lookAxis = IN_ApplyAcceleration(lookAxis);
 	
 	if (in_speed.state & 1)
 		speed = cl_movespeedkey.value;
