@@ -1337,7 +1337,7 @@ void SV_SpawnServer (const char *server)
 	{
 		// set up the protocol flags used by this server
 		// (note - these could be cvar-ised so that server admins could choose the protocol features used by their servers)
-		sv.protocolflags = PRFL_24BITCOORD | PRFL_SHORTANGLE;
+		sv.protocolflags = PRFL_INT32COORD | PRFL_SHORTANGLE;
 	}
 	else sv.protocolflags = 0;
 
