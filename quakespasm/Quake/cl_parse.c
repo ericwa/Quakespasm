@@ -285,8 +285,15 @@ void CL_ParseServerInfo (void)
 
 	if (cl.protocol == PROTOCOL_RMQ)
 	{
+		const int supportedflags = (PRFL_SHORTANGLE | PRFL_FLOATANGLE | PRFL_24BITCOORD | PRFL_FLOATCOORD | PRFL_EDICTSCALE | PRFL_INT32COORD);
+		
 		// mh - read protocol flags from server so that we know what protocol features to expect
 		cl.protocolflags = (unsigned int) MSG_ReadLong ();
+		
+		if (0 != (cl.protocolflags & (~supportedflags)))
+		{
+			Con_Warning("PROTOCOL_RMQ protocolflags %i contains unsupported flags\n", cl.protocolflags);
+		}
 	}
 	else cl.protocolflags = 0;
 	
