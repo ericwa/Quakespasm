@@ -83,6 +83,8 @@ typedef struct
 	struct qmodel_s	*model;
 	float	endtime;
 	vec3_t	start, end;
+	const char *trailname;
+	struct trailstate_s *trailstate;
 } beam_t;
 
 #define	MAX_EFRAGS		4096 //ericw -- was 2048 //johnfitz -- was 640
@@ -151,6 +153,7 @@ typedef struct
 
 // information for local display
 	int			stats[MAX_CL_STATS];	// health, etc
+	float		statsf[MAX_CL_STATS];
 	int			items;			// inventory bit flags
 	float	item_gettime[32];	// cl.time of aquiring item, for blinking
 	float		faceanimtime;	// use anim frame if cl.time < this
@@ -173,13 +176,11 @@ typedef struct
 	vec3_t		punchangle;		// temporary offset
 
 // pitch drifting vars
-	float		idealpitch;
 	float		pitchvel;
 	qboolean	nodrift;
 	float		driftmove;
 	double		laststop;
 
-	float		viewheight;
 	float		crouch;			// local amount for smoothing stepups
 
 	qboolean	paused;			// send over by server
@@ -225,6 +226,18 @@ typedef struct
 
 	unsigned	protocol; //johnfitz
 	unsigned	protocolflags;
+	unsigned	protocol_pext2;	//spike -- flag of fte protocol extensions
+
+#ifdef PSET_SCRIPT
+	struct
+	{
+		const char *name;
+		int index;
+	} particle_precache[MAX_PARTICLETYPES];
+#endif
+	int ackframes[8];	//big enough to cover burst
+	unsigned int ackframes_count;
+	qboolean requestresend;
 } client_state_t;
 
 
@@ -248,6 +261,7 @@ extern	cvar_t	cl_anglespeedkey;
 
 extern	cvar_t	cl_autofire;
 
+extern	cvar_t	cl_recordingdemo;
 extern	cvar_t	cl_shownet;
 extern	cvar_t	cl_nolerp;
 
@@ -264,9 +278,9 @@ extern	cvar_t	m_forward;
 extern	cvar_t	m_side;
 
 
-#define	MAX_TEMP_ENTITIES	256		//johnfitz -- was 64
-#define	MAX_STATIC_ENTITIES	512		//johnfitz -- was 128
-#define	MAX_VISEDICTS		4096	// larger, now we support BSP2
+#define	MAX_TEMP_ENTITIES			256		//johnfitz -- was 64
+#define	MAX_STATIC_ENTITIES			512		//johnfitz -- was 128
+#define	INITIAL_MAX_VISEDICTS		256		// dynamic, now we support a decent network protocol
 
 extern	client_state_t	cl;
 
@@ -277,8 +291,9 @@ extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		cl_dlights[MAX_DLIGHTS];
 extern	entity_t		cl_temp_entities[MAX_TEMP_ENTITIES];
 extern	beam_t			cl_beams[MAX_BEAMS];
-extern	entity_t		*cl_visedicts[MAX_VISEDICTS];
+extern	entity_t		**cl_visedicts;
 extern	int				cl_numvisedicts;
+extern	int				cl_maxvisedicts;	//extended if we exceeded it the previous frame
 
 extern	entity_t		*cl_entities; //johnfitz -- was a static array, now on hunk
 extern	int				cl_max_edicts; //johnfitz -- only changes when new map loads
@@ -342,7 +357,8 @@ void CL_TimeDemo_f (void);
 // cl_parse.c
 //
 void CL_ParseServerMessage (void);
-void CL_NewTranslation (int slot);
+void CL_RegisterParticles(void);
+//void CL_NewTranslation (int slot);
 
 //
 // view
@@ -361,6 +377,7 @@ void V_SetContentsColor (int contents);
 //
 void CL_InitTEnts (void);
 void CL_SignonReply (void);
+float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int *ent);
 
 //
 // chase

@@ -636,10 +636,10 @@ static void S_UpdateAmbientSounds (void)
 	channel_t	*chan;
 
 // no ambients when disconnected
-	if (cls.state != ca_connected)
+	if (cls.state != ca_connected || cls.signon != SIGNONS)
 		return;
 // calc ambient sound levels
-	if (!cl.worldmodel)
+	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
 
 	l = Mod_PointInLeaf (listener_origin, cl.worldmodel);

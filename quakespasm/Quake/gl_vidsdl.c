@@ -468,7 +468,7 @@ This is passed to SDL_SetWindowDisplayMode to specify a pixel format
 with the requested bpp. If we didn't care about bpp we could just pass NULL.
 ================
 */
-static SDL_DisplayMode *VID_SDL2_GetDisplayMode(int width, int height, int bpp)
+static SDL_DisplayMode *VID_SDL2_GetDisplayMode(int width, int height, unsigned int bpp)
 {
 	static SDL_DisplayMode mode;
 	const int sdlmodes = SDL_GetNumDisplayModes(0);
@@ -568,7 +568,7 @@ static qboolean VID_SetMode (int width, int height, int bpp, qboolean fullscreen
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, fsaa > 0 ? 1 : 0);
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, fsaa);
 
-	q_snprintf(caption, sizeof(caption), "QuakeSpasm %1.2f.%d", (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
+	q_snprintf(caption, sizeof(caption), "QuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR, (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
 
 #if defined(USE_SDL2)
 	/* Create the window if needed, hidden */
@@ -1221,10 +1221,11 @@ static void GL_SetupState (void)
 	glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST); //johnfitz
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	//spike -- these are invalid as there is no texture bound to receive this state.
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glDepthRange (0, 1); //johnfitz -- moved here becuase gl_ztrick is gone.
 	glDepthFunc (GL_LEQUAL); //johnfitz -- moved here becuase gl_ztrick is gone.
 }
@@ -1674,7 +1675,9 @@ void	VID_Toggle (void)
 	// keep all the mode changing code in one place.
 	static qboolean vid_toggle_works = false;
 	qboolean toggleWorked;
+#if defined(USE_SDL2)
 	Uint32 flags = 0;
+#endif
 
 	S_ClearBuffer ();
 

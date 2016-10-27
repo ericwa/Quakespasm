@@ -83,10 +83,12 @@ extern	cmd_source_t	cmd_source;
 
 void	Cmd_Init (void);
 
-void	Cmd_AddCommand (const char *cmd_name, xcommand_t function);
+void	Cmd_AddCommand2 (const char *cmd_name, xcommand_t function, qboolean clientcommand);
 // called by the init functions of other parts of the program to
 // register commands and functions to call for them.
 // The cmd_name is referenced later, so it should not be in temp memory
+#define Cmd_AddCommand(cmdname,func) Cmd_AddCommand2(cmdname,func,false)				//regular console commands
+#define Cmd_AddCommand_ClientCommand(cmdname,func) Cmd_AddCommand2(cmdname,func,true)	//command is meant to be safe for anyone to execute.
 
 qboolean Cmd_Exists (const char *cmd_name);
 // used by the cvar code to check for cvar / command name overlap

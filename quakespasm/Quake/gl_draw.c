@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //extern unsigned char d_15to8table[65536]; //johnfitz -- never used
 
+qboolean	premul_hud = false;//true;
 cvar_t		scr_conalpha = {"scr_conalpha", "0.5", CVAR_ARCHIVE}; //johnfitz
 
 qpic_t		*draw_disc;
@@ -202,7 +203,7 @@ void Scrap_Upload (void)
 	{
 		sprintf (name, "scrap%i", i);
 		scrap_textures[i] = TexMgr_LoadImage (NULL, name, BLOCK_WIDTH, BLOCK_HEIGHT, SRC_INDEXED, scrap_texels[i],
-			"", (src_offset_t)scrap_texels[i], TEXPREF_ALPHA | TEXPREF_OVERWRITE | TEXPREF_NOPICMIP);
+			"", (src_offset_t)scrap_texels[i], (premul_hud?TEXPREF_PREMULTIPLY:0)|TEXPREF_ALPHA | TEXPREF_OVERWRITE | TEXPREF_NOPICMIP);
 	}
 
 	scrap_dirty = false;
@@ -252,7 +253,7 @@ qpic_t *Draw_PicFromWad (const char *name)
 		offset = (src_offset_t)p - (src_offset_t)wad_base + sizeof(int)*2; //johnfitz
 
 		gl.gltexture = TexMgr_LoadImage (NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, WADFILENAME,
-										  offset, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
+										  offset, (premul_hud?TEXPREF_PREMULTIPLY:0)|TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 		gl.sl = 0;
 		gl.sh = (float)p->width/(float)TexMgr_PadConditional(p->width); //johnfitz
 		gl.tl = 0;
@@ -304,7 +305,7 @@ qpic_t	*Draw_CachePic (const char *path)
 	pic->pic.height = dat->height;
 
 	gl.gltexture = TexMgr_LoadImage (NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path,
-									  sizeof(int)*2, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
+									  sizeof(int)*2, (premul_hud?TEXPREF_PREMULTIPLY:0)|TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 	gl.sl = 0;
 	gl.sh = (float)dat->width/(float)TexMgr_PadConditional(dat->width); //johnfitz
 	gl.tl = 0;
@@ -359,7 +360,7 @@ void Draw_LoadPics (void)
 	if (!data) Sys_Error ("Draw_LoadPics: couldn't load conchars");
 	offset = (src_offset_t)data - (src_offset_t)wad_base;
 	char_texture = TexMgr_LoadImage (NULL, WADFILENAME":conchars", 128, 128, SRC_INDEXED, data,
-		WADFILENAME, offset, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+		WADFILENAME, offset, (premul_hud?TEXPREF_PREMULTIPLY:0)|TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
 
 	draw_disc = Draw_PicFromWad ("disc");
 	draw_backtile = Draw_PicFromWad ("backtile");
@@ -565,19 +566,28 @@ void Draw_ConsoleBackground (void)
 	{
 		if (alpha < 1.0)
 		{
-			glEnable (GL_BLEND);
-			glColor4f (1,1,1,alpha);
-			glDisable (GL_ALPHA_TEST);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			if (premul_hud)
+				glColor4f (alpha,alpha,alpha,alpha);
+			else
+			{
+				glEnable (GL_BLEND);
+				glDisable (GL_ALPHA_TEST);
+				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+				glColor4f (1,1,1,alpha);
+			}
 		}
 
 		Draw_Pic (0, 0, pic);
 
 		if (alpha < 1.0)
 		{
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			glEnable (GL_ALPHA_TEST);
-			glDisable (GL_BLEND);
+			if (!premul_hud)
+			{
+				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				glEnable (GL_ALPHA_TEST);
+				glDisable (GL_BLEND);
+			}
 			glColor4f (1,1,1,1);
 		}
 	}
@@ -764,7 +774,17 @@ void GL_Set2D (void)
 
 	glDisable (GL_DEPTH_TEST);
 	glDisable (GL_CULL_FACE);
-	glDisable (GL_BLEND);
-	glEnable (GL_ALPHA_TEST);
+
+	if (premul_hud)
+	{
+		glEnable (GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	}
+	else
+	{
+		glDisable (GL_BLEND);
+		glEnable (GL_ALPHA_TEST);
+	}
 	glColor4f (1,1,1,1);
 }

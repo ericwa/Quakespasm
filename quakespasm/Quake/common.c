@@ -906,6 +906,7 @@ void SZ_Free (sizebuf_t *buf)
 void SZ_Clear (sizebuf_t *buf)
 {
 	buf->cursize = 0;
+	buf->overflowed = false;
 }
 
 void *SZ_GetSpace (sizebuf_t *buf, int length)
@@ -920,9 +921,9 @@ void *SZ_GetSpace (sizebuf_t *buf, int length)
 		if (length > buf->maxsize)
 			Sys_Error ("SZ_GetSpace: %i is > full buffer size", length);
 
-		buf->overflowed = true;
-		Con_Printf ("SZ_GetSpace: overflow");
+		Con_Printf ("SZ_GetSpace: overflow\n");
 		SZ_Clear (buf);
+		buf->overflowed = true;
 	}
 
 	data = buf->data + buf->cursize;
@@ -2130,6 +2131,7 @@ void COM_InitFilesystem (void) //johnfitz -- modified based on topaz's tutorial
 	Cvar_RegisterVariable (&cmdline);
 	Cmd_AddCommand ("path", COM_Path_f);
 	Cmd_AddCommand ("game", COM_Game_f); //johnfitz
+	Cmd_AddCommand ("gamedir", COM_Game_f); //Spike -- alternative name for it, consistent with quakeworld and a few other engines
 
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)

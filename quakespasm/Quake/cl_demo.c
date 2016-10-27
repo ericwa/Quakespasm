@@ -206,6 +206,8 @@ void CL_Stop_f (void)
 	cls.demofile = NULL;
 	cls.demorecording = false;
 	Con_Printf ("Completed demo\n");
+
+	Cvar_SetROM(cl_recordingdemo.name, "");
 	
 // ericw -- update demo tab-completion list
 	DemoList_Rebuild ();
@@ -286,11 +288,14 @@ void CL_Record_f (void)
 // open the demo file
 	COM_AddExtension (name, ".dem", sizeof(name));
 
+	Cvar_SetROM(cl_recordingdemo.name, name);
+
 	Con_Printf ("recording to %s.\n", name);
 	cls.demofile = fopen (name, "wb");
 	if (!cls.demofile)
 	{
 		Con_Printf ("ERROR: couldn't create %s\n", name);
+		Cvar_SetROM(cl_recordingdemo.name, "");
 		return;
 	}
 
@@ -333,9 +338,12 @@ void CL_Record_f (void)
 		// send all current light styles
 		for (i = 0; i < MAX_LIGHTSTYLES; i++)
 		{
-			MSG_WriteByte (&net_message, svc_lightstyle);
-			MSG_WriteByte (&net_message, i);
-			MSG_WriteString (&net_message, cl_lightstyle[i].map);
+			if (*cl_lightstyle[i].map)
+			{
+				MSG_WriteByte (&net_message, svc_lightstyle);
+				MSG_WriteByte (&net_message, i);
+				MSG_WriteString (&net_message, cl_lightstyle[i].map);
+			}
 		}
 
 		// what about the CD track or SVC fog... future consideration.

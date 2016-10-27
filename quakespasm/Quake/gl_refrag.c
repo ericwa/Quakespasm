@@ -231,14 +231,22 @@ void R_StoreEfrags (efrag_t **ppefrag)
 	while ((pefrag = *ppefrag) != NULL)
 	{
 		pent = pefrag->entity;
-
-		if ((pent->visframe != r_framecount) && (cl_numvisedicts < MAX_VISEDICTS))
-		{
-			cl_visedicts[cl_numvisedicts++] = pent;
-			pent->visframe = r_framecount;
-		}
-
 		ppefrag = &pefrag->leafnext;
+
+		if ((pent->visframe != r_framecount) && (cl_numvisedicts < cl_maxvisedicts))
+		{
+			pent->visframe = r_framecount;
+
+#ifdef PSET_SCRIPT
+			if (pent->model->emiteffect >= 0)
+			{
+				PScript_RunParticleEffectState(pent->origin, NULL, ((host_frametime>0.1)?0.1:host_frametime), pent->model->emiteffect, &pent->emitstate);
+				if (pent->model->flags & MOD_EMITREPLACE)
+					continue;
+			}
+#endif
+			cl_visedicts[cl_numvisedicts++] = pent;
+		}
 	}
 }
 

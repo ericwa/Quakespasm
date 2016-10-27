@@ -48,6 +48,8 @@ cvar_t	m_side = {"m_side","0.8", CVAR_ARCHIVE};
 cvar_t	cl_maxpitch = {"cl_maxpitch", "90", CVAR_ARCHIVE}; //johnfitz -- variable pitch clamping
 cvar_t	cl_minpitch = {"cl_minpitch", "-90", CVAR_ARCHIVE}; //johnfitz -- variable pitch clamping
 
+cvar_t cl_recordingdemo = {"cl_recordingdemo", "", CVAR_ROM};	//the name of the currently-recording demo.
+
 client_static_t	cls;
 client_state_t	cl;
 // FIXME: put these on hunk?
@@ -60,7 +62,8 @@ entity_t		*cl_entities; //johnfitz -- was a static array, now on hunk
 int				cl_max_edicts; //johnfitz -- only changes when new map loads
 
 int				cl_numvisedicts;
-entity_t		*cl_visedicts[MAX_VISEDICTS];
+int				cl_maxvisedicts;
+entity_t		**cl_visedicts;
 
 extern cvar_t	r_lerpmodels, r_lerpmove; //johnfitz
 
@@ -101,6 +104,10 @@ void CL_ClearState (void)
 	for (i=0 ; i<MAX_EFRAGS-1 ; i++)
 		cl.free_efrags[i].entnext = &cl.free_efrags[i+1];
 	cl.free_efrags[i].entnext = NULL;
+
+#ifdef PSET_SCRIPT
+	PScript_Shutdown();
+#endif
 }
 
 /*
@@ -145,6 +152,7 @@ void CL_Disconnect (void)
 	cls.demopaused = false;
 	cls.signon = 0;
 	cl.intermission = 0;
+	cl.worldmodel = NULL;
 }
 
 void CL_Disconnect_f (void)
@@ -164,11 +172,20 @@ Host should be either "local" or a net address to be passed on
 */
 void CL_EstablishConnection (const char *host)
 {
+	static char lasthost[NET_NAMELEN];
 	if (cls.state == ca_dedicated)
 		return;
 
 	if (cls.demoplayback)
 		return;
+	if (!host)
+	{
+		host = lasthost;
+		if (!*host)
+			return;
+	}
+	else
+		q_strlcpy(lasthost, host, sizeof(lasthost));
 
 	CL_Disconnect ();
 
@@ -421,10 +438,20 @@ void CL_RelinkEntities (void)
 	float		bobjrotate;
 	vec3_t		oldorg;
 	dlight_t	*dl;
+	float		frametime = cl.time - cl.oldtime;
+	if (frametime < 0)
+		frametime = 0;
+	if (frametime > 0.1)
+		frametime = 0.1;
 
 // determine partial update time
 	frac = CL_LerpPoint ();
 
+	if (cl_numvisedicts + 64 > cl_maxvisedicts)
+	{
+		cl_maxvisedicts = cl_maxvisedicts+64;
+		cl_visedicts = realloc(cl_visedicts, sizeof(*cl_visedicts)*cl_maxvisedicts);
+	}
 	cl_numvisedicts = 0;
 
 //
@@ -555,33 +582,76 @@ void CL_RelinkEntities (void)
 			dl->die = cl.time + 0.001;
 		}
 
-		if (ent->model->flags & EF_GIB)
-			R_RocketTrail (oldorg, ent->origin, 2);
+#ifdef PSET_SCRIPT
+		if (ent->model->traileffect >= 0)
+		{
+			vec3_t axis[3];
+			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
+			PScript_ParticleTrail(oldorg, ent->origin, ent->model->traileffect, i, axis, &ent->trailstate);
+		}
+		else if (ent->netstate.traileffectnum > 0 && ent->netstate.traileffectnum < MAX_PARTICLETYPES)
+		{
+			vec3_t axis[3];
+			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
+			PScript_ParticleTrail(oldorg, ent->origin, cl.particle_precache[ent->netstate.traileffectnum].index, i, axis, &ent->trailstate);
+		}
+		else
+#endif
+			if (ent->model->flags & EF_GIB)
+		{
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_BLOOD"))
+				R_RocketTrail (oldorg, ent->origin, 2);
+		}
 		else if (ent->model->flags & EF_ZOMGIB)
-			R_RocketTrail (oldorg, ent->origin, 4);
+		{
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_SLIGHTBLOOD"))
+				R_RocketTrail (oldorg, ent->origin, 4);
+		}
 		else if (ent->model->flags & EF_TRACER)
-			R_RocketTrail (oldorg, ent->origin, 3);
+		{
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_WIZSPIKE"))
+				R_RocketTrail (oldorg, ent->origin, 3);
+		}
 		else if (ent->model->flags & EF_TRACER2)
-			R_RocketTrail (oldorg, ent->origin, 5);
+		{
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_KNIGHTSPIKE"))
+				R_RocketTrail (oldorg, ent->origin, 5);
+		}
 		else if (ent->model->flags & EF_ROCKET)
 		{
-			R_RocketTrail (oldorg, ent->origin, 0);
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_ROCKET"))
+				R_RocketTrail (oldorg, ent->origin, 0);
 			dl = CL_AllocDlight (i);
 			VectorCopy (ent->origin, dl->origin);
 			dl->radius = 200;
 			dl->die = cl.time + 0.01;
 		}
 		else if (ent->model->flags & EF_GRENADE)
-			R_RocketTrail (oldorg, ent->origin, 1);
+		{
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_GRENADE"))
+				R_RocketTrail (oldorg, ent->origin, 1);
+		}
 		else if (ent->model->flags & EF_TRACER3)
-			R_RocketTrail (oldorg, ent->origin, 6);
+		{
+			if (PScript_EntParticleTrail(oldorg, ent, "TR_VORESPIKE"))
+				R_RocketTrail (oldorg, ent->origin, 6);
+		}
 
 		ent->forcelink = false;
+
+#ifdef PSET_SCRIPT
+		if (ent->model->emiteffect >= 0)
+		{
+			PScript_RunParticleEffectState(ent->origin, NULL, frametime, ent->model->emiteffect, &ent->emitstate);
+			if (ent->model->flags & MOD_EMITREPLACE)
+				continue;
+		}
+#endif
 
 		if (i == cl.viewentity && !chase_active.value)
 			continue;
 
-		if (cl_numvisedicts < MAX_VISEDICTS)
+		if (cl_numvisedicts < cl_maxvisedicts)
 		{
 			cl_visedicts[cl_numvisedicts] = ent;
 			cl_numvisedicts++;
@@ -692,6 +762,8 @@ void CL_SendCmd (void)
 	// send the unreliable message
 		CL_SendMove (&cmd);
 	}
+	else
+		CL_SendMove (NULL);
 
 	if (cls.demoplayback)
 	{
@@ -802,6 +874,7 @@ void CL_Init (void)
 
 	Cvar_RegisterVariable (&cl_maxpitch); //johnfitz -- variable pitch clamping
 	Cvar_RegisterVariable (&cl_minpitch); //johnfitz -- variable pitch clamping
+	Cvar_RegisterVariable (&cl_recordingdemo); //spike -- for mod hacks. combine with cvar_string or something
 
 	Cmd_AddCommand ("entities", CL_PrintEntities_f);
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);

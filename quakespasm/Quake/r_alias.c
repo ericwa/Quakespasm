@@ -66,18 +66,20 @@ typedef struct {
 } lerpdata_t;
 //johnfitz
 
-static GLuint r_alias_program;
+static struct r_alias_program_s
+{
+	GLuint program;
+	// uniforms used in vert shader
+	GLuint blendLoc;
+	GLuint shadevectorLoc;
+	GLuint lightColorLoc;
 
-// uniforms used in vert shader
-static GLuint blendLoc;
-static GLuint shadevectorLoc;
-static GLuint lightColorLoc;
-
-// uniforms used in frag shader
-static GLuint texLoc;
-static GLuint fullbrightTexLoc;
-static GLuint useFullbrightTexLoc;
-static GLuint useOverbrightLoc;
+	// uniforms used in frag shader
+	GLuint texLoc;
+	GLuint fullbrightTexLoc;
+	GLuint useFullbrightTexLoc;
+	GLuint useOverbrightLoc;
+} r_alias_programs[2];
 
 static const GLint pose1VertexAttrIndex = 0;
 static const GLint pose1NormalAttrIndex = 1;
@@ -122,6 +124,7 @@ GLAlias_CreateShaders
 */
 void GLAlias_CreateShaders (void)
 {
+	size_t i;
 	const glsl_attrib_binding_t bindings[] = {
 		{ "TexCoords", texCoordsAttrIndex },
 		{ "Pose1Vert", pose1VertexAttrIndex },
@@ -163,7 +166,8 @@ void GLAlias_CreateShaders (void)
 		"	gl_FogFragCoord = abs(ecPosition.z);\n"
 		"}\n";
 
-	const GLchar *fragSource = \
+	const GLchar *fragSources[2] =
+	{	//basic version
 		"#version 110\n"
 		"\n"
 		"uniform sampler2D Tex;\n"
@@ -185,23 +189,54 @@ void GLAlias_CreateShaders (void)
 		"	result = mix(gl_Fog.color, result, fog);\n"
 		"	result.a = gl_Color.a;\n"
 		"	gl_FragColor = result;\n"
-		"}\n";
+		"}\n"
+		,	//alpha-test version.
+		"#version 110\n"
+		"\n"
+		"uniform sampler2D Tex;\n"
+		"uniform sampler2D FullbrightTex;\n"
+		"uniform bool UseFullbrightTex;\n"
+		"uniform bool UseOverbright;\n"
+		"void main()\n"
+		"{\n"
+		"	vec4 result = texture2D(Tex, gl_TexCoord[0].xy);\n"
+		"	if (result.a < 0.666)\n"
+		"		discard;\n"
+		"	result *= gl_Color;\n"
+		"	if (UseOverbright)\n"
+		"		result.rgb *= 2.0;\n"
+		"	if (UseFullbrightTex)\n"
+		"		result += texture2D(FullbrightTex, gl_TexCoord[0].xy);\n"
+		"	result = clamp(result, 0.0, 1.0);\n"
+		"	// apply GL_EXP2 fog (from the orange book)\n"
+		"	float fog = exp(-gl_Fog.density * gl_Fog.density * gl_FogFragCoord * gl_FogFragCoord);\n"
+		"	fog = clamp(fog, 0.0, 1.0);\n"
+		"	result = mix(gl_Fog.color, result, fog);\n"
+		"	result.a = gl_Color.a;\n"
+		"	gl_FragColor = result;\n"
+		"}\n"
+	};
 
 	if (!gl_glsl_alias_able)
 		return;
 
-	r_alias_program = GL_CreateProgram (vertSource, fragSource, sizeof(bindings)/sizeof(bindings[0]), bindings);
-
-	if (r_alias_program != 0)
+	for (i = 0; i < sizeof(fragSources) / sizeof(fragSources[0]); i++)
 	{
-	// get uniform locations
-		blendLoc = GL_GetUniformLocation (&r_alias_program, "Blend");
-		shadevectorLoc = GL_GetUniformLocation (&r_alias_program, "ShadeVector");
-		lightColorLoc = GL_GetUniformLocation (&r_alias_program, "LightColor");
-		texLoc = GL_GetUniformLocation (&r_alias_program, "Tex");
-		fullbrightTexLoc = GL_GetUniformLocation (&r_alias_program, "FullbrightTex");
-		useFullbrightTexLoc = GL_GetUniformLocation (&r_alias_program, "UseFullbrightTex");
-		useOverbrightLoc = GL_GetUniformLocation (&r_alias_program, "UseOverbright");
+		struct r_alias_program_s *p = &r_alias_programs[i];
+
+		p->program = GL_CreateProgram (vertSource, fragSources[i], sizeof(bindings)/sizeof(bindings[0]), bindings);
+
+		if (p->program != 0)
+		{
+		// get uniform locations
+			p->blendLoc = GL_GetUniformLocation (&p->program, "Blend");
+			p->shadevectorLoc = GL_GetUniformLocation (&p->program, "ShadeVector");
+			p->lightColorLoc = GL_GetUniformLocation (&p->program, "LightColor");
+			p->texLoc = GL_GetUniformLocation (&p->program, "Tex");
+			p->fullbrightTexLoc = GL_GetUniformLocation (&p->program, "FullbrightTex");
+			p->useFullbrightTexLoc = GL_GetUniformLocation (&p->program, "UseFullbrightTex");
+			p->useOverbrightLoc = GL_GetUniformLocation (&p->program, "UseOverbright");
+		}
 	}
 }
 
@@ -219,7 +254,7 @@ Supports optional overbright, optional fullbright pixels.
 Based on code by MH from RMQEngine
 =============
 */
-void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltexture_t *tx, gltexture_t *fb)
+void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltexture_t *tx, gltexture_t *fb, struct r_alias_program_s *prog)
 {
 	float	blend;
 
@@ -232,7 +267,7 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 		blend = 0;
 	}
 
-	GL_UseProgramFunc (r_alias_program);
+	GL_UseProgramFunc (prog->program);
 
 	GL_BindBuffer (GL_ARRAY_BUFFER, currententity->model->meshvbo);
 	GL_BindBuffer (GL_ELEMENT_ARRAY_BUFFER, currententity->model->meshindexesvbo);
@@ -251,13 +286,13 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
 
 // set uniforms
-	GL_Uniform1fFunc (blendLoc, blend);
-	GL_Uniform3fFunc (shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
-	GL_Uniform4fFunc (lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
-	GL_Uniform1iFunc (texLoc, 0);
-	GL_Uniform1iFunc (fullbrightTexLoc, 1);
-	GL_Uniform1iFunc (useFullbrightTexLoc, (fb != NULL) ? 1 : 0);
-	GL_Uniform1fFunc (useOverbrightLoc, overbright ? 1 : 0);
+	GL_Uniform1fFunc (prog->blendLoc, blend);
+	GL_Uniform3fFunc (prog->shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
+	GL_Uniform4fFunc (prog->lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+	GL_Uniform1iFunc (prog->texLoc, 0);
+	GL_Uniform1iFunc (prog->fullbrightTexLoc, 1);
+	GL_Uniform1iFunc (prog->useFullbrightTexLoc, (fb != NULL) ? 1 : 0);
+	GL_Uniform1fFunc (prog->useOverbrightLoc, overbright ? 1 : 0);
 
 // set textures
 	GL_SelectTexture (GL_TEXTURE0);
@@ -539,15 +574,18 @@ void R_SetupAliasLighting (entity_t	*e)
 	int			i;
 	int		quantizedangle;
 	float		radiansangle;
+	float		*origin = e->origin;
 
-	R_LightPoint (e->origin);
+	if (e->netstate.eflags & EFLAGS_VIEWMODEL)
+		origin = r_refdef.vieworg;
+	R_LightPoint (origin);
 
 	//add dlights
 	for (i=0 ; i<MAX_DLIGHTS ; i++)
 	{
 		if (cl_dlights[i].die >= cl.time)
 		{
-			VectorSubtract (currententity->origin, cl_dlights[i].origin, dist);
+			VectorSubtract (origin, cl_dlights[i].origin, dist);
 			add = cl_dlights[i].radius - VectorLength(dist);
 			if (add > 0)
 				VectorMA (lightcolor, add, cl_dlights[i].color, lightcolor);
@@ -567,7 +605,7 @@ void R_SetupAliasLighting (entity_t	*e)
 	}
 
 	// minimum light value on players (8)
-	if (currententity > cl_entities && currententity <= cl_entities + cl.maxclients)
+	if (e > cl_entities && e <= cl_entities + cl.maxclients)
 	{
 		add = 24.0f - (lightcolor[0] + lightcolor[1] + lightcolor[2]);
 		if (add > 0.0f)
@@ -621,6 +659,7 @@ void R_DrawAliasModel (entity_t *e)
 	int			i, anim;
 	gltexture_t	*tx, *fb;
 	lerpdata_t	lerpdata;
+	qboolean alphatest = !!(e->model->flags & MF_HOLEY);
 
 	//
 	// setup pose/lerp data -- do it first so we don't miss updates due to culling
@@ -629,16 +668,27 @@ void R_DrawAliasModel (entity_t *e)
 	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
 	R_SetupEntityTransform (e, &lerpdata);
 
-	//
-	// cull it
-	//
-	if (R_CullModelForEntity(e))
-		return;
+	if (e->netstate.eflags & EFLAGS_VIEWMODEL)
+	{
+		//transform it relative to the view, by rebuilding the modelview matrix without the view position.
+		glPushMatrix ();
+		glLoadIdentity();
+		glRotatef (-90,  1, 0, 0);	    // put Z going up
+		glRotatef (90,  0, 0, 1);	    // put Z going up
+	}
+	else
+	{
+		//
+		// cull it
+		//
+		if (R_CullModelForEntity(e))
+			return;
 
-	//
-	// transform it
-	//
-	glPushMatrix ();
+		//
+		// transform it
+		//
+		glPushMatrix ();
+	}
 	R_RotateForEntity (lerpdata.origin, lerpdata.angles);
 	glTranslatef (paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
 	glScalef (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
@@ -668,6 +718,8 @@ void R_DrawAliasModel (entity_t *e)
 		glDepthMask(GL_FALSE);
 		glEnable(GL_BLEND);
 	}
+	else if (alphatest)
+		glEnable (GL_ALPHA_TEST);
 
 	//
 	// set up lighting
@@ -742,9 +794,9 @@ void R_DrawAliasModel (entity_t *e)
 	}
 // call fast path if possible. if the shader compliation failed for some reason,
 // r_alias_program will be 0.
-	else if (r_alias_program != 0)
+	else if (r_alias_programs[alphatest].program != 0)
 	{
-		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata, tx, fb);
+		GL_DrawAliasFrame_GLSL (paliashdr, lerpdata, tx, fb, &r_alias_programs[alphatest]);
 	}
 	else if (overbright)
 	{
@@ -880,6 +932,8 @@ cleanup:
 	glShadeModel (GL_FLAT);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
+	if (alphatest)
+		glDisable (GL_ALPHA_TEST);
 	glColor3f(1,1,1);
 	glPopMatrix ();
 }
@@ -911,7 +965,7 @@ void GL_DrawAliasShadow (entity_t *e)
 	if (R_CullModelForEntity(e))
 		return;
 
-	if (e == &cl.viewent || e->model->flags & MOD_NOSHADOW)
+	if (e == &cl.viewent || e->effects & EF_NOSHADOW || e->model->flags & MOD_NOSHADOW)
 		return;
 
 	entalpha = ENTALPHA_DECODE(e->alpha);

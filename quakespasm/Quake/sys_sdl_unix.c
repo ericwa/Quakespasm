@@ -377,6 +377,8 @@ void Sys_Error (const char *error, ...)
 
 	fputs (errortxt1, stderr);
 
+	Con_Redirect(NULL);
+
 	Host_Shutdown ();
 
 	va_start (argptr, error);

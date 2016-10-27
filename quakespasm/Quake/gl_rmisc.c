@@ -241,6 +241,9 @@ void R_Init (void)
 	Cvar_SetCallback (&r_slimealpha, R_SetSlimealpha_f);
 
 	R_InitParticles ();
+#ifdef PSET_SCRIPT
+	PScript_InitParticles();
+#endif
 	R_SetClearColor_f (&r_clearcolor); //johnfitz
 
 	Sky_Init (); //johnfitz
@@ -395,6 +398,9 @@ void R_NewMap (void)
 
 	r_viewleaf = NULL;
 	R_ClearParticles ();
+#ifdef PSET_SCRIPT
+	PScript_ClearParticles();
+#endif
 
 	GL_BuildLightmaps ();
 	GL_BuildBModelVertexBuffer ();
@@ -497,7 +503,7 @@ GLint GL_GetUniformLocation (GLuint *programPtr, const char *name)
 {
 	GLint location;
 
-	if (!programPtr)
+	if (!*programPtr)
 		return -1;
 
 	location = GL_GetUniformLocationFunc(*programPtr, name);

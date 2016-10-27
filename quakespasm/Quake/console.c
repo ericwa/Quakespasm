@@ -54,6 +54,9 @@ cvar_t		con_logcenterprint = {"con_logcenterprint", "1", CVAR_NONE}; //johnfitz
 
 char		con_lastcenterstring[1024]; //johnfitz
 
+void (*con_redirect_flush)(const char *buffer);	//call this to flush the redirection buffer (for rcon)
+char con_redirect_buffer[8192];
+
 #define	NUM_CON_TIMES 4
 float		con_times[NUM_CON_TIMES];	// realtime time the line was generated
 						// for transparent notify lines
@@ -489,6 +492,9 @@ void Con_Printf (const char *fmt, ...)
 	q_vsnprintf (msg, sizeof(msg), fmt, argptr);
 	va_end (argptr);
 
+	if (con_redirect_flush)
+		q_strlcat(con_redirect_buffer, msg, sizeof(con_redirect_buffer));
+
 // also echo to debugging console
 	Sys_Printf ("%s", msg);
 
@@ -693,6 +699,18 @@ void Con_LogCenterPrint (const char *str)
 		Con_Printf ("%s", Con_Quakebar(40));
 		Con_ClearNotify ();
 	}
+}
+
+qboolean Con_IsRedirected(void)
+{
+	return !!con_redirect_flush;
+}
+void Con_Redirect(void(*flush)(const char *))
+{
+	if (con_redirect_flush)
+		con_redirect_flush(con_redirect_buffer);
+	*con_redirect_buffer = 0;
+	con_redirect_flush = flush;
 }
 
 /*
@@ -1237,7 +1255,7 @@ void Con_DrawConsole (int lines, qboolean drawinput)
 
 //draw version number in bottom right
 	y += 8;
-	sprintf (ver, "QuakeSpasm %1.2f.%d", (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
+	sprintf (ver, "QuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR, (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
 	for (x = 0; x < (int)strlen(ver); x++)
 		Draw_Character ((con_linewidth - strlen(ver) + x + 2)<<3, y, ver[x] /*+ 128*/);
 }

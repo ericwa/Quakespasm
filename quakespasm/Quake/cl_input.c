@@ -340,65 +340,78 @@ CL_SendMove
 */
 void CL_SendMove (const usercmd_t *cmd)
 {
-	int		i;
-	int		bits;
-	sizebuf_t	buf;
-	byte	data[128];
+	unsigned int	i;
+	int				bits;
+	sizebuf_t		buf;
+	byte			data[1024];
 
-	buf.maxsize = 128;
+	buf.maxsize = sizeof(data);
 	buf.cursize = 0;
 	buf.data = data;
 
-	cl.cmd = *cmd;
+	for (i = 0; i < cl.ackframes_count; i++)
+	{
+		MSG_WriteByte(&buf, clcdp_ackframe);
+		MSG_WriteLong(&buf, cl.ackframes[i]);
+	}
+	cl.ackframes_count = 0;
 
-//
-// send the movement message
-//
-	MSG_WriteByte (&buf, clc_move);
+	if (cmd)
+	{
+		int dump = buf.cursize;
+		cl.cmd = *cmd;
 
-	MSG_WriteFloat (&buf, cl.mtime[0]);	// so server can get ping times
+	//
+	// send the movement message
+	//
+		MSG_WriteByte (&buf, clc_move);
 
-	for (i=0 ; i<3 ; i++)
-		//johnfitz -- 16-bit angles for PROTOCOL_FITZQUAKE
-		if (cl.protocol == PROTOCOL_NETQUAKE)
-			MSG_WriteAngle (&buf, cl.viewangles[i], cl.protocolflags);
-		else
-			MSG_WriteAngle16 (&buf, cl.viewangles[i], cl.protocolflags);
-		//johnfitz
+		if (cl.protocol_pext2 & PEXT2_PREDINFO)
+			MSG_WriteShort(&buf, cl.movemessages&0xffff);	//server will ack this once it has been applied to the player's entity state
+		MSG_WriteFloat (&buf, cl.mtime[0]);	// so server can get ping times
 
-	MSG_WriteShort (&buf, cmd->forwardmove);
-	MSG_WriteShort (&buf, cmd->sidemove);
-	MSG_WriteShort (&buf, cmd->upmove);
+		for (i=0 ; i<3 ; i++)
+			//johnfitz -- 16-bit angles for PROTOCOL_FITZQUAKE
+			if (cl.protocol == PROTOCOL_NETQUAKE && !NET_QSocketGetProQuakeAngleHack(cls.netcon) && !(cl.protocol_pext2 & PEXT2_PREDINFO))	//spike -- proquake has 16bit client->server angles. this includes most public servers still using protocol 15. this does not break demos as its only client->server state.
+				MSG_WriteAngle (&buf, cl.viewangles[i], cl.protocolflags);
+			else
+				MSG_WriteAngle16 (&buf, cl.viewangles[i], cl.protocolflags);
+			//johnfitz
 
-//
-// send button bits
-//
-	bits = 0;
+		MSG_WriteShort (&buf, cmd->forwardmove);
+		MSG_WriteShort (&buf, cmd->sidemove);
+		MSG_WriteShort (&buf, cmd->upmove);
 
-	if ( in_attack.state & 3 )
-		bits |= 1;
-	in_attack.state &= ~2;
+	//
+	// send button bits
+	//
+		bits = 0;
 
-	if (in_jump.state & 3)
-		bits |= 2;
-	in_jump.state &= ~2;
+		if ( in_attack.state & 3 )
+			bits |= 1;
+		in_attack.state &= ~2;
 
-	MSG_WriteByte (&buf, bits);
+		if (in_jump.state & 3)
+			bits |= 2;
+		in_jump.state &= ~2;
 
-	MSG_WriteByte (&buf, in_impulse);
-	in_impulse = 0;
+		MSG_WriteByte (&buf, bits);
 
-//
-// deliver the message
-//
-	if (cls.demoplayback)
-		return;
+		MSG_WriteByte (&buf, in_impulse);
+		in_impulse = 0;
 
-//
-// allways dump the first two message, because it may contain leftover inputs
-// from the last level
-//
-	if (++cl.movemessages <= 2)
+	//
+	// allways dump the first two message, because it may contain leftover inputs
+	// from the last level
+	//
+		if (++cl.movemessages <= 2)
+			buf.cursize = dump;
+	}
+
+	//
+	// deliver the message
+	//
+	if (cls.demoplayback || !buf.cursize)
 		return;
 
 	if (NET_SendUnreliableMessage (cls.netcon, &buf) == -1)

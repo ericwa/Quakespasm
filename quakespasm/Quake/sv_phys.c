@@ -388,7 +388,7 @@ void SV_AddGravity (edict_t *ent)
 	float	ent_gravity;
 	eval_t	*val;
 
-	val = GetEdictFieldValue(ent, "gravity");
+	val = GetEdictFieldValue(ent, pr_extfields.gravity);
 	if (val && val->_float)
 		ent_gravity = val->_float;
 	else
@@ -956,7 +956,7 @@ void SV_Physics_Client (edict_t	*ent, int num)
 		break;
 
 	default:
-		Sys_Error ("SV_Physics_client: bad movetype %i", (int)ent->v.movetype);
+		Host_EndGame ("SV_Physics_client: bad movetype %i", (int)ent->v.movetype);
 	}
 
 //
@@ -1034,7 +1034,7 @@ void SV_CheckWaterTransition (edict_t *ent)
 	{
 		if (ent->v.watertype == CONTENTS_EMPTY)
 		{	// just crossed into water
-			SV_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
+			SV_StartSound (ent, NULL, 0, "misc/h2ohit1.wav", 255, 1);
 		}
 		ent->v.watertype = cont;
 		ent->v.waterlevel = 1;
@@ -1043,7 +1043,7 @@ void SV_CheckWaterTransition (edict_t *ent)
 	{
 		if (ent->v.watertype != CONTENTS_EMPTY)
 		{	// just crossed into water
-			SV_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
+			SV_StartSound (ent, NULL, 0, "misc/h2ohit1.wav", 255, 1);
 		}
 		ent->v.watertype = CONTENTS_EMPTY;
 		ent->v.waterlevel = cont;
@@ -1112,6 +1112,55 @@ void SV_Physics_Toss (edict_t *ent)
 	SV_CheckWaterTransition (ent);
 }
 
+
+
+
+
+
+/*
+=============
+SV_Physics_Follow
+
+Entities that are "stuck" to another entity
+=============
+*/
+static void SV_Physics_Follow (edict_t *ent)
+{
+	vec3_t vf, vr, vu, angles, v;
+	edict_t *e;
+
+	// regular thinking
+	if (!SV_RunThink (ent))
+		return;
+
+	// LordHavoc: implemented rotation on MOVETYPE_FOLLOW objects
+	e = PROG_TO_EDICT(ent->v.aiment);
+	if (e->v.angles[0] == ent->v.punchangle[0] && e->v.angles[1] == ent->v.punchangle[1] && e->v.angles[2] == ent->v.punchangle[2])
+	{
+		// quick case for no rotation
+		VectorAdd(e->v.origin, ent->v.view_ofs, ent->v.origin);
+	}
+	else
+	{
+		angles[0] = -ent->v.punchangle[0];
+		angles[1] =  ent->v.punchangle[1];
+		angles[2] =  ent->v.punchangle[2];
+		AngleVectors (angles, vf, vr, vu);
+		v[0] = ent->v.view_ofs[0] * vf[0] + ent->v.view_ofs[1] * vr[0] + ent->v.view_ofs[2] * vu[0];
+		v[1] = ent->v.view_ofs[0] * vf[1] + ent->v.view_ofs[1] * vr[1] + ent->v.view_ofs[2] * vu[1];
+		v[2] = ent->v.view_ofs[0] * vf[2] + ent->v.view_ofs[1] * vr[2] + ent->v.view_ofs[2] * vu[2];
+		angles[0] = -e->v.angles[0];
+		angles[1] =  e->v.angles[1];
+		angles[2] =  e->v.angles[2];
+		AngleVectors (angles, vf, vr, vu);
+		ent->v.origin[0] = v[0] * vf[0] + v[1] * vf[1] + v[2] * vf[2] + e->v.origin[0];
+		ent->v.origin[1] = v[0] * vr[0] + v[1] * vr[1] + v[2] * vr[2] + e->v.origin[1];
+		ent->v.origin[2] = v[0] * vu[0] + v[1] * vu[1] + v[2] * vu[2] + e->v.origin[2];
+	}
+	VectorAdd (e->v.angles, ent->v.v_angle, ent->v.angles);
+	SV_LinkEdict (ent, true);
+}
+
 /*
 ===============================================================================
 
@@ -1151,7 +1200,7 @@ void SV_Physics_Step (edict_t *ent)
 		if ( (int)ent->v.flags & FL_ONGROUND )	// just hit ground
 		{
 			if (hitsound)
-				SV_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
+				SV_StartSound (ent, NULL, 0, "demon/dland2.wav", 255, 1);
 		}
 	}
 
@@ -1220,12 +1269,33 @@ void SV_Physics (void)
 		|| ent->v.movetype == MOVETYPE_FLY
 		|| ent->v.movetype == MOVETYPE_FLYMISSILE)
 			SV_Physics_Toss (ent);
+		else if (ent->v.movetype == MOVETYPE_EXT_FOLLOW)
+			SV_Physics_Follow (ent);
+		else if (ent->v.movetype == MOVETYPE_WALK)
+		{
+			if (SV_RunThink (ent))
+			{
+				if (!SV_CheckWater (ent) && ! ((int)ent->v.flags & FL_WATERJUMP) )
+					SV_AddGravity (ent);
+				SV_CheckStuck (ent);
+				SV_WalkMove (ent);
+			}
+		}
 		else
-			Sys_Error ("SV_Physics: bad movetype %i", (int)ent->v.movetype);
+			Host_EndGame ("SV_Physics: bad movetype %i", (int)ent->v.movetype);
 	}
 
 	if (pr_global_struct->force_retouch)
 		pr_global_struct->force_retouch--;
+
+
+	if (pr_extfuncs.endframe)
+	{
+		pr_global_struct->self = EDICT_TO_PROG(sv.edicts);
+		pr_global_struct->other = EDICT_TO_PROG(sv.edicts);
+		pr_global_struct->time = sv.time;
+		PR_ExecuteProgram (pr_extfuncs.endframe);
+	}
 
 	if (!sv_freezenonclients.value) 
 	  sv.time += host_frametime;

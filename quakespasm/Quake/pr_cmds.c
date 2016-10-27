@@ -27,17 +27,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static	char	pr_string_temp[STRINGTEMP_BUFFERS][STRINGTEMP_LENGTH];
 static	byte	pr_string_tempindex = 0;
 
-static char *PR_GetTempString (void)
+char *PR_GetTempString (void)
 {
 	return pr_string_temp[(STRINGTEMP_BUFFERS-1) & ++pr_string_tempindex];
 }
 
 #define	RETURN_EDICT(e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(e))
 
-#define	MSG_BROADCAST	0		// unreliable to all
-#define	MSG_ONE		1		// reliable to one (msg_entity)
-#define	MSG_ALL		2		// reliable to all
-#define	MSG_INIT	3		// write to the init string
+#define	MSG_BROADCAST		0	// unreliable to all
+#define	MSG_ONE				1	// reliable to one (msg_entity)
+#define	MSG_ALL				2	// reliable to all
+#define	MSG_INIT			3	// write to the init string
+#define MSG_EXT_MULTICAST	4	// temporary buffer that can be splurged more reliably / with more control.
+#define MSG_EXT_ENTITY		5	// for csqc networking. we don't actually support this. I'm just defining it for completeness.
 
 /*
 ===============================================================================
@@ -47,7 +49,7 @@ static char *PR_GetTempString (void)
 ===============================================================================
 */
 
-static char *PF_VarString (int	first)
+char *PF_VarString (int	first)
 {
 	int		i;
 	static char out[1024];
@@ -632,6 +634,7 @@ static void PF_sound (void)
 	volume = G_FLOAT(OFS_PARM3) * 255;
 	attenuation = G_FLOAT(OFS_PARM4);
 
+/*	Spike -- these checks are redundant
 	if (volume < 0 || volume > 255)
 		Host_Error ("SV_StartSound: volume = %i", volume);
 
@@ -640,8 +643,8 @@ static void PF_sound (void)
 
 	if (channel < 0 || channel > 7)
 		Host_Error ("SV_StartSound: channel = %i", channel);
-
-	SV_StartSound (entity, channel, sample, volume, attenuation);
+*/
+	SV_StartSound (entity, NULL, channel, sample, volume, attenuation);
 }
 
 /*
@@ -1063,9 +1066,6 @@ static void PF_precache_sound (void)
 	const char	*s;
 	int		i;
 
-	if (sv.state != ss_loading)
-		PR_RunError ("PF_Precache_*: Precache can only be done in spawn functions");
-
 	s = G_STRING(OFS_PARM0);
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 	PR_CheckEmptyString (s);
@@ -1074,11 +1074,23 @@ static void PF_precache_sound (void)
 	{
 		if (!sv.sound_precache[i])
 		{
+			if (sv.state != ss_loading)	//spike -- moved this so that there's no actual error any more.
+			{
+				Con_Warning("PF_precache_sound(\"%s\"): Precache should only be done in spawn functions", s);
+				//let existing clients know about it
+				MSG_WriteByte(&sv.reliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i|0x8000);
+				MSG_WriteString(&sv.reliable_datagram, s);
+			}
 			sv.sound_precache[i] = s;
 			return;
 		}
 		if (!strcmp(sv.sound_precache[i], s))
+		{
+			if (sv.state != ss_loading && !pr_checkextension.value)
+				Con_Warning("PF_precache_sound(\"%s\"): Precache should only be done in spawn functions\n", s);
 			return;
+		}
 	}
 	PR_RunError ("PF_precache_sound: overflow");
 }
@@ -1088,9 +1100,6 @@ static void PF_precache_model (void)
 	const char	*s;
 	int		i;
 
-	if (sv.state != ss_loading)
-		PR_RunError ("PF_Precache_*: Precache can only be done in spawn functions");
-
 	s = G_STRING(OFS_PARM0);
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 	PR_CheckEmptyString (s);
@@ -1099,12 +1108,25 @@ static void PF_precache_model (void)
 	{
 		if (!sv.model_precache[i])
 		{
+			if (sv.state != ss_loading)
+			{
+				Con_Warning ("PF_precache_model(\"%s\"): Precache should only be done in spawn functions", s);
+				//let existing clients know about it
+				MSG_WriteByte(&sv.reliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i|0x8000);
+				MSG_WriteString(&sv.reliable_datagram, s);
+			}
+
 			sv.model_precache[i] = s;
-			sv.models[i] = Mod_ForName (s, true);
+			sv.models[i] = Mod_ForName (s, i==1);
 			return;
 		}
 		if (!strcmp(sv.model_precache[i], s))
+		{
+			if (sv.state != ss_loading && !pr_checkextension.value)
+				Con_Warning ("PF_precache_model(\"%s\"): Precache should only be done in spawn functions\n", s);
 			return;
+		}
 	}
 	PR_RunError ("PF_precache_model: overflow");
 }
@@ -1451,7 +1473,7 @@ MESSAGE WRITING
 ===============================================================================
 */
 
-static sizebuf_t *WriteDest (void)
+sizebuf_t *WriteDest (void)
 {
 	int		entnum;
 	int		dest;
@@ -1475,6 +1497,9 @@ static sizebuf_t *WriteDest (void)
 
 	case MSG_INIT:
 		return &sv.signon;
+
+	case MSG_EXT_MULTICAST:
+		return &sv.multicast;
 
 	default:
 		PR_RunError ("WriteDest: bad destination");
@@ -1639,10 +1664,10 @@ static void PF_changelevel (void)
 	Cbuf_AddText (va("changelevel %s\n",s));
 }
 
-static void PF_Fixme (void)
-{
-	PR_RunError ("unimplemented builtin");
-}
+void PF_Fixme (void);
+//{
+//	PR_RunError ("unimplemented builtin");
+//}
 
 
 static builtin_t pr_builtin[] =

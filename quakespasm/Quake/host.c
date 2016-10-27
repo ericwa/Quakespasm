@@ -151,6 +151,8 @@ void Host_Error (const char *error, ...)
 	va_end (argptr);
 	Con_Printf ("Host_Error: %s\n",string);
 
+	Con_Redirect(NULL);
+
 	if (sv.active)
 		Host_ShutdownServer (false);
 
@@ -220,7 +222,7 @@ void	Host_FindMaxClients (void)
 void Host_Version_f (void)
 {
 	Con_Printf ("Quake Version %1.2f\n", VERSION);
-	Con_Printf ("QuakeSpasm Version %1.2f.%d\n", QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
+	Con_Printf ("QuakeSpasm Version %1.2f.%d"BUILD_SPECIAL_STR"\n", (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
 	Con_Printf ("Exe: " __TIME__ " " __DATE__ "\n");
 }
 
@@ -439,6 +441,8 @@ void SV_DropClient (qboolean crash)
 	NET_Close (host_client->netconnection);
 	host_client->netconnection = NULL;
 
+	SVFTE_DestroyFrames(host_client);	//release any delta state
+
 // free the client (the body stays around)
 	host_client->active = false;
 	host_client->name[0] = 0;
@@ -493,7 +497,7 @@ void Host_ShutdownServer(qboolean crash)
 		count = 0;
 		for (i=0, host_client = svs.clients ; i<svs.maxclients ; i++, host_client++)
 		{
-			if (host_client->active && host_client->message.cursize)
+			if (host_client->active && host_client->message.cursize && host_client->netconnection)
 			{
 				if (NET_CanSendMessage (host_client->netconnection))
 				{
@@ -524,6 +528,8 @@ void Host_ShutdownServer(qboolean crash)
 	for (i = 0, host_client = svs.clients; i < svs.maxclients; i++, host_client++)
 		if (host_client->active)
 			SV_DropClient(crash);
+
+	sv.worldmodel = NULL;
 
 //
 // clear structures
@@ -576,7 +582,7 @@ qboolean Host_FilterTime (float time)
 
 	//johnfitz -- max fps cvar
 	maxfps = CLAMP (10.0, host_maxfps.value, 1000.0);
-	if (!cls.timedemo && realtime - oldrealtime < 1.0/maxfps)
+	if (host_maxfps.value && !cls.timedemo && realtime - oldrealtime < 1.0/maxfps)
 		return false; // framerate is too high
 	//johnfitz
 
@@ -589,7 +595,7 @@ qboolean Host_FilterTime (float time)
 	//johnfitz
 	else if (host_framerate.value > 0)
 		host_frametime = host_framerate.value;
-	else // don't allow really long or short frames
+	else if (host_maxfps.value)// don't allow really long or short frames
 		host_frametime = CLAMP (0.001, host_frametime, 0.1); //johnfitz -- use CLAMP
 
 	return true;

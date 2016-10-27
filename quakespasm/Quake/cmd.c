@@ -74,7 +74,7 @@ Cbuf_Init
 */
 void Cbuf_Init (void)
 {
-	SZ_Alloc (&cmd_text, 8192);		// space for commands and script files
+	SZ_Alloc (&cmd_text, 1<<18);		// space for commands and script files. spike -- was 8192, but modern configs can be _HUGE_, at least if they contain lots of comments/docs for things.
 }
 
 
@@ -441,6 +441,7 @@ typedef struct cmd_function_s
 	struct cmd_function_s	*next;
 	const char		*name;
 	xcommand_t		function;
+	qboolean		clientcommand;
 } cmd_function_t;
 
 
@@ -605,9 +606,11 @@ void Cmd_TokenizeString (const char *text)
 /*
 ============
 Cmd_AddCommand
+
+spike -- added an extra arg for client (also renamed and made a macro)
 ============
 */
-void	Cmd_AddCommand (const char *cmd_name, xcommand_t function)
+void	Cmd_AddCommand2 (const char *cmd_name, xcommand_t function, qboolean clientcommand)
 {
 	cmd_function_t	*cmd;
 	cmd_function_t	*cursor,*prev; //johnfitz -- sorted list insert
@@ -635,6 +638,7 @@ void	Cmd_AddCommand (const char *cmd_name, xcommand_t function)
 	cmd = (cmd_function_t *) Hunk_Alloc (sizeof(cmd_function_t));
 	cmd->name = cmd_name;
 	cmd->function = function;
+	cmd->clientcommand = clientcommand;
 
 	//johnfitz -- insert each entry in alphabetical order
 	if (cmd_functions == NULL || strcmp(cmd->name, cmd_functions->name) < 0) //insert at front
@@ -725,9 +729,18 @@ void	Cmd_ExecuteString (const char *text, cmd_source_t src)
 	{
 		if (!q_strcasecmp (cmd_argv[0],cmd->name))
 		{
-			cmd->function ();
+			if (src == src_client && !cmd->clientcommand)
+				Con_DPrintf("%s tried to %s\n", host_client->name, text);
+			else
+				cmd->function ();
 			return;
 		}
+	}
+
+	if (src == src_client)
+	{	//spike -- please don't execute similarly named aliases, nor custom cvars...
+		Con_DPrintf("%s tried to %s\n", host_client->name, text);
+		return;
 	}
 
 // check alias
@@ -770,6 +783,21 @@ void Cmd_ForwardToServer (void)
 	{
 		SZ_Print (&cls.message, Cmd_Argv(0));
 		SZ_Print (&cls.message, " ");
+	}
+	else
+	{
+		//hack zone for compat.
+		//stuffcmd("cmd foo\n") is a good way to query the client to see if it knows foo because the server is guarenteed a response even if it doesn't understand it, saving a timeout
+		if (!strcmp(Cmd_Args(), "protocols"))
+		{	//server asked us for a list of protocol numbers that we claim to support. this allows cool servers like fte to autodetect higher limits etc.
+			SZ_Print (&cls.message, "protocols 15 666 999");
+			return;
+		}
+		if (!strcmp(Cmd_Args(), "pext"))
+		{	//server asked us for a key+value list of the extensions+attributes we support
+			SZ_Print (&cls.message, va("pext %#x %#x", PROTOCOL_FTE_PEXT2, PEXT2_SUPPORTED_CLIENT));
+			return;
+		}
 	}
 	if (Cmd_Argc() > 1)
 		SZ_Print (&cls.message, Cmd_Args());

@@ -645,6 +645,9 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 			case mod_sprite:
 				R_DrawSpriteModel (currententity);
 				break;
+			case mod_ext_invalid:
+				//nothing. could draw a blob instead.
+				break;
 		}
 	}
 }
@@ -926,6 +929,9 @@ void R_RenderScene (void)
 	R_RenderDlights (); //triangle fan dlights -- johnfitz -- moved after water
 
 	R_DrawParticles ();
+#ifdef PSET_SCRIPT
+	PScript_DrawParticles();
+#endif
 
 	Fog_DisableGFog (); //johnfitz
 

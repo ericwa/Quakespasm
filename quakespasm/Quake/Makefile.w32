@@ -50,18 +50,18 @@ STRIP = strip
 CPUFLAGS=
 LDFLAGS = -m32 -mwindows
 DFLAGS ?=
-CFLAGS ?= -m32 -Wall -Wno-trigraphs
-CFLAGS += $(CPUFLAGS)
+QS_CFLAGS ?= -m32 -Wall -Wno-trigraphs
+QS_CFLAGS += $(CPUFLAGS)
 
 ifneq ($(DEBUG),0)
 DFLAGS += -DDEBUG
-CFLAGS += -g
+QS_CFLAGS += -g
 do_strip=
 else
 DFLAGS += -DNDEBUG
-CFLAGS += -O2
-CFLAGS += $(call check_gcc,-fweb,)
-CFLAGS += $(call check_gcc,-frename-registers,)
+QS_CFLAGS += -O2
+QS_CFLAGS += $(call check_gcc,-fweb,)
+QS_CFLAGS += $(call check_gcc,-frename-registers,)
 cmd_strip=$(STRIP) $(1)
 define do_strip
 	$(call cmd_strip,$(1));
@@ -69,7 +69,7 @@ endef
 endif
 
 ifeq ($(USE_SDL2),1)
-CFLAGS += -DUSE_SDL2
+QS_CFLAGS += -DUSE_SDL2
 endif
 
 # default to our local SDL[2] for build
@@ -89,7 +89,7 @@ DEFWINSOCK :=
 LIBWINSOCK := -lwsock32
 endif
 
-CFLAGS     += $(DEFWINSOCK)
+QS_CFLAGS     += $(DEFWINSOCK)
 NET_LIBS   := $(LIBWINSOCK)
 
 ifneq ($(VORBISLIB),vorbis)
@@ -121,48 +121,48 @@ endif
 
 CODECLIBS  :=
 ifeq ($(USE_CODEC_WAVE),1)
-CFLAGS+= -DUSE_CODEC_WAVE
+QS_CFLAGS+= -DUSE_CODEC_WAVE
 endif
 ifeq ($(USE_CODEC_FLAC),1)
-CFLAGS+= -DUSE_CODEC_FLAC
+QS_CFLAGS+= -DUSE_CODEC_FLAC
 CODEC_INC = -I../Windows/codecs/include
 CODEC_LINK= -L../Windows/codecs/x86
 CODECLIBS+= -lFLAC
 endif
 ifeq ($(USE_CODEC_OPUS),1)
-CFLAGS+= -DUSE_CODEC_OPUS
+QS_CFLAGS+= -DUSE_CODEC_OPUS
 CODEC_INC = -I../Windows/codecs/include
 CODEC_LINK= -L../Windows/codecs/x86
 CODECLIBS+= -lopusfile -lopus -logg
 endif
 ifeq ($(USE_CODEC_VORBIS),1)
-CFLAGS+= -DUSE_CODEC_VORBIS $(cpp_vorbisdec)
+QS_CFLAGS+= -DUSE_CODEC_VORBIS $(cpp_vorbisdec)
 CODEC_INC = -I../Windows/codecs/include
 CODEC_LINK= -L../Windows/codecs/x86
 CODECLIBS+= $(lib_vorbisdec)
 endif
 ifeq ($(USE_CODEC_MP3),1)
-CFLAGS+= -DUSE_CODEC_MP3
+QS_CFLAGS+= -DUSE_CODEC_MP3
 CODEC_INC = -I../Windows/codecs/include
 CODEC_LINK= -L../Windows/codecs/x86
 CODECLIBS+= $(lib_mp3dec)
 endif
 ifeq ($(USE_CODEC_MIKMOD),1)
-CFLAGS+= -DUSE_CODEC_MIKMOD
+QS_CFLAGS+= -DUSE_CODEC_MIKMOD
 CODEC_INC = -I../Windows/codecs/include
 CODEC_LINK= -L../Windows/codecs/x86
 CODECLIBS+= -lmikmod
 endif
 ifeq ($(USE_CODEC_MODPLUG),1)
-CFLAGS+= -DUSE_CODEC_MODPLUG
+QS_CFLAGS+= -DUSE_CODEC_MODPLUG
 CODEC_INC = -I../Windows/codecs/include
 CODEC_LINK= -L../Windows/codecs/x86
 CODECLIBS+= -lmodplug
 endif
 ifeq ($(USE_CODEC_UMX),1)
-CFLAGS+= -DUSE_CODEC_UMX
+QS_CFLAGS+= -DUSE_CODEC_UMX
 endif
-CFLAGS+= $(CODEC_INC)
+QS_CFLAGS+= $(CODEC_INC)
 
 COMMON_LIBS:= -lm -lopengl32 -lwinmm
 
@@ -181,7 +181,7 @@ DEFAULT_TARGET := quakespasm.exe
 # ---------------------------
 
 %.o:	%.c
-	$(CC) $(DFLAGS) -c $(CFLAGS) $(SDL_CFLAGS) -o $@ $^
+	$(CC) $(DFLAGS) -c $(QS_CFLAGS) $(CFLAGS) $(SDL_CFLAGS) -o $@ $^
 %.res:	../Windows/%.rc
 	$(WINDRES) -I../Windows --output-format=coff --target=pe-i386 -o $@ $^
 
@@ -216,6 +216,7 @@ GLOBJS = \
 	gl_fog.o \
 	gl_rmisc.o \
 	r_part.o \
+	r_part_fte.o \
 	r_world.o \
 	gl_screen.o \
 	gl_sky.o \
@@ -264,6 +265,7 @@ OBJS := strlcat.o \
 	pr_cmds.o \
 	pr_edict.o \
 	pr_exec.o \
+	pr_ext.o \
 	sv_main.o \
 	sv_move.o \
 	sv_phys.o \

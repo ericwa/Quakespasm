@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	PROTOCOL_NETQUAKE	15 //johnfitz -- standard quake protocol
 #define PROTOCOL_FITZQUAKE	666 //johnfitz -- added new protocol for fitzquake 0.85
 #define PROTOCOL_RMQ		999
+#define PROTOCOL_FTE_PEXT2	(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions, provides extensions to the underlying base protocol (like 666 or even 15).
 
 // PROTOCOL_RMQ protocol flags
 #define PRFL_SHORTANGLE		(1 << 1)
@@ -38,6 +39,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PRFL_ALPHASANITY	(1 << 6)	// cleanup insanity with alpha
 #define PRFL_INT32COORD		(1 << 7)
 #define PRFL_MOREFLAGS		(1 << 31)	// not supported
+
+// PROTOCOL_FTE_PEXT(1) flags
+//mostly uninteresting, mostly superseeded by PEXT2_REPLACEMENTDELTAS...
+
+// PROTOCOL_FTE_PEXT2 flags
+//#define PEXT2_PRYDONCURSOR		0x00000001
+//#define PEXT2_VOICECHAT			0x00000002
+//#define PEXT2_SETANGLEDELTA		0x00000004
+#define PEXT2_REPLACEMENTDELTAS		0x00000008
+//#define PEXT2_MAXPLAYERS			0x00000010
+#define PEXT2_PREDINFO				0x00000020	//provides input acks and reworks stats such that clc_clientdata becomes redundant.
+//#define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding.
+#define PEXT2_SUPPORTED_CLIENT		(PEXT2_REPLACEMENTDELTAS|PEXT2_PREDINFO)	//pext2 flags that we understand+support
+#define PEXT2_SUPPORTED_SERVER		(PEXT2_REPLACEMENTDELTAS|PEXT2_PREDINFO)
 
 // if the high bit of the servercmd is set, the low bits are fast update flags:
 #define	U_MOREBITS		(1<<0)
@@ -72,6 +87,59 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //johnfitz -- PROTOCOL_NEHAHRA transparency
 #define U_TRANS			(1<<15)
 //johnfitz
+
+
+//spike -- FTE Replacement Deltas
+//first byte contains the stuff that's most likely to change constantly
+#define UF_FRAME		(1u<<0)
+#define UF_ORIGINXY		(1u<<1)
+#define UF_ORIGINZ		(1u<<2)
+#define UF_ANGLESXZ		(1u<<3)
+#define UF_ANGLESY		(1u<<4)
+#define UF_EFFECTS		(1u<<5)
+#define UF_PREDINFO		(1u<<6)	/*ent is predicted, probably a player*/
+#define UF_EXTEND1		(1u<<7)
+
+/*stuff which is common on ent spawning*/
+#define UF_RESET		(1u<<8)
+#define UF_16BIT		(1u<<9)	/*within this update, frame/skin/model is 16bit, not part of the deltaing itself*/
+#define UF_MODEL		(1u<<10)
+#define UF_SKIN			(1u<<11)
+#define UF_COLORMAP		(1u<<12)
+#define UF_SOLID		(1u<<13)	/*encodes the size of the entity, so prediction can bump against it*/
+#define UF_FLAGS		(1u<<14)	/*some extra flags like viewmodelforclient*/
+#define UF_EXTEND2		(1u<<15)
+
+/*the rest is optional extensions*/
+#define UF_ALPHA		(1u<<16)	/*transparency*/
+#define UF_SCALE		(1u<<17)	/*rescaling stuff, 1/16th*/
+#define UF_BONEDATA		(1u<<18)	/*for ssqc control over skeletal models*/
+#define UF_DRAWFLAGS	(1u<<19)	/*scale offsets and things*/
+#define UF_TAGINFO		(1u<<20)	/*simple entity attachments, generally needs either md3s or skeletal models*/
+#define UF_LIGHT		(1u<<21)	/*attaching rtlights to dynamic entities from ssqc*/
+#define UF_TRAILEFFECT	(1u<<22)	/*attaches custom particle trails to entities, woo.*/
+#define UF_EXTEND3		(1u<<23)
+
+#define UF_COLORMOD		(1u<<24)	/*rgb tints. 1/16th*/
+#define UF_GLOW			(1u<<25)	/*tbh only useful as an extra 'renderable' field for csqc...*/
+#define UF_FATNESS		(1u<<26)	/*push the entity's normals out by this distance*/
+#define UF_MODELINDEX2  (1u<<27)	/*for lame visible weapon models, like q2. just adds a second ent at the same point*/
+#define UF_GRAVITYDIR	(1u<<28)	/*yay prediction*/
+#define UF_EFFECTS2		(1u<<29)	/*effects is 16bit, or if both effects flags are set then 32bit*/
+#define UF_UNUSED2		(1u<<30)
+#define UF_UNUSED1		(1u<<31)
+
+/*these flags are generally not deltaed as they're changing constantly*/
+#define UFP_FORWARD		(1u<<0)
+#define UFP_SIDE		(1u<<1)
+#define UFP_UP			(1u<<2)
+#define UFP_MOVETYPE	(1u<<3)	/*deltaed*/
+#define UFP_VELOCITYXY	(1u<<4)
+#define UFP_VELOCITYZ	(1u<<5)
+#define UFP_MSEC		(1u<<6)
+#define UFP_WEAPONFRAME_OLD	(1u<<7)	//no longer used. just a stat now that I rewrote stat deltas.
+#define UFP_VIEWANGLE	(1u<<7)
+//spike
 
 #define	SU_VIEWHEIGHT	(1<<0)
 #define	SU_IDEALPITCH	(1<<1)
@@ -111,15 +179,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // a sound with no channel is a local only sound
 #define	SND_VOLUME		(1<<0)	// a byte
 #define	SND_ATTENUATION		(1<<1)	// a byte
-#define	SND_LOOPING		(1<<2)	// a long
+//#define	SND_LOOPING		(1<<2)	// a long (unused in vanilla)
 
 #define DEFAULT_SOUND_PACKET_VOLUME		255
 #define DEFAULT_SOUND_PACKET_ATTENUATION	1.0
 
 //johnfitz -- PROTOCOL_FITZQUAKE -- new bits
-#define	SND_LARGEENTITY	(1<<3)	// a short + byte (instead of just a short)
-#define	SND_LARGESOUND	(1<<4)	// a short soundindex (instead of a byte)
+#define	SND_LARGEENTITY		(1<<3)	// a short + byte (instead of just a short)
+#define	SND_LARGESOUND		(1<<4)	// a short soundindex (instead of a byte)
 //johnfitz
+//spike -- parsing, but not using at this time
+#define	SND_FTE_MOREFLAGS	(1<<2)	// a byte, for channel flags
+#define SND_FTE_TIMEOFS		(1<<6)	//signed short, in milliseconds.
+#define SND_FTE_PITCHADJ	(1<<7)	//a byte (speed percent (0=100%))
+#define SND_FTE_VELOCITY	(1<<8)	//3 shorts (1/8th), for doppler or whatever.
+//#define SND_DP_PITCH		(1<<5)	//dp uses this for pitch...
+//spike
 
 //johnfitz -- PROTOCOL_FITZQUAKE -- flags for entity baseline messages
 #define B_LARGEMODEL	(1<<0)	// modelindex is short instead of byte
@@ -178,6 +253,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_damage				19
 #define	svc_spawnstatic			20
 //#define svc_spawnbinary		21
+#define	svcfte_spawnstatic2		21
 #define	svc_spawnbaseline		22
 #define	svc_temp_entity			23
 #define	svc_setpause			24	// [byte] on / off
@@ -201,6 +277,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svc_spawnstaticsound2	44	// [coord3] [short] samp [byte] vol [byte] aten
 //johnfitz
 
+//spike -- some extensions for particles.
+//some extra stuff for fte's pext2_replacementdeltas, including stats
+//we reuse the dp svcs for nq, at least where the behaviour is the same.
+#define	svcdp_updatestatbyte		51
+#define	svcdp_precache				54		// [short] precacheindex [string] filename, top 2 bits of precacheindex is the type of that precache.
+#define svcdp_trailparticles		60		// [short] entnum [short] effectnum [vector] start [vector] end
+#define svcdp_pointparticles		61		// [short] effectnum [vector] start [vector] velocity [short] count
+#define svcdp_pointparticles1		62		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
+#define svcfte_spawnbaseline2		66
+#define svcfte_updatestatstring		78
+#define svcfte_updatestatfloat		79
+#define svcfte_updateentities		86
+//spike -- end
+
 //
 // client to server
 //
@@ -209,6 +299,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	clc_disconnect	2
 #define	clc_move		3		// [usercmd_t]
 #define	clc_stringcmd	4		// [string] message
+#define clcdp_ackframe	50		// [long] frame sequence. reused by fte replacement deltas
 
 //
 // temp entity events
@@ -231,17 +322,64 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define TE_BEAM				13
 // PGM 01/21/97
 
+#ifdef PSET_SCRIPT
+//spike
+#define TEDP_PARTICLERAIN	55 // [vector] min [vector] max [vector] dir [short] count [byte] color
+#define TEDP_PARTICLESNOW	56 // [vector] min [vector] max [vector] dir [short] count [byte] color
+//end spike
+#endif
+
+// entity effects
+
+#define	EF_BRIGHTFIELD				1
+#define	EF_MUZZLEFLASH 				2
+#define	EF_BRIGHTLIGHT 				4
+#define	EF_DIMLIGHT 				8
+//#define EF_NODRAW					16
+//#define EF_ADDITIVE				32
+//#define EF_BLUE					64
+//#define EF_RED					128
+//#define EFDP_NOGUNBOB				(1u<<8)
+//#define EF_FULLBRIGHT				(1u<<9)
+//#define EFDP_PART_FLAME			(1u<<10)
+//#define EFDP_PART_STARDUST		(1u<<11)
+#define EF_NOSHADOW					(1u<<12)
+//#define EF_NODEPTHTEST			(1u<<13)
+//#define EFDP_SELECTABLE			(1u<<14)
+//#define EFDP_DOUBLESIDED			(1u<<15)
+//#define EFDP_NOSELFSHADOW			(1u<<16)
+//#define EFDP_DYNAMICMODELLIGHT	(1u<<17)
+//#define EF_GREEN					(1u<<18)
+//#define EF_UNUSED					(1u<<19)
+//#define EF_RESTARTANIM_BIT		(1u<<20)	//reset model lerps over toggles
+//#define EF_TELEPORT_BIT			(1u<<21)	//reset origin lerps over toggles
+//#define EFDP_LOWPRECISION			(1u<<22)
+//#define EF_NOMODELFLAGS			(1u<<23)
+
 typedef struct
 {
 	vec3_t		origin;
 	vec3_t		angles;
 	unsigned short 	modelindex;	//johnfitz -- was int
 	unsigned short 	frame;		//johnfitz -- was int
-	unsigned char 	colormap;	//johnfitz -- was int
-	unsigned char 	skin;		//johnfitz -- was int
+	unsigned char	colormap;	//johnfitz -- was int
+	unsigned char	skin;		//johnfitz -- was int
 	unsigned char	alpha;		//johnfitz -- added
-	int		effects;
+	unsigned char	pmovetype;	//spike
+	unsigned short	traileffectnum;	//spike -- for qc-defined particle trails. typically evilly used for things that are not trails.
+	short	velocity[3];	//spike -- the player's velocity.
+	unsigned short	effects;
+	unsigned char	eflags;
+	unsigned char	pad;
 } entity_state_t;
+#define EFLAGS_STEP				1
+//#define EFLAGS_GLOWTRAIL		2
+#define EFLAGS_VIEWMODEL		4	//does not appear in reflections/third person. attached to the view.
+#define EFLAGS_EXTERIORMODEL	8	//only appears in reflections/third person
+//#define EFLAGS_				16
+//#define EFLAGS_COLOURMAPPED	32	//.colormap=1024|(top<<4)|bottom), instead of a player number
+//#define EFLAGS_				64
+#define EFLAGS_ONGROUND			128
 
 typedef struct
 {

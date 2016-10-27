@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+struct pr_extfields_s pr_extfields;
+
 dprograms_t		*progs;
 dfunction_t		*pr_functions;
 
@@ -31,10 +33,9 @@ static	int		pr_stringssize;
 static	const char	**pr_knownstrings;
 static	int		pr_maxknownstrings;
 static	int		pr_numknownstrings;
-static	ddef_t		*pr_fielddefs;
+static	int		pr_freeknownstrings;
+ddef_t		*pr_fielddefs;
 static	ddef_t		*pr_globaldefs;
-
-qboolean	pr_alpha_supported; //johnfitz
 
 dstatement_t	*pr_statements;
 globalvars_t	*pr_global_struct;
@@ -55,21 +56,7 @@ int		type_size[8] = {
 };
 
 static ddef_t	*ED_FieldAtOfs (int ofs);
-static qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s);
-
-#define	MAX_FIELD_LEN	64
-#define	GEFV_CACHESIZE	2
-
-typedef struct {
-	ddef_t	*pcache;
-	char	field[MAX_FIELD_LEN];
-} gefv_cache;
-
-static gefv_cache	gefvCache[GEFV_CACHESIZE] =
-{
-		{ NULL,	"" },
-		{ NULL,	"" }
-};
+qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s);
 
 cvar_t	nomonsters = {"nomonsters", "0", CVAR_NONE};
 cvar_t	gamecfg = {"gamecfg", "0", CVAR_NONE};
@@ -207,7 +194,7 @@ static ddef_t *ED_FieldAtOfs (int ofs)
 ED_FindField
 ============
 */
-static ddef_t *ED_FindField (const char *name)
+ddef_t *ED_FindField (const char *name)
 {
 	ddef_t		*def;
 	int			i;
@@ -221,13 +208,22 @@ static ddef_t *ED_FindField (const char *name)
 	return NULL;
 }
 
+/*
+*/
+int ED_FindFieldOffset (const char *name)
+{
+	ddef_t		*def = ED_FindField(name);
+	if (!def)
+		return -1;
+	return def->ofs;
+}
 
 /*
 ============
 ED_FindGlobal
 ============
 */
-static ddef_t *ED_FindGlobal (const char *name)
+ddef_t *ED_FindGlobal (const char *name)
 {
 	ddef_t		*def;
 	int			i;
@@ -247,7 +243,7 @@ static ddef_t *ED_FindGlobal (const char *name)
 ED_FindFunction
 ============
 */
-static dfunction_t *ED_FindFunction (const char *fn_name)
+dfunction_t *ED_FindFunction (const char *fn_name)
 {
 	dfunction_t		*func;
 	int				i;
@@ -266,35 +262,12 @@ static dfunction_t *ED_FindFunction (const char *fn_name)
 GetEdictFieldValue
 ============
 */
-eval_t *GetEdictFieldValue(edict_t *ed, const char *field)
+eval_t *GetEdictFieldValue(edict_t *ed, int fldofs)
 {
-	ddef_t			*def = NULL;
-	int				i;
-	static int		rep = 0;
-
-	for (i = 0; i < GEFV_CACHESIZE; i++)
-	{
-		if (!strcmp(field, gefvCache[i].field))
-		{
-			def = gefvCache[i].pcache;
-			goto Done;
-		}
-	}
-
-	def = ED_FindField (field);
-
-	if (strlen(field) < MAX_FIELD_LEN)
-	{
-		gefvCache[rep].pcache = def;
-		strcpy (gefvCache[rep].field, field);
-		rep ^= 1;
-	}
-
-Done:
-	if (!def)
+	if (fldofs < 0)
 		return NULL;
 
-	return (eval_t *)((char *)&ed->v + def->ofs*4);
+	return (eval_t *)((char *)&ed->v + fldofs*4);
 }
 
 
@@ -336,6 +309,9 @@ static const char *PR_ValueString (int type, eval_t *val)
 	case ev_float:
 		sprintf (line, "%5.1f", val->_float);
 		break;
+	case ev_ext_integer:
+		sprintf (line, "%i", val->_int);
+		break;
 	case ev_vector:
 		sprintf (line, "'%5.1f %5.1f %5.1f'", val->vector[0], val->vector[1], val->vector[2]);
 		break;
@@ -359,7 +335,7 @@ Returns a string describing *data in a type specific manner
 Easier to parse than PR_ValueString
 =============
 */
-static const char *PR_UglyValueString (int type, eval_t *val)
+const char *PR_UglyValueString (int type, eval_t *val)
 {
 	static char	line[512];
 	ddef_t		*def;
@@ -388,6 +364,9 @@ static const char *PR_UglyValueString (int type, eval_t *val)
 		break;
 	case ev_float:
 		sprintf (line, "%f", val->_float);
+		break;
+	case ev_ext_integer:
+		sprintf (line, "%i", val->_int);
 		break;
 	case ev_vector:
 		sprintf (line, "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
@@ -554,7 +533,7 @@ void ED_Write (FILE *f, edict_t *ed)
 	}
 
 	//johnfitz -- save entity alpha manually when progs.dat doesn't know about alpha
-	if (!pr_alpha_supported && ed->alpha != ENTALPHA_DEFAULT)
+	if (pr_extfields.alpha<0 && ed->alpha != ENTALPHA_DEFAULT)
 		fprintf (f, "\"alpha\" \"%f\"\n", ENTALPHA_TOSAVE(ed->alpha));
 	//johnfitz
 
@@ -770,7 +749,7 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-static qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s)
+qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s)
 {
 	int		i;
 	char	string[128];
@@ -789,6 +768,10 @@ static qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s)
 
 	case ev_float:
 		*(float *)d = atof (s);
+		break;
+
+	case ev_ext_integer:
+		*(int *)d = atoi (s);
 		break;
 
 	case ev_vector:
@@ -960,6 +943,7 @@ void ED_LoadFromFile (const char *data)
 	dfunction_t	*func;
 	edict_t		*ent = NULL;
 	int		inhibit = 0;
+	int usingspawnfunc = 0;
 
 	pr_global_struct->time = sv.time;
 
@@ -1010,7 +994,15 @@ void ED_LoadFromFile (const char *data)
 		}
 
 	// look for the spawn function
-		func = ED_FindFunction ( PR_GetString(ent->v.classname) );
+		//
+		func = ED_FindFunction (va("spawnfunc_%s", PR_GetString(ent->v.classname)));
+		if (func)
+		{
+			if (!usingspawnfunc++)
+				Con_Printf ("Using DP_SV_SPAWNFUNC_PREFIX\n");
+		}
+		else
+			func = ED_FindFunction ( PR_GetString(ent->v.classname) );
 
 		if (!func)
 		{
@@ -1036,10 +1028,9 @@ PR_LoadProgs
 void PR_LoadProgs (void)
 {
 	int			i;
+	unsigned int u;
 
-	// flush the non-C variable lookup cache
-	for (i = 0; i < GEFV_CACHESIZE; i++)
-		gefvCache[i].field[0] = 0;
+	PR_ShutdownExtensions();
 
 	CRC_Init (&pr_crc);
 
@@ -1067,6 +1058,7 @@ void PR_LoadProgs (void)
 
 	// initialize the strings
 	pr_numknownstrings = 0;
+	pr_freeknownstrings = 0;
 	pr_maxknownstrings = 0;
 	pr_stringssize = progs->numstrings;
 	if (pr_knownstrings)
@@ -1107,7 +1099,8 @@ void PR_LoadProgs (void)
 		pr_globaldefs[i].s_name = LittleLong (pr_globaldefs[i].s_name);
 	}
 
-	pr_alpha_supported = false; //johnfitz
+	for (u = 0; u < sizeof(pr_extfields)/sizeof(int); u++)
+		((int*)&pr_extfields)[u] = -1;
 
 	for (i = 0; i < progs->numfielddefs; i++)
 	{
@@ -1116,12 +1109,15 @@ void PR_LoadProgs (void)
 			Host_Error ("PR_LoadProgs: pr_fielddefs[i].type & DEF_SAVEGLOBAL");
 		pr_fielddefs[i].ofs = LittleShort (pr_fielddefs[i].ofs);
 		pr_fielddefs[i].s_name = LittleLong (pr_fielddefs[i].s_name);
-
-		//johnfitz -- detect alpha support in progs.dat
-		if (!strcmp(pr_strings + pr_fielddefs[i].s_name,"alpha"))
-			pr_alpha_supported = true;
-		//johnfitz
 	}
+
+	//spike: detect extended fields from progs
+	pr_extfields.items2 = ED_FindFieldOffset("items2");
+	pr_extfields.gravity = ED_FindFieldOffset("gravity");
+	pr_extfields.alpha = ED_FindFieldOffset("alpha");
+	pr_extfields.movement = ED_FindFieldOffset("movement");
+	pr_extfields.traileffectnum = ED_FindFieldOffset("traileffectnum");
+	pr_extfields.viewmodelforclient = ED_FindFieldOffset("viewmodelforclient");
 
 	for (i = 0; i < progs->numglobals; i++)
 		((int *)pr_globals)[i] = LittleLong (((int *)pr_globals)[i]);
@@ -1132,6 +1128,8 @@ void PR_LoadProgs (void)
 	// properly aligned
 	pr_edict_size += sizeof(void *) - 1;
 	pr_edict_size &= ~(sizeof(void *) - 1);
+
+	PR_EnableExtensions(pr_globaldefs);
 }
 
 
@@ -1146,6 +1144,7 @@ void PR_Init (void)
 	Cmd_AddCommand ("edicts", ED_PrintEdicts);
 	Cmd_AddCommand ("edictcount", ED_Count);
 	Cmd_AddCommand ("profile", PR_Profile_f);
+	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
 	Cvar_RegisterVariable (&nomonsters);
 	Cvar_RegisterVariable (&gamecfg);
 	Cvar_RegisterVariable (&scratch1);
@@ -1206,8 +1205,20 @@ const char *PR_GetString (int num)
 	}
 	else
 	{
+		return pr_strings;
 		Host_Error("PR_GetString: invalid string offset %d\n", num);
 		return "";
+	}
+}
+
+void PR_ClearEngineString(int num)
+{
+	if (num < 0 && num >= -pr_numknownstrings)
+	{
+		num = -1 - num;
+		pr_knownstrings[num] = NULL;
+		if (pr_freeknownstrings > num)
+			pr_freeknownstrings = num;
 	}
 }
 
@@ -1231,19 +1242,22 @@ int PR_SetEngineString (const char *s)
 	}
 	// new unknown engine string
 	//Con_DPrintf ("PR_SetEngineString: new engine string %p\n", s);
-#if 0
-	for (i = 0; i < pr_numknownstrings; i++)
+	for (i = pr_freeknownstrings; ; i++)
 	{
-		if (!pr_knownstrings[i])
-			break;
+		if (i < pr_numknownstrings)
+		{
+			if (pr_knownstrings[i])
+				continue;
+		}
+		else
+		{
+			if (i >= pr_maxknownstrings)
+				PR_AllocStringSlots();
+			pr_numknownstrings++;
+		}
+		break;
 	}
-#endif
-//	if (i >= pr_numknownstrings)
-//	{
-		if (i >= pr_maxknownstrings)
-			PR_AllocStringSlots();
-		pr_numknownstrings++;
-//	}
+	pr_freeknownstrings = i+1;
 	pr_knownstrings[i] = s;
 	return -1 - i;
 }

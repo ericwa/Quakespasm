@@ -552,14 +552,14 @@ choose safe warpimage size and resize existing warpimage textures
 */
 void TexMgr_RecalcWarpImageSize (void)
 {
-	int	mark, oldsize;
+	int	mark;
 	gltexture_t *glt;
 	byte *dummy;
 
 	//
 	// find the new correct size
 	//
-	oldsize = gl_warpimagesize;
+	//oldsize = gl_warpimagesize;
 
 	gl_warpimagesize = TexMgr_SafeTextureSize (512);
 
@@ -809,6 +809,8 @@ TexMgr_AlphaEdgeFix
 
 eliminate pink edges on sprites, etc.
 operates in place on 32bit data
+
+spike -- small note that would be better to use premultiplied alpha to completely eliminate these skirts without the possibility of misbehaving.
 ===============
 */
 static void TexMgr_AlphaEdgeFix (byte *data, int width, int height)
@@ -1005,6 +1007,23 @@ static byte *TexMgr_PadImageH (byte *in, int width, int height, byte padbyte)
 	return data;
 }
 
+static byte *TexMgr_PreMultiply32(byte *in, size_t width, size_t height)
+{
+	size_t pixels = width * height;
+	byte *out = (byte *) Hunk_Alloc(pixels*4);
+	byte *result = out;
+	while (pixels --> 0)
+	{
+		out[0] = (in[0]*in[3])>>8;
+		out[1] = (in[1]*in[3])>>8;
+		out[2] = (in[2]*in[3])>>8;
+		out[3] = in[3];
+		in += 4;
+		out += 4;
+	}
+	return result;
+}
+
 /*
 ================
 TexMgr_LoadImage32 -- handles 32bit source data
@@ -1013,6 +1032,10 @@ TexMgr_LoadImage32 -- handles 32bit source data
 static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 {
 	int	internalformat,	miplevel, mipwidth, mipheight, picmip;
+
+	//do this before any rescaling
+	if (glt->flags & TEXPREF_PREMULTIPLY)
+		data = (unsigned*)TexMgr_PreMultiply32((byte*)data, glt->width, glt->height);
 
 	if (!gl_texture_NPOT)
 	{
@@ -1155,7 +1178,7 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 	data = (byte *)TexMgr_8to32(data, glt->width * glt->height, usepal);
 
 	// fix edges
-	if (glt->flags & TEXPREF_ALPHA)
+	if ((glt->flags & TEXPREF_ALPHA) && !(glt->flags & TEXPREF_PREMULTIPLY))
 		TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
 	else
 	{

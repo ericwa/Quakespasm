@@ -38,7 +38,7 @@ void M_Menu_Main_f (void);
 		void M_Menu_Net_f (void);
 		void M_Menu_LanConfig_f (void);
 		void M_Menu_GameOptions_f (void);
-		void M_Menu_Search_f (void);
+		void M_Menu_Search_f (enum slistScope_e scope);
 		void M_Menu_ServerList_f (void);
 	void M_Menu_Options_f (void);
 		void M_Menu_Keys_f (void);
@@ -625,7 +625,7 @@ void M_MultiPlayer_Draw (void)
 
 	M_DrawTransPic (54, 32 + m_multiplayer_cursor * 20,Draw_CachePic( va("gfx/menudot%i.lmp", f+1 ) ) );
 
-	if (ipxAvailable || tcpipAvailable)
+	if (ipxAvailable || ipv4Available || ipv6Available)
 		return;
 	M_PrintWhite ((320/2) - ((27*8)/2), 148, "No Communications Available");
 }
@@ -659,12 +659,12 @@ void M_MultiPlayer_Key (int key)
 		switch (m_multiplayer_cursor)
 		{
 		case 0:
-			if (ipxAvailable || tcpipAvailable)
+			if (ipxAvailable || ipv4Available || ipv6Available)
 				M_Menu_Net_f ();
 			break;
 
 		case 1:
-			if (ipxAvailable || tcpipAvailable)
+			if (ipxAvailable || ipv4Available || ipv6Available)
 				M_Menu_Net_f ();
 			break;
 
@@ -913,7 +913,7 @@ void M_Net_Draw (void)
 	M_DrawTransPic (72, f, p);
 
 	f += 19;
-	if (tcpipAvailable)
+	if (ipv4Available || ipv6Available)
 		p = Draw_CachePic ("gfx/netmen4.lmp");
 	else
 		p = Draw_CachePic ("gfx/dim_tcp.lmp");
@@ -964,7 +964,7 @@ again:
 
 	if (m_net_cursor == 0 && !ipxAvailable)
 		goto again;
-	if (m_net_cursor == 1 && !tcpipAvailable)
+	if (m_net_cursor == 1 && !(ipv4Available || ipv6Available))
 		goto again;
 }
 
@@ -1304,7 +1304,7 @@ void M_Options_Key (int k)
 //=============================================================================
 /* KEYS MENU */
 
-const char *bindnames[][2] =
+const char *quakebindnames[][2] =
 {
 	{"+attack",		"attack"},
 	{"impulse 10",		"next weapon"},
@@ -1326,11 +1326,75 @@ const char *bindnames[][2] =
 	{"+moveup",		"swim up"},
 	{"+movedown",		"swim down"}
 };
+#define	NUMQUAKECOMMANDS	(sizeof(quakebindnames)/sizeof(quakebindnames[0]))
 
-#define	NUMCOMMANDS	(sizeof(bindnames)/sizeof(bindnames[0]))
+static struct
+{
+	char *cmd;
+	char *desc;
+} *bindnames;
+static size_t numbindnames;
 
-static int	keys_cursor;
+static size_t	keys_first;
+static size_t	keys_cursor;
 static qboolean	bind_grab;
+
+void M_Keys_Close (void)
+{
+	while (numbindnames>0)
+	{
+		numbindnames--;
+		Z_Free(bindnames[numbindnames].cmd);
+		Z_Free(bindnames[numbindnames].desc);
+	}
+	Z_Free(bindnames);
+	bindnames = NULL;
+	numbindnames = 0;
+}
+void M_Keys_Populate(void)
+{
+	FILE *file;
+	char line[1024];
+	if (numbindnames)
+		return;
+
+	if (COM_FOpenFile("bindlist.lst", &file, NULL) >= 0)
+	{
+		while (fgets(line, sizeof(line), file))
+		{
+			const char *cmd, *desc/*, tip*/;
+			Cmd_TokenizeString(line);
+			cmd = Cmd_Argv(0);
+			desc = Cmd_Argv(1);
+			/*tip = Cmd_Argv(2); unused in quakespasm*/
+
+			if (*cmd)
+			{
+				bindnames = Z_Realloc(bindnames, sizeof(*bindnames)*(numbindnames+1));
+				bindnames[numbindnames].cmd = strcpy(Z_Malloc(strlen(cmd)+1), cmd);
+				bindnames[numbindnames].desc = strcpy(Z_Malloc(strlen(desc)+1), desc);
+				numbindnames++;
+			}
+		}
+		fclose(file);
+	}
+
+	if (!numbindnames)
+	{
+		bindnames = Z_Realloc(bindnames, sizeof(*bindnames)*NUMQUAKECOMMANDS);
+		while(numbindnames < NUMQUAKECOMMANDS)
+		{
+			bindnames[numbindnames].cmd = strcpy(Z_Malloc(strlen(quakebindnames[numbindnames][0])+1), quakebindnames[numbindnames][0]);
+			bindnames[numbindnames].desc = strcpy(Z_Malloc(strlen(quakebindnames[numbindnames][1])+1), quakebindnames[numbindnames][1]);
+			numbindnames++;
+		}
+	}
+
+	//don't start with it on text
+	keys_first = keys_cursor = 0;
+	while (keys_cursor < numbindnames-1 && !strcmp(bindnames[keys_cursor].cmd, "-"))
+		keys_cursor++;
+}
 
 void M_Menu_Keys_f (void)
 {
@@ -1338,6 +1402,8 @@ void M_Menu_Keys_f (void)
 	key_dest = key_menu;
 	m_state = m_keys;
 	m_entersound = true;
+
+	M_Keys_Populate();
 }
 
 
@@ -1389,10 +1455,12 @@ extern qpic_t	*pic_up, *pic_down;
 
 void M_Keys_Draw (void)
 {
-	int		i, x, y;
+	size_t		i;
+	int x, y;
 	int		keys[3];
 	const char	*name;
 	qpic_t	*p;
+	size_t keys_shown;
 
 	p = Draw_CachePic ("gfx/ttl_cstm.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
@@ -1402,14 +1470,28 @@ void M_Keys_Draw (void)
 	else
 		M_Print (18, 32, "Enter to change, backspace to clear");
 
+	keys_shown = numbindnames;
+	if (keys_shown > (200-48)/8)
+		keys_shown = (200-48)/8;
+	if (keys_first+keys_shown-1 < keys_cursor)
+		keys_first = keys_cursor-(keys_shown-1);
+	if (keys_first > keys_cursor)
+		keys_first = keys_cursor;
+
 // search for known bindings
-	for (i = 0; i < (int)NUMCOMMANDS; i++)
+	for (i = keys_first; i < keys_first+keys_shown; i++)
 	{
-		y = 48 + 8*i;
+		y = 48 + 8*(i-keys_first);
 
-		M_Print (16, y, bindnames[i][1]);
+		if (!strcmp(bindnames[i].cmd, "-"))
+		{
+			M_PrintWhite ((320-strlen(bindnames[i].desc)*8)/2, y, bindnames[i].desc);
+			continue;
+		}
 
-		M_FindKeysForCommand (bindnames[i][0], keys);
+		M_Print (16, y, bindnames[i].desc);
+
+		M_FindKeysForCommand (bindnames[i].cmd, keys);
 
 		if (keys[0] == -1)
 		{
@@ -1436,9 +1518,9 @@ void M_Keys_Draw (void)
 	}
 
 	if (bind_grab)
-		M_DrawCharacter (130, 48 + keys_cursor*8, '=');
+		M_DrawCharacter (130, 48 + (keys_cursor-keys_first)*8, '=');
 	else
-		M_DrawCharacter (130, 48 + keys_cursor*8, 12+((int)(realtime*4)&1));
+		M_DrawCharacter (130, 48 + (keys_cursor-keys_first)*8, 12+((int)(realtime*4)&1));
 }
 
 
@@ -1452,7 +1534,7 @@ void M_Keys_Key (int k)
 		S_LocalSound ("misc/menu1.wav");
 		if ((k != K_ESCAPE) && (k != '`'))
 		{
-			sprintf (cmd, "bind \"%s\" \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor][0]);
+			sprintf (cmd, "bind \"%s\" \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].cmd);
 			Cbuf_InsertText (cmd);
 		}
 
@@ -1471,26 +1553,43 @@ void M_Keys_Key (int k)
 	case K_LEFTARROW:
 	case K_UPARROW:
 		S_LocalSound ("misc/menu1.wav");
-		keys_cursor--;
-		if (keys_cursor < 0)
-			keys_cursor = NUMCOMMANDS-1;
+		do
+		{
+			keys_cursor--;
+			if (keys_cursor >= numbindnames)
+			{
+				if (keys_first && strcmp(bindnames[keys_first].cmd, "-"))
+				{	//some weirdness, so the user can re-view any leading titles
+					keys_cursor = keys_first;
+					keys_first = 0;
+				}
+				else
+					keys_cursor = numbindnames-1;
+				break;
+			}
+		} while (!strcmp(bindnames[keys_cursor].cmd, "-"));
 		break;
 
 	case K_DOWNARROW:
 	case K_RIGHTARROW:
 		S_LocalSound ("misc/menu1.wav");
-		keys_cursor++;
-		if (keys_cursor >= (int)NUMCOMMANDS)
-			keys_cursor = 0;
+		do
+		{
+			keys_cursor++;
+			if (keys_cursor >= numbindnames)
+				keys_cursor = keys_first = 0;
+			else if (keys_cursor == numbindnames-1)
+				break;
+		} while (!strcmp(bindnames[keys_cursor].cmd, "-"));
 		break;
 
 	case K_ENTER:		// go into bind mode
 	case K_KP_ENTER:
 	case K_ABUTTON:
-		M_FindKeysForCommand (bindnames[keys_cursor][0], keys);
+		M_FindKeysForCommand (bindnames[keys_cursor].cmd, keys);
 		S_LocalSound ("misc/menu2.wav");
 		if (keys[2] != -1)
-			M_UnbindCommand (bindnames[keys_cursor][0]);
+			M_UnbindCommand (bindnames[keys_cursor].cmd);
 		bind_grab = true;
 		IN_Activate(); // activate to allow mouse key binding
 		break;
@@ -1498,7 +1597,7 @@ void M_Keys_Key (int k)
 	case K_BACKSPACE:	// delete bindings
 	case K_DEL:
 		S_LocalSound ("misc/menu2.wav");
-		M_UnbindCommand (bindnames[keys_cursor][0]);
+		M_UnbindCommand (bindnames[keys_cursor].cmd);
 		break;
 	}
 }
@@ -1667,7 +1766,7 @@ void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 		m_state = m_quit;
 	}
 
-	sprintf(msg1, "QuakeSpasm %1.2f.%d", (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
+	sprintf(msg1, "QuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR, (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
 
 	//okay, this is kind of fucked up.  M_DrawTextBox will always act as if
 	//width is even. Also, the width and lines values are for the interior of the box,
@@ -1686,8 +1785,8 @@ void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 /* LAN CONFIG MENU */
 
 int		lanConfig_cursor = -1;
-int		lanConfig_cursor_table [] = {72, 92, 124};
-#define NUM_LANCONFIG_CMDS	3
+int		lanConfig_cursor_table [] = {72, 92, 100, 132};
+#define NUM_LANCONFIG_CMDS	4
 
 int 	lanConfig_port;
 char	lanConfig_portname[6];
@@ -1706,7 +1805,7 @@ void M_Menu_LanConfig_f (void)
 		else
 			lanConfig_cursor = 1;
 	}
-	if (StartingGame && lanConfig_cursor == 2)
+	if (StartingGame && lanConfig_cursor >= 2)
 		lanConfig_cursor = 1;
 	lanConfig_port = DEFAULTnet_hostport;
 	sprintf(lanConfig_portname, "%u", lanConfig_port);
@@ -1743,7 +1842,20 @@ void M_LanConfig_Draw (void)
 	if (IPXConfig)
 		M_Print (basex+9*8, 52, my_ipx_address);
 	else
-		M_Print (basex+9*8, 52, my_tcpip_address);
+	{
+		if (ipv4Available && ipv6Available)
+		{
+			M_Print (basex+9*8, 52-4, my_ipv4_address);
+			M_Print (basex+9*8, 52+4, my_ipv6_address);
+		}
+		else
+		{
+			if (ipv4Available)
+				M_Print (basex+9*8, 52, my_ipv4_address);
+			if (ipv6Available)
+				M_Print (basex+9*8, 52, my_ipv6_address);
+		}
+	}
 
 	M_Print (basex, lanConfig_cursor_table[0], "Port");
 	M_DrawTextBox (basex+8*8, lanConfig_cursor_table[0]-8, 6, 1);
@@ -1752,9 +1864,10 @@ void M_LanConfig_Draw (void)
 	if (JoiningGame)
 	{
 		M_Print (basex, lanConfig_cursor_table[1], "Search for local games...");
+		M_Print (basex, lanConfig_cursor_table[2], "Search for public games...");
 		M_Print (basex, 108, "Join game at:");
-		M_DrawTextBox (basex+8, lanConfig_cursor_table[2]-8, 22, 1);
-		M_Print (basex+16, lanConfig_cursor_table[2], lanConfig_joinname);
+		M_DrawTextBox (basex+8, lanConfig_cursor_table[3]-8, 22, 1);
+		M_Print (basex+16, lanConfig_cursor_table[3], lanConfig_joinname);
 	}
 	else
 	{
@@ -1767,8 +1880,8 @@ void M_LanConfig_Draw (void)
 	if (lanConfig_cursor == 0)
 		M_DrawCharacter (basex+9*8 + 8*strlen(lanConfig_portname), lanConfig_cursor_table [0], 10+((int)(realtime*4)&1));
 
-	if (lanConfig_cursor == 2)
-		M_DrawCharacter (basex+16 + 8*strlen(lanConfig_joinname), lanConfig_cursor_table [2], 10+((int)(realtime*4)&1));
+	if (lanConfig_cursor == 3)
+		M_DrawCharacter (basex+16 + 8*strlen(lanConfig_joinname), lanConfig_cursor_table [3], 10+((int)(realtime*4)&1));
 
 	if (*m_return_reason)
 		M_PrintWhite (basex, 148, m_return_reason);
@@ -1810,26 +1923,26 @@ void M_LanConfig_Key (int key)
 
 		M_ConfigureNetSubsystem ();
 
-		if (lanConfig_cursor == 1)
+		if (StartingGame)
 		{
-			if (StartingGame)
-			{
+			if (lanConfig_cursor == 1)
 				M_Menu_GameOptions_f ();
-				break;
-			}
-			M_Menu_Search_f();
-			break;
 		}
-
-		if (lanConfig_cursor == 2)
+		else
 		{
-			m_return_state = m_state;
-			m_return_onerror = true;
-			IN_Activate();
-			key_dest = key_game;
-			m_state = m_none;
-			Cbuf_AddText ( va ("connect \"%s\"\n", lanConfig_joinname) );
-			break;
+			if (lanConfig_cursor == 1)
+				M_Menu_Search_f(SLIST_LAN);
+			else if (lanConfig_cursor == 2)
+				M_Menu_Search_f(SLIST_INTERNET);
+			else if (lanConfig_cursor == 3)
+			{
+				m_return_state = m_state;
+				m_return_onerror = true;
+				IN_Activate();
+				key_dest = key_game;
+				m_state = m_none;
+				Cbuf_AddText ( va ("connect \"%s\"\n", lanConfig_joinname) );
+			}
 		}
 
 		break;
@@ -1841,7 +1954,7 @@ void M_LanConfig_Key (int key)
 				lanConfig_portname[strlen(lanConfig_portname)-1] = 0;
 		}
 
-		if (lanConfig_cursor == 2)
+		if (lanConfig_cursor == 3)
 		{
 			if (strlen(lanConfig_joinname))
 				lanConfig_joinname[strlen(lanConfig_joinname)-1] = 0;
@@ -1849,7 +1962,7 @@ void M_LanConfig_Key (int key)
 		break;
 	}
 
-	if (StartingGame && lanConfig_cursor == 2)
+	if (StartingGame && lanConfig_cursor >= 2)
 	{
 		if (key == K_UPARROW)
 			lanConfig_cursor = 1;
@@ -1882,7 +1995,7 @@ void M_LanConfig_Char (int key)
 			lanConfig_portname[l] = key;
 		}
 		break;
-	case 2:
+	case 3:
 		l = strlen(lanConfig_joinname);
 		if (l < 21)
 		{
@@ -1896,7 +2009,7 @@ void M_LanConfig_Char (int key)
 
 qboolean M_LanConfig_TextEntry (void)
 {
-	return (lanConfig_cursor == 0 || lanConfig_cursor == 2);
+	return (lanConfig_cursor == 0 || lanConfig_cursor == 3);
 }
 
 //=============================================================================
@@ -2046,6 +2159,8 @@ episode_t	rogueepisodes[] =
 	{"Deathmatch Arena", 16, 1}
 };
 
+extern cvar_t sv_public;
+
 int	startepisode;
 int	startlevel;
 int maxplayers;
@@ -2065,32 +2180,43 @@ void M_Menu_GameOptions_f (void)
 }
 
 
-int gameoptions_cursor_table[] = {40, 56, 64, 72, 80, 88, 96, 112, 120};
-#define	NUM_GAMEOPTIONS	9
+int gameoptions_cursor_table[] = {40, 56, 64, 72, 80, 88, 96, 104, 120, 128};
+#define	NUM_GAMEOPTIONS	10
 int		gameoptions_cursor;
 
 void M_GameOptions_Draw (void)
 {
 	qpic_t	*p;
 	int		x;
+	int y = 40;
 
 	M_DrawTransPic (16, 4, Draw_CachePic ("gfx/qplaque.lmp") );
 	p = Draw_CachePic ("gfx/p_multi.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
 
-	M_DrawTextBox (152, 32, 10, 1);
-	M_Print (160, 40, "begin game");
+	M_DrawTextBox (152, y-8, 10, 1);
+	M_Print (160, y, "begin game");
+	y+=16;
 
-	M_Print (0, 56, "      Max players");
-	M_Print (160, 56, va("%i", maxplayers) );
+	M_Print (0, y, "      Max players");
+	M_Print (160, y, va("%i", maxplayers) );
+	y+=8;
 
-	M_Print (0, 64, "        Game Type");
-	if (coop.value)
-		M_Print (160, 64, "Cooperative");
+	M_Print (0, y, "           Public");
+	if (sv_public.value)
+		M_Print (160, y, "Yes");
 	else
-		M_Print (160, 64, "Deathmatch");
+		M_Print (160, y, "No");
+	y+=8;
 
-	M_Print (0, 72, "        Teamplay");
+	M_Print (0, y, "        Game Type");
+	if (coop.value)
+		M_Print (160, y, "Cooperative");
+	else
+		M_Print (160, y, "Deathmatch");
+	y+=8;
+
+	M_Print (0, y, "        Teamplay");
 	if (rogue)
 	{
 		const char *msg;
@@ -2105,7 +2231,7 @@ void M_GameOptions_Draw (void)
 			case 6: msg = "Three Team CTF"; break;
 			default: msg = "Off"; break;
 		}
-		M_Print (160, 72, msg);
+		M_Print (160, y, msg);
 	}
 	else
 	{
@@ -2117,59 +2243,67 @@ void M_GameOptions_Draw (void)
 			case 2: msg = "Friendly Fire"; break;
 			default: msg = "Off"; break;
 		}
-		M_Print (160, 72, msg);
+		M_Print (160, y, msg);
 	}
+	y+=8;
 
-	M_Print (0, 80, "            Skill");
+	M_Print (0, y, "            Skill");
 	if (skill.value == 0)
-		M_Print (160, 80, "Easy difficulty");
+		M_Print (160, y, "Easy difficulty");
 	else if (skill.value == 1)
-		M_Print (160, 80, "Normal difficulty");
+		M_Print (160, y, "Normal difficulty");
 	else if (skill.value == 2)
-		M_Print (160, 80, "Hard difficulty");
+		M_Print (160, y, "Hard difficulty");
 	else
-		M_Print (160, 80, "Nightmare difficulty");
+		M_Print (160, y, "Nightmare difficulty");
+	y+=8;
 
-	M_Print (0, 88, "       Frag Limit");
+	M_Print (0, y, "       Frag Limit");
 	if (fraglimit.value == 0)
-		M_Print (160, 88, "none");
+		M_Print (160, y, "none");
 	else
-		M_Print (160, 88, va("%i frags", (int)fraglimit.value));
+		M_Print (160, y, va("%i frags", (int)fraglimit.value));
+	y+=8;
 
-	M_Print (0, 96, "       Time Limit");
+	M_Print (0, y, "       Time Limit");
 	if (timelimit.value == 0)
-		M_Print (160, 96, "none");
+		M_Print (160, y, "none");
 	else
-		M_Print (160, 96, va("%i minutes", (int)timelimit.value));
+		M_Print (160, y, va("%i minutes", (int)timelimit.value));
+	y+=8;
 
-	M_Print (0, 112, "         Episode");
+	y+=8;
+
+	M_Print (0, y, "         Episode");
 	// MED 01/06/97 added hipnotic episodes
 	if (hipnotic)
-		M_Print (160, 112, hipnoticepisodes[startepisode].description);
+		M_Print (160, y, hipnoticepisodes[startepisode].description);
 	// PGM 01/07/97 added rogue episodes
 	else if (rogue)
-		M_Print (160, 112, rogueepisodes[startepisode].description);
+		M_Print (160, y, rogueepisodes[startepisode].description);
 	else
-		M_Print (160, 112, episodes[startepisode].description);
+		M_Print (160, y, episodes[startepisode].description);
+	y+=8;
 
-	M_Print (0, 120, "           Level");
+	M_Print (0, y, "           Level");
 	// MED 01/06/97 added hipnotic episodes
 	if (hipnotic)
 	{
-		M_Print (160, 120, hipnoticlevels[hipnoticepisodes[startepisode].firstLevel + startlevel].description);
-		M_Print (160, 128, hipnoticlevels[hipnoticepisodes[startepisode].firstLevel + startlevel].name);
+		M_Print (160, y, hipnoticlevels[hipnoticepisodes[startepisode].firstLevel + startlevel].description);
+		M_Print (160, y+8, hipnoticlevels[hipnoticepisodes[startepisode].firstLevel + startlevel].name);
 	}
 	// PGM 01/07/97 added rogue episodes
 	else if (rogue)
 	{
-		M_Print (160, 120, roguelevels[rogueepisodes[startepisode].firstLevel + startlevel].description);
-		M_Print (160, 128, roguelevels[rogueepisodes[startepisode].firstLevel + startlevel].name);
+		M_Print (160, y, roguelevels[rogueepisodes[startepisode].firstLevel + startlevel].description);
+		M_Print (160, y+8, roguelevels[rogueepisodes[startepisode].firstLevel + startlevel].name);
 	}
 	else
 	{
-		M_Print (160, 120, levels[episodes[startepisode].firstLevel + startlevel].description);
-		M_Print (160, 128, levels[episodes[startepisode].firstLevel + startlevel].name);
+		M_Print (160, y, levels[episodes[startepisode].firstLevel + startlevel].description);
+		M_Print (160, y+8, levels[episodes[startepisode].firstLevel + startlevel].name);
 	}
+	y+=8;
 
 // line cursor
 	M_DrawCharacter (144, gameoptions_cursor_table[gameoptions_cursor], 12+((int)(realtime*4)&1));
@@ -2214,10 +2348,14 @@ void M_NetStart_Change (int dir)
 		break;
 
 	case 2:
-		Cvar_Set ("coop", coop.value ? "0" : "1");
+		Cvar_SetQuick (&sv_public, sv_public.value ? "0" : "1");
 		break;
 
 	case 3:
+		Cvar_Set ("coop", coop.value ? "0" : "1");
+		break;
+
+	case 4:
 		count = (rogue) ? 6 : 2;
 		f = teamplay.value + dir;
 		if (f > count)	f = 0;
@@ -2225,28 +2363,28 @@ void M_NetStart_Change (int dir)
 		Cvar_SetValue ("teamplay", f);
 		break;
 
-	case 4:
+	case 5:
 		f = skill.value + dir;
 		if (f > 3)	f = 0;
 		else if (f < 0)	f = 3;
 		Cvar_SetValue ("skill", f);
 		break;
 
-	case 5:
+	case 6:
 		f = fraglimit.value + dir * 10;
 		if (f > 100)	f = 0;
 		else if (f < 0)	f = 100;
 		Cvar_SetValue ("fraglimit", f);
 		break;
 
-	case 6:
+	case 7:
 		f = timelimit.value + dir * 5;
 		if (f > 60)	f = 0;
 		else if (f < 0)	f = 60;
 		Cvar_SetValue ("timelimit", f);
 		break;
 
-	case 7:
+	case 8:
 		startepisode += dir;
 	//MED 01/06/97 added hipnotic count
 		if (hipnotic)
@@ -2269,7 +2407,7 @@ void M_NetStart_Change (int dir)
 		startlevel = 0;
 		break;
 
-	case 8:
+	case 9:
 		startlevel += dir;
 	//MED 01/06/97 added hipnotic episodes
 		if (hipnotic)
@@ -2358,15 +2496,16 @@ void M_GameOptions_Key (int key)
 
 qboolean	searchComplete = false;
 double		searchCompleteTime;
+enum slistScope_e searchLastScope = SLIST_LAN;
 
-void M_Menu_Search_f (void)
+void M_Menu_Search_f (enum slistScope_e scope)
 {
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_search;
 	m_entersound = false;
 	slistSilent = true;
-	slistLocal = false;
+	slistScope = searchLastScope = scope;
 	searchComplete = false;
 	NET_Slist_f();
 
@@ -2417,7 +2556,8 @@ void M_Search_Key (int key)
 //=============================================================================
 /* SLIST MENU */
 
-int		slist_cursor;
+size_t		slist_cursor;
+size_t		slist_first;
 qboolean slist_sorted;
 
 void M_Menu_ServerList_f (void)
@@ -2427,6 +2567,7 @@ void M_Menu_ServerList_f (void)
 	m_state = m_slist;
 	m_entersound = true;
 	slist_cursor = 0;
+	slist_first = 0;
 	m_return_onerror = false;
 	m_return_reason[0] = 0;
 	slist_sorted = false;
@@ -2435,7 +2576,7 @@ void M_Menu_ServerList_f (void)
 
 void M_ServerList_Draw (void)
 {
-	int	n;
+	size_t	n, slist_shown;
 	qpic_t	*p;
 
 	if (!slist_sorted)
@@ -2444,11 +2585,19 @@ void M_ServerList_Draw (void)
 		NET_SlistSort ();
 	}
 
+	slist_shown = hostCacheCount;
+	if (slist_shown > (200-32)/8)
+		slist_shown = (200-32)/8;
+	if (slist_first+slist_shown-1 < slist_cursor)
+		slist_first = slist_cursor-(slist_shown-1);
+	if (slist_first > slist_cursor)
+		slist_first = slist_cursor;
+
 	p = Draw_CachePic ("gfx/p_multi.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
-	for (n = 0; n < hostCacheCount; n++)
-		M_Print (16, 32 + 8*n, NET_SlistPrintServer (n));
-	M_DrawCharacter (0, 32 + slist_cursor*8, 12+((int)(realtime*4)&1));
+	for (n = 0; n < slist_shown; n++)
+		M_Print (16, 32 + 8*n, NET_SlistPrintServer (slist_first+n));
+	M_DrawCharacter (0, 32 + (slist_cursor-slist_first)*8, 12+((int)(realtime*4)&1));
 
 	if (*m_return_reason)
 		M_PrintWhite (16, 148, m_return_reason);
@@ -2465,14 +2614,14 @@ void M_ServerList_Key (int k)
 		break;
 
 	case K_SPACE:
-		M_Menu_Search_f ();
+		M_Menu_Search_f (searchLastScope);
 		break;
 
 	case K_UPARROW:
 	case K_LEFTARROW:
 		S_LocalSound ("misc/menu1.wav");
 		slist_cursor--;
-		if (slist_cursor < 0)
+		if (slist_cursor >= hostCacheCount)
 			slist_cursor = hostCacheCount - 1;
 		break;
 

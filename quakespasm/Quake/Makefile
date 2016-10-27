@@ -226,6 +226,7 @@ GLOBJS = \
 	gl_fog.o \
 	gl_rmisc.o \
 	r_part.o \
+	r_part_fte.o \
 	r_world.o \
 	gl_screen.o \
 	gl_sky.o \
@@ -274,6 +275,7 @@ OBJS := strlcat.o \
 	pr_cmds.o \
 	pr_edict.o \
 	pr_exec.o \
+	pr_ext.o \
 	sv_main.o \
 	sv_move.o \
 	sv_phys.o \
