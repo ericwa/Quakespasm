@@ -218,6 +218,10 @@
 		66991C0F1DBAB4B300C373C0 /* Quakespasm-Music.txt in CopyFiles */ = {isa = PBXBuildFile; fileRef = 66991C031DBAB47000C373C0 /* Quakespasm-Music.txt */; };
 		66991C101DBAB4B300C373C0 /* Quakespasm.html in CopyFiles */ = {isa = PBXBuildFile; fileRef = 66991C041DBAB47000C373C0 /* Quakespasm.html */; };
 		66991C111DBAB4B300C373C0 /* Quakespasm.txt in CopyFiles */ = {isa = PBXBuildFile; fileRef = 66991C051DBAB47000C373C0 /* Quakespasm.txt */; };
+		66AC0F7A1DC1A31E006325E2 /* pr_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = 66AC0F791DC1A31E006325E2 /* pr_ext.c */; };
+		66AC0F7B1DC1A31E006325E2 /* pr_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = 66AC0F791DC1A31E006325E2 /* pr_ext.c */; };
+		66AC0F7D1DC1A328006325E2 /* r_part_fte.c in Sources */ = {isa = PBXBuildFile; fileRef = 66AC0F7C1DC1A328006325E2 /* r_part_fte.c */; };
+		66AC0F7E1DC1A328006325E2 /* r_part_fte.c in Sources */ = {isa = PBXBuildFile; fileRef = 66AC0F7C1DC1A328006325E2 /* r_part_fte.c */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		A4E3AF2A05D43FCC000F1B47 /* libmikmod.dylib in Copy Libraries */ = {isa = PBXBuildFile; fileRef = F5F5DE80017CB4370103A810 /* libmikmod.dylib */; };
@@ -478,6 +482,8 @@
 		66991C041DBAB47000C373C0 /* Quakespasm.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = Quakespasm.html; path = ../Quakespasm.html; sourceTree = "<group>"; };
 		66991C051DBAB47000C373C0 /* Quakespasm.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = Quakespasm.txt; path = ../Quakespasm.txt; sourceTree = "<group>"; };
 		66991C061DBAB48000C373C0 /* quakespasm.pak */ = {isa = PBXFileReference; lastKnownFileType = file; name = quakespasm.pak; path = ../Quake/quakespasm.pak; sourceTree = "<group>"; };
+		66AC0F791DC1A31E006325E2 /* pr_ext.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pr_ext.c; path = ../Quake/pr_ext.c; sourceTree = "<group>"; };
+		66AC0F7C1DC1A328006325E2 /* r_part_fte.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = r_part_fte.c; path = ../Quake/r_part_fte.c; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* QuakeSpasm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuakeSpasm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B021C20714A5FF7E003F18D6 /* cfgfile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cfgfile.c; path = ../Quake/cfgfile.c; sourceTree = SOURCE_ROOT; };
@@ -653,6 +659,7 @@
 				483A781A0D2EEA5400CB2E4C /* pr_cmds.c */,
 				483A781B0D2EEA5400CB2E4C /* pr_edict.c */,
 				483A781C0D2EEA5400CB2E4C /* pr_exec.c */,
+				66AC0F791DC1A31E006325E2 /* pr_ext.c */,
 				483A780E0D2EEA0F00CB2E4C /* progdefs.q1 */,
 				483A781D0D2EEA5400CB2E4C /* sbar.c */,
 				48A7C1FA14AA34940011B754 /* strlcat.c */,
@@ -697,6 +704,7 @@
 				483A78690D2EEAF000CB2E4C /* r_alias.c */,
 				483A786A0D2EEAF000CB2E4C /* r_brush.c */,
 				483A786B0D2EEAF000CB2E4C /* r_part.c */,
+				66AC0F7C1DC1A328006325E2 /* r_part_fte.c */,
 				483A786C0D2EEAF000CB2E4C /* r_sprite.c */,
 				483A786D0D2EEAF000CB2E4C /* r_world.c */,
 			);
@@ -983,6 +991,7 @@
 				664D98AC19CF6B78000D395C /* sv_user.c in Sources */,
 				664D98AD19CF6B78000D395C /* cd_sdl.c in Sources */,
 				664D98AE19CF6B78000D395C /* snd_sdl.c in Sources */,
+				66AC0F7E1DC1A328006325E2 /* r_part_fte.c in Sources */,
 				664D98AF19CF6B78000D395C /* gl_draw.c in Sources */,
 				664D98B019CF6B78000D395C /* gl_fog.c in Sources */,
 				664D98B119CF6B78000D395C /* gl_mesh.c in Sources */,
@@ -993,6 +1002,7 @@
 				664D98B619CF6B78000D395C /* gl_rmisc.c in Sources */,
 				664D98B719CF6B78000D395C /* gl_screen.c in Sources */,
 				664D98B819CF6B78000D395C /* gl_sky.c in Sources */,
+				66AC0F7B1DC1A31E006325E2 /* pr_ext.c in Sources */,
 				664D98B919CF6B78000D395C /* gl_texmgr.c in Sources */,
 				664D98BA19CF6B78000D395C /* gl_vidsdl.c in Sources */,
 				664D98BB19CF6B78000D395C /* gl_warp.c in Sources */,
@@ -1069,6 +1079,7 @@
 				483A784F0D2EEAAB00CB2E4C /* sv_user.c in Sources */,
 				483A78550D2EEAC300CB2E4C /* cd_sdl.c in Sources */,
 				483A78590D2EEAC300CB2E4C /* snd_sdl.c in Sources */,
+				66AC0F7D1DC1A328006325E2 /* r_part_fte.c in Sources */,
 				483A786E0D2EEAF000CB2E4C /* gl_draw.c in Sources */,
 				483A786F0D2EEAF000CB2E4C /* gl_fog.c in Sources */,
 				483A78700D2EEAF000CB2E4C /* gl_mesh.c in Sources */,
@@ -1079,6 +1090,7 @@
 				483A78750D2EEAF000CB2E4C /* gl_rmisc.c in Sources */,
 				483A78760D2EEAF000CB2E4C /* gl_screen.c in Sources */,
 				483A78770D2EEAF000CB2E4C /* gl_sky.c in Sources */,
+				66AC0F7A1DC1A31E006325E2 /* pr_ext.c in Sources */,
 				483A78790D2EEAF000CB2E4C /* gl_texmgr.c in Sources */,
 				483A787A0D2EEAF000CB2E4C /* gl_vidsdl.c in Sources */,
 				483A787B0D2EEAF000CB2E4C /* gl_warp.c in Sources */,
