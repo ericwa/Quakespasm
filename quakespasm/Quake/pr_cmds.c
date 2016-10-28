@@ -1095,6 +1095,31 @@ static void PF_precache_sound (void)
 	PR_RunError ("PF_precache_sound: overflow");
 }
 
+int SV_Precache_Model(const char *s)
+{
+	size_t i;
+	for (i = 0; i < MAX_MODELS; i++)
+	{
+		if (!sv.model_precache[i])
+		{
+			if (sv.state != ss_loading)
+			{
+				//let existing clients know about it
+				MSG_WriteByte(&sv.reliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i|0x8000);
+				MSG_WriteString(&sv.reliable_datagram, s);
+			}
+
+			sv.model_precache[i] = s;
+			sv.models[i] = Mod_ForName (s, i==1);
+			return i;
+		}
+		if (!strcmp(sv.model_precache[i], s))
+			return i;
+	}
+	return 0;
+}
+
 static void PF_precache_model (void)
 {
 	const char	*s;
@@ -1553,9 +1578,9 @@ static void PF_WriteEntity (void)
 
 static void PF_makestatic (void)
 {
+	eval_t *val;
+	entity_state_t *st;
 	edict_t	*ent;
-	int		i;
-	int	bits = 0; //johnfitz -- PROTOCOL_FITZQUAKE
 
 	ent = G_EDICT(OFS_PARM0);
 
@@ -1566,56 +1591,29 @@ static void PF_makestatic (void)
 	}
 	//johnfitz
 
-	//johnfitz -- PROTOCOL_FITZQUAKE
-	if (sv.protocol == PROTOCOL_NETQUAKE)
-	{
-		if (SV_ModelIndex(PR_GetString(ent->v.model)) & 0xFF00 || (int)(ent->v.frame) & 0xFF00)
-		{
-			ED_Free (ent);
-			return; //can't display the correct model & frame, so don't show it at all
-		}
-	}
+	if (sv.num_statics == sv.max_statics)
+		PR_RunError ("PF_makestatic: Too many static entities");
+	st = &sv.static_entities[sv.num_statics];
+	memset(st, 0, sizeof(*st));
+	VectorCopy(ent->v.origin, st->origin);
+	VectorCopy(ent->v.angles, st->angles);
+	st->modelindex = SV_ModelIndex(PR_GetString(ent->v.model));	//o.O Why does QuakeSpasm use model instead of modelindex?
+	st->frame = ent->v.frame;
+	st->effects = ent->v.effects;
+	st->colormap = ent->v.colormap;
+	st->skin = ent->v.skin;
+	if ((val = GetEdictFieldValue(ent, pr_extfields.alpha)))
+		st->alpha = ENTALPHA_ENCODE(val->_float);
 	else
-	{
-		if (SV_ModelIndex(PR_GetString(ent->v.model)) & 0xFF00)
-			bits |= B_LARGEMODEL;
-		if ((int)(ent->v.frame) & 0xFF00)
-			bits |= B_LARGEFRAME;
-		if (ent->alpha != ENTALPHA_DEFAULT)
-			bits |= B_ALPHA;
-	}
-
-	if (bits)
-	{
-		MSG_WriteByte (&sv.signon, svc_spawnstatic2);
-		MSG_WriteByte (&sv.signon, bits);
-	}
-	else
-		MSG_WriteByte (&sv.signon, svc_spawnstatic);
-
-	if (bits & B_LARGEMODEL)
-		MSG_WriteShort (&sv.signon, SV_ModelIndex(PR_GetString(ent->v.model)));
-	else
-		MSG_WriteByte (&sv.signon, SV_ModelIndex(PR_GetString(ent->v.model)));
-
-	if (bits & B_LARGEFRAME)
-		MSG_WriteShort (&sv.signon, ent->v.frame);
-	else
-		MSG_WriteByte (&sv.signon, ent->v.frame);
-	//johnfitz
-
-	MSG_WriteByte (&sv.signon, ent->v.colormap);
-	MSG_WriteByte (&sv.signon, ent->v.skin);
-	for (i = 0; i < 3; i++)
-	{
-		MSG_WriteCoord(&sv.signon, ent->v.origin[i], sv.protocolflags);
-		MSG_WriteAngle(&sv.signon, ent->v.angles[i], sv.protocolflags);
-	}
-
-	//johnfitz -- PROTOCOL_FITZQUAKE
-	if (bits & B_ALPHA)
-		MSG_WriteByte (&sv.signon, ent->alpha);
-	//johnfitz
+		st->alpha = ent->alpha;
+//	st->pmovetype = ent->v.pmovetype;
+	if ((val = GetEdictFieldValue(ent, pr_extfields.traileffectnum)))
+		st->traileffectnum = val->_float;
+	if ((val = GetEdictFieldValue(ent, pr_extfields.emiteffectnum)))
+		st->emiteffectnum = val->_float;
+//	VectorScale(ent->v.velocity, 8, st->velocity);
+//	st->eflags = ent->v.eflags;
+	sv.num_statics++;
 
 // throw the entity away now
 	ED_Free (ent);
@@ -1669,6 +1667,25 @@ void PF_Fixme (void);
 //	PR_RunError ("unimplemented builtin");
 //}
 
+void PR_spawnfunc_misc_model(edict_t *self)
+{
+	eval_t *val;
+	if (!self->v.model && (val = GetEdictFieldValue(self, ED_FindFieldOffset("mdl"))))
+		self->v.model = val->string;
+	if (!*PR_GetString(self->v.model)) //must have a model, because otherwise various things will assume its not valid at all.
+		self->v.model = PR_SetEngineString("*null");
+
+	if (self->v.angles[1] < 0)	//mimic AD. shame there's no avelocity clientside.
+		self->v.angles[1] = (rand()*(360.0f/RAND_MAX));
+
+	//make sure the model is precached, to avoid errors.
+	G_INT(OFS_PARM0) = self->v.model;
+	PF_precache_model();
+
+	//and lets just call makestatic instead of worrying if it'll interfere with the rest of the qc.
+	G_INT(OFS_PARM0) = EDICT_TO_PROG(self);
+	PF_makestatic();
+}
 
 static builtin_t pr_builtin[] =
 {

@@ -2125,9 +2125,20 @@ static qboolean QC_FixFileName(const char *name, const char **result, const char
 	return true;
 }
 
-static struct
+//small note on access modes:
+//when reading, we fopen files inside paks, for compat with (crappy non-zip-compatible) filesystem code
+//when writing, we directly fopen the file such that it can never be inside a pak.
+//this means that we need to take care when reading in order to detect EOF properly.
+//writing doesn't need anything like that, so it can just dump stuff out, but we do need to ensure that the modes don't get mixed up, because trying to read from a writable file will not do what you would expect.
+//even libc mandates a seek between reading+writing, so no great loss there.
+static struct qcfile_s
 {
+	char cache[1024];
+	int cacheoffset, cachesize;
 	FILE *file;
+	int fileoffset;
+	int filesize;
+	int filebase;	//the offset of the file inside a pak
 	int mode;
 } *qcfiles;
 static size_t qcfiles_max;
@@ -2140,6 +2151,7 @@ static void PF_fopen(void)
 	FILE *file;
 	size_t i;
 	char name[MAX_OSPATH];
+	int filesize = 0;
 
 	G_FLOAT(OFS_RETURN) = -1;	//assume failure
 
@@ -2155,9 +2167,9 @@ static void PF_fopen(void)
 	switch(fmode)
 	{
 	case 0: //read
-		COM_FOpenFile (fname, &file, NULL);
+		filesize = COM_FOpenFile (fname, &file, NULL);
 		if (!file && fallback)
-			COM_FOpenFile (fallback, &file, NULL);
+			filesize = COM_FOpenFile (fallback, &file, NULL);
 		break;
 	case 1:	//append
 		q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, fname);
@@ -2185,8 +2197,13 @@ static void PF_fopen(void)
 		if (!qcfiles[i].file)
 			break;
 	}
+	qcfiles[i].filebase = ftell(file);
 	qcfiles[i].file = file;
 	qcfiles[i].mode = fmode;
+	//reading needs size info
+	qcfiles[i].filesize = filesize;
+	//clear the read cache.
+	qcfiles[i].fileoffset = qcfiles[i].cacheoffset = qcfiles[i].cachesize = 0;
 
 	G_FLOAT(OFS_RETURN) = i+QC_FILE_BASE;
 }
@@ -2198,20 +2215,45 @@ static void PF_fgets(void)
 		Con_Warning("PF_fgets: invalid file handle\n");
 	else if (!qcfiles[fileid].file)
 		Con_Warning("PF_fgets: file not open\n");
+	else if (qcfiles[fileid].mode != 0)
+		Con_Warning("PF_fgets: file not open for reading\n");
 	else
 	{
+		struct qcfile_s *f = &qcfiles[fileid];
 		char *ret = PR_GetTempString();
-		char *end;
-		if (fgets(ret, STRINGTEMP_LENGTH, qcfiles[fileid].file))
+		char *s = ret;
+		char *end = ret+STRINGTEMP_LENGTH;
+		for (;;)
 		{
-			//strip any \r\n chars on the end.
-			end = ret+strlen(ret);
-			if (end>ret && end[-1] == '\n')
-				*--end = 0;
-			if (end>ret && end[-1] == '\r')
-				*--end = 0;
-			G_INT(OFS_RETURN) = PR_SetEngineString(ret);
+			if (!f->cachesize)
+			{
+				//figure out how much we can try to cache.
+				int sz = f->filesize - f->fileoffset;
+				if (sz < 0 || f->fileoffset < 0)	//... maybe we shouldn't have implemented seek support.
+					sz = 0;
+				else if ((size_t)sz > sizeof(f->cache))
+					sz = sizeof(f->cache);
+				//read a chunk
+				f->cacheoffset = 0;
+				f->cachesize = fread(f->cache, 1, sz, f->file);
+				f->fileoffset += f->cachesize;
+				if (!f->cachesize)
+				{
+					//classic eof...
+					break;
+				}
+			}
+			*s = f->cache[f->cacheoffset++];
+			if (*s == '\n')	//new line, yay!
+				break;
+			s++;
+			if (s == end)
+				s--;	//rewind if we're overflowing, such that we truncate the string.
 		}
+		if (s > ret && s[-1] == '\r')
+			s--;	//terminate it on the \r of a \r\n pair.
+		*s = 0;	//terminate it
+		G_INT(OFS_RETURN) = PR_SetEngineString(ret);
 	}
 }
 static void PF_fputs(void)
@@ -2222,6 +2264,8 @@ static void PF_fputs(void)
 		Con_Warning("PF_fputs: invalid file handle\n");
 	else if (!qcfiles[fileid].file)
 		Con_Warning("PF_fputs: file not open\n");
+	else if (qcfiles[fileid].mode == 0)
+		Con_Warning("PF_fgets: file not open for writing\n");
 	else
 		fputs(str, qcfiles[fileid].file);
 }
@@ -2248,9 +2292,16 @@ static void PF_fseek(void)
 		Con_Warning("PF_fread: file not open\n");
 	else
 	{
-		G_INT(OFS_RETURN) = ftell(qcfiles[fileid].file);
+		if (qcfiles[fileid].mode == 0)
+			G_INT(OFS_RETURN) = qcfiles[fileid].fileoffset;	//when we're reading, use the cached read offset
+		else
+			G_INT(OFS_RETURN) = ftell(qcfiles[fileid].file)-qcfiles[fileid].filebase;
 		if (pr_argc>1)
-			fseek(qcfiles[fileid].file, G_INT(OFS_PARM1), SEEK_SET);
+		{
+			qcfiles[fileid].fileoffset = G_INT(OFS_PARM1);
+			fseek(qcfiles[fileid].file, qcfiles[fileid].filebase+qcfiles[fileid].fileoffset, SEEK_SET);
+			qcfiles[fileid].cachesize = qcfiles[fileid].cacheoffset = 0;
+		}
 	}
 }
 #if 0
@@ -2301,6 +2352,11 @@ static void PF_fsize(void)
 		Con_Warning("PF_fread: invalid file handle\n");
 	else if (!qcfiles[fileid].file)
 		Con_Warning("PF_fread: file not open\n");
+	else if (qcfiles[fileid].mode == 0)
+	{
+		G_INT(OFS_RETURN) = qcfiles[fileid].filesize;
+		//can't truncate if we're reading.
+	}
 	else
 	{
 		long curpos = ftell(qcfiles[fileid].file);
@@ -3410,7 +3466,7 @@ static void PF_void_stub(void)
 
 #ifdef PSET_SCRIPT
 //for compat with dpp7 protocols, and mods that cba to precache things.
-static void COM_Effectinfo_Enumerate(void (*cb)(const char *pname))
+static void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
 {
 	int i;
 	char *f, *e, *buf;
@@ -3472,7 +3528,7 @@ static void COM_Effectinfo_Enumerate(void (*cb)(const char *pname))
 	}
 	free(buf);
 }
-static void PF_SV_ForceParticlePrecache(const char *s)
+int PF_SV_ForceParticlePrecache(const char *s)
 {
 	unsigned int i;
 	for (i = 1; i < MAX_PARTICLETYPES; i++)
@@ -3488,11 +3544,12 @@ static void PF_SV_ForceParticlePrecache(const char *s)
 			}
 
 			sv.particle_precache[i] = strcpy(Hunk_Alloc(strlen(s)+1), s);	//weirdness to avoid issues with tempstrings
-			return;
+			return i;
 		}
 		if (!strcmp(sv.particle_precache[i], s))
-			return;
+			return i;
 	}
+	return 0;
 }
 static void PF_sv_particleeffectnum(void)
 {
@@ -3862,7 +3919,7 @@ static const char *extnames[] =
 	"DP_QC_STRFTIME",
 	"DP_QC_STRING_CASE_FUNCTIONS",
 	"DP_QC_STRINGBUFFERS",
-//	"DP_QC_STRINGCOLORFUNCTIONS",	//the functions are implemented... the colour codes are nor
+//	"DP_QC_STRINGCOLORFUNCTIONS",	//the functions are provided only as stubs. the client has absolutely no support.
 	"DP_QC_STRREPLACE",
 	"DP_QC_TOKENIZEBYSEPARATOR",
 	"DP_QC_TRACEBOX",
@@ -3883,7 +3940,7 @@ static const char *extnames[] =
 	"DP_TE_BLOOD",
 	"DP_TE_STANDARDEFFECTBUILTINS",
 	"EXT_BITSHIFT",
-	//"FRIK_FILE",				//lacks the file part, but does have the strings part.
+	"FRIK_FILE",				//lacks the file part, but does have the strings part.
 #ifdef PSET_SCRIPT
 	"FTE_PART_SCRIPT",
 	"FTE_PART_NAMESPACES",
@@ -4219,14 +4276,39 @@ void PR_DumpPlatform_f(void)
 	//extra fields
 	fprintf(f, "\n\n//Supported Extension fields\n");
 	fprintf(f, ".float gravity;\n");	//used by hipnotic
-	fprintf(f, "//.float items2;\n");	//used by both mission packs. *REPLACES* serverflags if defined, so lets try not to define it.
-	fprintf(f, ".float alpha;\n");		//entity alpha. woot.
+	fprintf(f, "//.float items2;			/*if defined, overrides serverflags for displaying runes on the hud*/\n");	//used by both mission packs. *REPLACES* serverflags if defined, so lets try not to define it.
+	fprintf(f, ".float alpha;				/*entity opacity*/\n");		//entity alpha. woot.
+	fprintf(f, ".float traileffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
+	fprintf(f, ".float emiteffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
+	fprintf(f, ".vector movement;			/*describes which forward/right/up keys the player is holidng*/\n");
+	fprintf(f, ".entity viewmodelforclient;	/*attaches this entity to the specified player's view. invisible to other players*/\n");
 
 	//extra constants
 	fprintf(f, "\n\n//Supported Extension Constants\n");
-	fprintf(f, "const float MOVETYPE_FOLLOW\t= "STRINGIFY(MOVETYPE_EXT_FOLLOW)";\n");
-	fprintf(f, "const float SOLID_CORPSE\t= "STRINGIFY(SOLID_EXT_CORPSE)";\n");
+	fprintf(f, "const float MOVETYPE_FOLLOW	= "STRINGIFY(MOVETYPE_EXT_FOLLOW)";\n");
+	fprintf(f, "const float SOLID_CORPSE	= "STRINGIFY(SOLID_EXT_CORPSE)";\n");
 
+	fprintf(f, "const float FILE_READ		= "STRINGIFY(0)";\n");
+	fprintf(f, "const float FILE_APPEND		= "STRINGIFY(1)";\n");
+	fprintf(f, "const float FILE_WRITE		= "STRINGIFY(2)";\n");
+
+	fprintf(f, "const float CLIENTTYPE_DISCONNECT	= "STRINGIFY(0)";\n");
+	fprintf(f, "const float CLIENTTYPE_REAL			= "STRINGIFY(1)";\n");
+	fprintf(f, "const float CLIENTTYPE_BOT			= "STRINGIFY(2)";\n");
+	fprintf(f, "const float CLIENTTYPE_NOTCLIENT	= "STRINGIFY(3)";\n");
+
+	fprintf(f, "const float EF_NOSHADOW		= "STRINGIFY(0x1000)";\n");
+
+	fprintf(f, "const float MSG_MULTICAST	= "STRINGIFY(4)";\n");
+	fprintf(f, "const float MULTICAST_ALL	= "STRINGIFY(MULTICAST_ALL_U)";\n");
+//	fprintf(f, "const float MULTICAST_PHS	= "STRINGIFY(MULTICAST_PHS_U)";\n");
+	fprintf(f, "const float MULTICAST_PVS	= "STRINGIFY(MULTICAST_PVS_U)";\n");
+	fprintf(f, "const float MULTICAST_ONE	= "STRINGIFY(MULTICAST_ONE_U)";\n");
+	fprintf(f, "const float MULTICAST_ALL_R	= "STRINGIFY(MULTICAST_ALL_R)";\n");
+//	fprintf(f, "const float MULTICAST_PHS_R	= "STRINGIFY(MULTICAST_PHS_R)";\n");
+	fprintf(f, "const float MULTICAST_PVS_R	= "STRINGIFY(MULTICAST_PVS_R)";\n");
+	fprintf(f, "const float MULTICAST_ONE_R	= "STRINGIFY(MULTICAST_ONE_R)";\n");
+	fprintf(f, "const float MULTICAST_INIT	= "STRINGIFY(MULTICAST_INIT)";\n");
 
 	for (j = 0; j < 2; j++)
 	{

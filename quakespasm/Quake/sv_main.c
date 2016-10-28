@@ -148,7 +148,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 		bits |= UF_PREDINFO|UF_MOVETYPE;
 /*	if (from->weaponframe != to->weaponframe)
 		bits |= UF_PREDINFO|UF_WEAPONFRAME_OLD;
-*/	if (to->pmovetype)
+*///	if (to->pmovetype)	//we don't support prediction, but we still need to network the player's velocity for bob etc.
 	{
 		if (SVFTE_DeltaPredCalcBits(from, to))
 			bits |= UF_PREDINFO;
@@ -224,7 +224,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 //	if (to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightpflags)
 //		bits |= UF_LIGHT;
 
-	if (to->traileffectnum != from->traileffectnum)
+	if (to->traileffectnum != from->traileffectnum || to->emiteffectnum != from->emiteffectnum)
 		bits |= UF_TRAILEFFECT;
 
 //	if (to->modelindex2 != from->modelindex2)
@@ -493,7 +493,15 @@ static void SVFTE_WriteEntityUpdate(unsigned int bits, entity_state_t *state, si
 		MSG_WriteByte (msg, state->lightpflags);
 	}
 */	if (bits & UF_TRAILEFFECT)
-		MSG_WriteShort(msg, state->traileffectnum);
+	{
+		if (state->emiteffectnum)
+		{	//3 spare bits. so that's nice (this is guarenteed to be 14 bits max due to precaches using the upper two bits).
+			MSG_WriteShort(msg, (state->traileffectnum&0x3fff)|0x8000);
+			MSG_WriteShort(msg, state->emiteffectnum&0x3fff);
+		}
+		else
+			MSG_WriteShort(msg, state->traileffectnum&0x3fff);
+	}
 
 /*	if (bits & UF_COLORMOD)
 	{
@@ -879,6 +887,7 @@ void SVFTE_BuildSnapshotForClient (client_t *client)
 	struct entity_num_state_s *ents = snapshot_entstate;
 	size_t numents = 0;
 	size_t maxents = snapshot_maxents;
+	int emiteffect;
 
 // find the client's PVS
 	VectorAdd (clent->v.origin, clent->v.view_ofs, org);
@@ -892,10 +901,11 @@ void SVFTE_BuildSnapshotForClient (client_t *client)
 	for (e=1 ; e<maxentities ; e++, ent = NEXT_EDICT(ent))
 	{
 		eflags = 0;
+		emiteffect = GetEdictFieldValue(ent, pr_extfields.emiteffectnum)->_float;
 		if (ent != clent)	// clent is ALLWAYS sent
 		{
 			// ignore ents without visible models
-			if (!ent->v.modelindex || !PR_GetString(ent->v.model)[0])
+			if ((!ent->v.modelindex || !PR_GetString(ent->v.model)[0]) && !emiteffect)
 				continue;
 
 			//johnfitz -- don't send model>255 entities if protocol is 15
@@ -907,7 +917,7 @@ void SVFTE_BuildSnapshotForClient (client_t *client)
 				eflags |= EFLAGS_VIEWMODEL;
 			else if (val && val->edict)
 				continue;
-			else
+			else if (ent->num_leafs)
 			{
 				// ignore if not touching a PV leaf
 				for (i=0 ; i < ent->num_leafs ; i++)
@@ -958,6 +968,7 @@ void SVFTE_BuildSnapshotForClient (client_t *client)
 			ents[numents].state.traileffectnum = val->_float;
 		else
 			ents[numents].state.traileffectnum = 0;
+		ents[numents].state.emiteffectnum = emiteffect;
 		ents[numents].state.effects = ent->v.effects;
 		if (!ent->v.movetype || ent->v.movetype == MOVETYPE_STEP)
 			eflags |= EFLAGS_STEP;
@@ -1090,6 +1101,10 @@ void SV_Init (void)
 	Cvar_RegisterVariable (&pr_checkextension);
 	Cvar_RegisterVariable (&sv_altnoclip); //johnfitz
 
+	if (isDedicated)
+		sv_public.string = "1";
+	else
+		sv_public.string = "0";
 	Cvar_RegisterVariable (&sv_public);
 	Cvar_RegisterVariable (&sv_reportheartbeats);
 	Cvar_RegisterVariable (&com_protocolname);
@@ -2242,7 +2257,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 // send the datagram
 	if (NET_SendUnreliableMessage (client->netconnection, &msg) == -1)
 	{
-		SV_DropClient (true);// if the message couldn't send, kick off
+		SV_DropClient (false);// if the message couldn't send, kick off
 		return false;
 	}
 
@@ -2308,7 +2323,7 @@ void SV_SendNop (client_t *client)
 	MSG_WriteChar (&msg, svc_nop);
 
 	if (NET_SendUnreliableMessage (client->netconnection, &msg) == -1)
-		SV_DropClient (true);	// if the message couldn't send, kick off
+		SV_DropClient (false);	// if the message couldn't send, kick off
 	client->last_message = realtime;
 }
 
@@ -2330,6 +2345,85 @@ int SV_SendPrespawnParticlePrecaches(int idx)
 	}
 	if (idx == MAX_PARTICLETYPES)
 		return -1;
+	return idx;
+}
+int SV_SendPrespawnStatics(int idx)
+{
+	int i;
+	entity_state_t *svent;
+	int maxsize = host_client->message.maxsize - 128;	//we can go quite large
+
+	while (1)
+	{
+		if (idx >= sv.num_statics)
+			return -1;
+		svent = &sv.static_entities[idx];
+
+		if (host_client->message.cursize > maxsize)
+			break;
+		idx++;
+
+		if (svent->modelindex >= host_client->limit_models)
+			continue;
+		if (memcmp(&nullentitystate, svent, sizeof(nullentitystate)))
+		{
+			if (host_client->protocol_pext2 & PEXT2_REPLACEMENTDELTAS)
+			{
+				MSG_WriteByte(&host_client->message, svcfte_spawnstatic2);
+				SVFTE_WriteEntityUpdate(SVFTE_DeltaCalcBits(&nullentitystate, svent), svent, &host_client->message, host_client->protocol_pext2);
+			}
+			else
+			{
+				//johnfitz -- PROTOCOL_FITZQUAKE
+				int bits = 0;
+				if (sv.protocol == PROTOCOL_FITZQUAKE) //still want to send baseline in PROTOCOL_NETQUAKE, so reset these values
+				{
+					if (svent->modelindex & 0xFF00)
+						bits |= B_LARGEMODEL;
+					if (svent->frame & 0xFF00)
+						bits |= B_LARGEFRAME;
+					if (svent->alpha != ENTALPHA_DEFAULT)
+						bits |= B_ALPHA;
+				}
+				else if (svent->frame > 0xff)
+					continue;	//can't send these with the vanilla protcol (yay pext).
+
+				if (bits)
+					MSG_WriteByte (&host_client->message, svc_spawnstatic2);
+				else
+					MSG_WriteByte (&host_client->message, svc_spawnstatic);
+				//johnfitz
+
+				//johnfitz -- PROTOCOL_FITZQUAKE
+				if (bits)
+					MSG_WriteByte (&host_client->message, bits);
+
+				if (bits & B_LARGEMODEL)
+					MSG_WriteShort (&host_client->message, svent->modelindex);
+				else
+					MSG_WriteByte (&host_client->message, svent->modelindex);
+
+				if (bits & B_LARGEFRAME)
+					MSG_WriteShort (&host_client->message, svent->frame);
+				else
+					MSG_WriteByte (&host_client->message, svent->frame);
+				//johnfitz
+
+				MSG_WriteByte (&host_client->message, svent->colormap);
+				MSG_WriteByte (&host_client->message, svent->skin);
+				for (i=0 ; i<3 ; i++)
+				{
+					MSG_WriteCoord(&host_client->message, svent->origin[i], sv.protocolflags);
+					MSG_WriteAngle(&host_client->message, svent->angles[i], sv.protocolflags);
+				}
+
+				//johnfitz -- PROTOCOL_FITZQUAKE
+				if (bits & B_ALPHA)
+					MSG_WriteByte (&host_client->message, svent->alpha);
+				//johnfitz
+			}
+		}
+	}
 	return idx;
 }
 int SV_SendPrespawnBaselines(int idx)
@@ -2467,6 +2561,15 @@ void SV_SendClientMessages (void)
 			}
 			if (host_client->sendsignon == 4)
 			{
+				host_client->signonidx = SV_SendPrespawnStatics(host_client->signonidx);
+				if (host_client->signonidx < 0)
+				{
+					host_client->signonidx = 0;
+					host_client->sendsignon++;
+				}
+			}
+			if (host_client->sendsignon == 5)
+			{
 				if (host_client->message.cursize+sv.signon.cursize+2 < host_client->message.maxsize)
 				{
 					SZ_Write (&host_client->message, sv.signon.data, sv.signon.cursize);
@@ -2482,8 +2585,8 @@ void SV_SendClientMessages (void)
 		// changes level
 		if (host_client->message.overflowed)
 		{
-			SV_DropClient (true);
-			host_client->message.overflowed = false;
+			SZ_Clear(&host_client->message);
+			SV_DropClient (false);
 			continue;
 		}
 
@@ -2501,7 +2604,7 @@ void SV_SendClientMessages (void)
 			{
 				if (NET_SendMessage (host_client->netconnection
 				, &host_client->message) == -1)
-					SV_DropClient (true);	// if the message couldn't send, kick off
+					SV_DropClient (false);	// if the message couldn't send, kick off
 				SZ_Clear (&host_client->message);
 				host_client->last_message = realtime;
 				if (host_client->sendsignon == true)
@@ -2719,6 +2822,9 @@ void SV_SpawnServer (const char *server)
 	/* Host_ClearMemory() called above already cleared the whole sv structure */
 	sv.max_edicts = CLAMP (MIN_EDICTS,(int)max_edicts.value,MAX_EDICTS); //johnfitz -- max_edicts cvar
 	sv.edicts = (edict_t *) malloc (sv.max_edicts*pr_edict_size); // ericw -- sv.edicts switched to use malloc()
+
+	sv.max_statics = MAX_STATIC_ENTITIES;
+	sv.static_entities = Hunk_Alloc(sv.max_statics * sizeof(*sv.static_entities));
 
 	sv.datagram.maxsize = sizeof(sv.datagram_buf);
 	sv.datagram.cursize = 0;

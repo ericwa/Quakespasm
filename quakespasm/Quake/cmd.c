@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+cvar_t	cl_nopext = {"cl_nopext","0",CVAR_NONE};	//Spike -- prevent autodetection of protocol extensions, so that servers fall back to only their base protocol (without needing to reconfigure the server. Requires reconnect.
 void Cmd_ForwardToServer (void);
 
 #define	MAX_ALIAS_NAME	32
@@ -517,6 +518,8 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("alias",Cmd_Alias_f);
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer);
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
+
+	Cvar_RegisterVariable (&cl_nopext);
 }
 
 /*
@@ -793,7 +796,7 @@ void Cmd_ForwardToServer (void)
 			SZ_Print (&cls.message, "protocols 15 666 999");
 			return;
 		}
-		if (!strcmp(Cmd_Args(), "pext"))
+		if (!strcmp(Cmd_Args(), "pext") && !cl_nopext.value)
 		{	//server asked us for a key+value list of the extensions+attributes we support
 			SZ_Print (&cls.message, va("pext %#x %#x", PROTOCOL_FTE_PEXT2, PEXT2_SUPPORTED_CLIENT));
 			return;

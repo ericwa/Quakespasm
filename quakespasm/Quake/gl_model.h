@@ -401,6 +401,7 @@ typedef enum {mod_brush, mod_sprite, mod_alias, mod_ext_invalid} modtype_t;
 //johnfitz
 //spike -- added this for particle stuff
 #define MOD_EMITREPLACE 2048	//particle effect completely replaces the model (for flames or whatever).
+#define MOD_EMITFORWARDS 4096	//particle effect is emitted forwards, rather than downwards. why down? good question.
 
 typedef struct qmodel_s
 {
@@ -418,6 +419,9 @@ typedef struct qmodel_s
 #ifdef PSET_SCRIPT
 	int			emiteffect;		//spike -- this effect is emitted per-frame by entities with this model
 	int			traileffect;	//spike -- this effect is used when entities move
+	struct skytris_s		*skytris;	//spike -- surface-based particle emission for this model
+	struct skytriblock_s	*skytrimem;	//spike -- surface-based particle emission for this model (for better cache performance+less allocs)
+	double					skytime;	//doesn't really cope with multiples. oh well...
 #endif
 //
 // volume occupied by the model graphics

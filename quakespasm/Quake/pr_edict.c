@@ -835,6 +835,7 @@ const char *ED_ParseEdict (const char *data, edict_t *ent)
 	char		keyname[256];
 	qboolean	anglehack, init;
 	int		n;
+	eval_t *val;
 
 	init = false;
 
@@ -896,11 +897,26 @@ const char *ED_ParseEdict (const char *data, edict_t *ent)
 			ent->alpha = ENTALPHA_ENCODE(atof(com_token));
 		//johnfitz
 
+		//spike -- hacks to support func_illusionary with all sorts of mdls, and various particle effects
+		if (!strcmp(keyname, "model") && sv.state == ss_loading)
+			/*ent->v.modelindex = */SV_Precache_Model(com_token);
+		//spike
+
 		key = ED_FindField (keyname);
 		if (!key)
 		{
+			if (!strcmp(keyname, "traileffect") && sv.state == ss_loading)
+			{
+				if ((val = GetEdictFieldValue(ent, pr_extfields.traileffectnum)))
+					val->_float = PF_SV_ForceParticlePrecache(com_token);
+			}
+			else if (!strcmp(keyname, "emiteffect") && sv.state == ss_loading)
+			{
+				if ((val = GetEdictFieldValue(ent, pr_extfields.emiteffectnum)))
+					val->_float = PF_SV_ForceParticlePrecache(com_token);
+			}
 			//johnfitz -- HACK -- suppress error becuase fog/sky/alpha fields might not be mentioned in defs.qc
-			if (strncmp(keyname, "sky", 3) && strcmp(keyname, "fog") && strcmp(keyname, "alpha"))
+			else if (strncmp(keyname, "sky", 3) && strcmp(keyname, "fog") && strcmp(keyname, "alpha"))
 				Con_DPrintf ("\"%s\" is not a field\n", keyname); //johnfitz -- was Con_Printf
 			continue;
 		}
@@ -1006,9 +1022,15 @@ void ED_LoadFromFile (const char *data)
 
 		if (!func)
 		{
-			Con_SafePrintf ("No spawn function for:\n"); //johnfitz -- was Con_Printf
-			ED_Print (ent);
-			ED_Free (ent);
+			const char *classname = PR_GetString(ent->v.classname);
+			if (!strcmp(classname, "misc_model"))
+				PR_spawnfunc_misc_model(ent);
+			else
+			{
+				Con_SafePrintf ("No spawn function for:\n"); //johnfitz -- was Con_Printf
+				ED_Print (ent);
+				ED_Free (ent);
+			}
 			continue;
 		}
 
@@ -1111,18 +1133,25 @@ void PR_LoadProgs (void)
 		pr_fielddefs[i].s_name = LittleLong (pr_fielddefs[i].s_name);
 	}
 
+	for (i = 0; i < progs->numglobals; i++)
+		((int *)pr_globals)[i] = LittleLong (((int *)pr_globals)[i]);
+
 	//spike: detect extended fields from progs
 	pr_extfields.items2 = ED_FindFieldOffset("items2");
 	pr_extfields.gravity = ED_FindFieldOffset("gravity");
 	pr_extfields.alpha = ED_FindFieldOffset("alpha");
 	pr_extfields.movement = ED_FindFieldOffset("movement");
 	pr_extfields.traileffectnum = ED_FindFieldOffset("traileffectnum");
+	pr_extfields.emiteffectnum = ED_FindFieldOffset("emiteffectnum");
 	pr_extfields.viewmodelforclient = ED_FindFieldOffset("viewmodelforclient");
 
-	for (i = 0; i < progs->numglobals; i++)
-		((int *)pr_globals)[i] = LittleLong (((int *)pr_globals)[i]);
+	i = progs->entityfields;
+	if (pr_extfields.emiteffectnum < 0)
+		pr_extfields.emiteffectnum = i++;
+	if (pr_extfields.traileffectnum < 0)
+		pr_extfields.traileffectnum = i++;
 
-	pr_edict_size = progs->entityfields * 4 + sizeof(edict_t) - sizeof(entvars_t);
+	pr_edict_size = i * 4 + sizeof(edict_t) - sizeof(entvars_t);
 	// round off to next highest whole word address (esp for Alpha)
 	// this ensures that pointers in the engine data area are always
 	// properly aligned

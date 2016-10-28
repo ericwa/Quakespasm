@@ -67,6 +67,25 @@ entity_t		**cl_visedicts;
 
 extern cvar_t	r_lerpmodels, r_lerpmove; //johnfitz
 
+void CL_ClearTrailStates(void)
+{
+	int i;
+	for (i = 0; i < cl.num_statics; i++)
+	{
+		PScript_DelinkTrailstate(&(cl_static_entities[i].trailstate));
+		PScript_DelinkTrailstate(&(cl_static_entities[i].emitstate));
+	}
+	for (i = 0; i < cl_max_edicts; i++)
+	{
+		PScript_DelinkTrailstate(&(cl_entities[i].trailstate));
+		PScript_DelinkTrailstate(&(cl_entities[i].emitstate));
+	}
+	for (i = 0; i < MAX_BEAMS; i++)
+	{
+		PScript_DelinkTrailstate(&(cl_beams[i].trailstate));
+	}
+}
+
 /*
 =====================
 CL_ClearState
@@ -79,6 +98,8 @@ void CL_ClearState (void)
 
 	if (!sv.active)
 		Host_ClearMemory ();
+
+	CL_ClearTrailStates();
 
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
@@ -438,14 +459,16 @@ void CL_RelinkEntities (void)
 	float		bobjrotate;
 	vec3_t		oldorg;
 	dlight_t	*dl;
-	float		frametime = cl.time - cl.oldtime;
+	float		frametime;
+
+// determine partial update time
+	frac = CL_LerpPoint ();
+
+	frametime = cl.time - cl.oldtime;
 	if (frametime < 0)
 		frametime = 0;
 	if (frametime > 0.1)
 		frametime = 0.1;
-
-// determine partial update time
-	frac = CL_LerpPoint ();
 
 	if (cl_numvisedicts + 64 > cl_maxvisedicts)
 	{
@@ -481,7 +504,7 @@ void CL_RelinkEntities (void)
 	for (i=1,ent=cl_entities+1 ; i<cl.num_entities ; i++,ent++)
 	{
 		if (!ent->model)
-		{	// empty slot
+		{	// empty slot, ish.
 			if (ent->forcelink)
 				R_RemoveEfrags (ent);	// just became empty
 			continue;
@@ -559,10 +582,10 @@ void CL_RelinkEntities (void)
 			//johnfitz -- assume muzzle flash accompanied by muzzle flare, which looks bad when lerped
 			if (r_lerpmodels.value != 2)
 			{
-			if (ent == &cl_entities[cl.viewentity])
-				cl.viewent.lerpflags |= LERP_RESETANIM|LERP_RESETANIM2; //no lerping for two frames
-			else
-				ent->lerpflags |= LERP_RESETANIM|LERP_RESETANIM2; //no lerping for two frames
+				if (ent == &cl_entities[cl.viewentity])
+					cl.viewent.lerpflags |= LERP_RESETANIM|LERP_RESETANIM2; //no lerping for two frames
+				else
+					ent->lerpflags |= LERP_RESETANIM|LERP_RESETANIM2; //no lerping for two frames
 			}
 			//johnfitz
 		}
@@ -583,17 +606,17 @@ void CL_RelinkEntities (void)
 		}
 
 #ifdef PSET_SCRIPT
-		if (ent->model->traileffect >= 0)
-		{
-			vec3_t axis[3];
-			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
-			PScript_ParticleTrail(oldorg, ent->origin, ent->model->traileffect, i, axis, &ent->trailstate);
-		}
-		else if (ent->netstate.traileffectnum > 0 && ent->netstate.traileffectnum < MAX_PARTICLETYPES)
+		if (ent->netstate.traileffectnum > 0 && ent->netstate.traileffectnum < MAX_PARTICLETYPES)
 		{
 			vec3_t axis[3];
 			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
 			PScript_ParticleTrail(oldorg, ent->origin, cl.particle_precache[ent->netstate.traileffectnum].index, i, axis, &ent->trailstate);
+		}
+		else if (ent->model->traileffect >= 0)
+		{
+			vec3_t axis[3];
+			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
+			PScript_ParticleTrail(oldorg, ent->origin, ent->model->traileffect, i, axis, &ent->trailstate);
 		}
 		else
 #endif
@@ -640,9 +663,26 @@ void CL_RelinkEntities (void)
 		ent->forcelink = false;
 
 #ifdef PSET_SCRIPT
-		if (ent->model->emiteffect >= 0)
+		if (ent->netstate.emiteffectnum > 0)
 		{
-			PScript_RunParticleEffectState(ent->origin, NULL, frametime, ent->model->emiteffect, &ent->emitstate);
+			vec3_t axis[3];
+			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
+			if (ent->model->type == mod_alias)
+				axis[0][2] *= -1;	//stupid vanilla bug
+			PScript_RunParticleEffectState(ent->origin, axis[0], frametime, cl.particle_precache[ent->netstate.emiteffectnum].index, &ent->emitstate);
+		}
+		else if (ent->model->emiteffect >= 0)
+		{
+			vec3_t axis[3];
+			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
+			if (ent->model->flags & MOD_EMITFORWARDS)
+			{
+				if (ent->model->type == mod_alias)
+					axis[0][2] *= -1;	//stupid vanilla bug
+			}
+			else
+				VectorScale(axis[2], -1, axis[0]);
+			PScript_RunParticleEffectState(ent->origin, axis[0], frametime, ent->model->emiteffect, &ent->emitstate);
 			if (ent->model->flags & MOD_EMITREPLACE)
 				continue;
 		}

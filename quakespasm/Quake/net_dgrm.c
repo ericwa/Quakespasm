@@ -48,7 +48,7 @@ static int droppedDatagrams;
 //we additionally look for 'DarkPlaces-Quake' servers too, because we can, but most of those servers will be using dpp7 and will (safely) not respond to our ccreq_server_info requests.
 //we are not visible to DarkPlaces users - dp does not support fitz666 so that's not a viable option, at least by default, feel free to switch the order if you also change sv_protocol back to 15.
 cvar_t sv_reportheartbeats = {"sv_reportheartbeats", "0"};
-cvar_t sv_public = {"sv_public", "0"};
+cvar_t sv_public = {"sv_public", NULL};
 cvar_t com_protocolname = {"com_protocolname", "FTE-Quake DarkPlaces-Quake"};
 cvar_t net_masters[] = 
 {
@@ -1441,7 +1441,7 @@ static void _Datagram_ServerControlPacket (sys_socket_t acceptsock, struct qsock
 		if (s->disconnected)
 			continue;
 		ret = dfunc.AddrCompare(clientaddr, &s->addr);
-		if (ret >= 0)
+		if (ret == 0)
 		{
 			int i;
 

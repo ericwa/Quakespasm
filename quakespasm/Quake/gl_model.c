@@ -192,6 +192,7 @@ void Mod_ClearAll (void)
 		{
 			mod->needload = true;
 			TexMgr_FreeTexturesForOwner (mod); //johnfitz
+			PScript_ClearSurfaceParticles(mod);
 		}
 }
 
@@ -206,7 +207,10 @@ void Mod_ResetAll (void)
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
 		if (!mod->needload) //otherwise Mod_ClearAll() did it already
+		{
 			TexMgr_FreeTexturesForOwner (mod);
+			PScript_ClearSurfaceParticles(mod);
+		}
 		memset(mod, 0, sizeof(qmodel_t));
 	}
 	mod_numknown = 0;
@@ -289,25 +293,27 @@ qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 	}
 
 //
-// because the world is so huge, load it one piece at a time
-//
-	if (!crash)
-	{
-
-	}
-
-//
 // load the file
 //
-	buf = COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf), & mod->path_id);
+	if (*mod->name == '*')
+		buf = NULL;
+	else
+		buf = COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf), & mod->path_id);
 	if (!buf)
 	{
 		if (crash)
 			Sys_Error ("Mod_LoadModel: %s not found", mod->name); //johnfitz -- was "Mod_NumForName"
+		else if (mod->name[0] == '*' && (mod->name[1] < '0' || mod->name[1] > '9'))
+			;	//*foo doesn't warn, unless its *NUM. inline models. gah.
+		else
+			Con_Warning("Mod_LoadModel: %s not found\n", mod->name);
 
 		//avoid crashes
 		mod->needload = false;
 		mod->type = mod_ext_invalid;
+		mod->flags = 0;
+
+		Mod_SetExtraFlags (mod); //johnfitz. spike -- moved this to be generic, because most of the flags are anyway.
 		return mod;
 
 		return NULL;

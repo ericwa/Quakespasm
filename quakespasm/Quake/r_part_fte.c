@@ -128,7 +128,7 @@ static float psintable[256];
 
 int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk);
 int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t axis[3], trailstate_t **tsk);
-static qboolean P_LoadParticleSet(char *name, qboolean implicit);
+static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwarning);
 static void R_Particles_KillAllEffects(void);
 
 static void buildsintable(void)
@@ -200,7 +200,7 @@ typedef struct skytris_s {
 	vec3_t x;
 	vec3_t y;
 	float area;
-	float nexttime;
+	double nexttime;
 	int ptype;
 	struct msurface_s *face;
 } skytris_t;
@@ -429,9 +429,6 @@ static int			r_particlerecycle;
 static beamseg_t	*free_beams;
 static beamseg_t	*beams;
 static int			r_numbeams;
-
-static skytriblock_t *skytrimem;
-static skytris_t *skytris;
 
 static clippeddecal_t	*free_decals;
 static clippeddecal_t	*decals;
@@ -764,11 +761,11 @@ typedef struct associatedeffect_s
 	struct associatedeffect_s *next;
 	char mname[MAX_QPATH];
 	char pname[MAX_QPATH];
+	unsigned int flags;
 	enum
 	{
 		AE_TRAIL,
 		AE_EMIT,
-		AE_REPLACE
 	} type;
 } associatedeffect_t;
 static associatedeffect_t *associatedeffect;
@@ -776,16 +773,28 @@ static void PScript_AssociateEffect_f(void)
 {
 	const char *modelname = Cmd_Argv(1);
 	const char *effectname = Cmd_Argv(2);
-	int type = atoi(Cmd_Argv(3));
+	unsigned int flags = 0;
+	int type;
 	associatedeffect_t *ae;
+	int i;
+
 	if (!strcmp(Cmd_Argv(0), "r_trail"))
 		type = AE_TRAIL;
 	else
 	{
-		if (type)
-			type = AE_REPLACE;
-		else
-			type = AE_EMIT;
+		type = AE_EMIT;
+		for (i = 3; i < Cmd_Argc(); i++)
+		{
+			const char *fn = Cmd_Argv(i);
+			if (!strcmp(fn, "replace") || !strcmp(fn, "1"))
+				flags |= MOD_EMITREPLACE;
+			else if (!strcmp(fn, "forwards") || !strcmp(fn, "forward"))
+				flags |= MOD_EMITFORWARDS;
+			else if (!strcmp(fn, "0"))
+				;	//1 or 0 are legacy, meaning replace or not
+			else
+				Con_DPrintf("%s %s: unknown flag %s\n", Cmd_Argv(0), modelname, fn);
+		}
 	}
 
 	if (
@@ -796,6 +805,7 @@ static void PScript_AssociateEffect_f(void)
 		strstr(modelname, ".bsp") ||
 		strstr(modelname, "turr"))
 	{
+		//there is a very real possibility of attaching 'large' effects to models so that they become more visible (eg: a stream of particles passing through walls showing you the entity that they're eminating from)
 		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
 		return;
 	}
@@ -808,20 +818,18 @@ static void PScript_AssociateEffect_f(void)
 	{
 		if (!strcmp(ae->mname, modelname))
 			if ((ae->type==AE_TRAIL) == (type==AE_TRAIL))
-			{
-				strcpy(ae->pname, effectname);
 				break;
-			}
 	}
 	if (!ae)
 	{
 		ae = Z_Malloc(sizeof(*ae));
-		ae->type = type;
 		strcpy(ae->mname, modelname);
-		strcpy(ae->pname, effectname);
 		ae->next = associatedeffect;
 		associatedeffect = ae;
 	}
+	strcpy(ae->pname, effectname);
+	ae->type = type;
+	ae->flags = flags;
 
 	r_plooksdirty = true;
 }
@@ -888,11 +896,8 @@ void PScript_UpdateModelEffects(qmodel_t *mod)
 				break;
 			case AE_EMIT:
 				mod->emiteffect = PScript_FindParticleType(ae->pname);
-				mod->flags &= ~MOD_EMITREPLACE;
-				break;
-			case AE_REPLACE:
-				mod->emiteffect = PScript_FindParticleType(ae->pname);
-				mod->flags |= MOD_EMITREPLACE;
+				mod->flags &= ~(MOD_EMITREPLACE|MOD_EMITFORWARDS);
+				mod->flags |= ae->flags;
 				break;
 			}
 		}
@@ -1098,7 +1103,7 @@ int PScript_FindParticleType(const char *fullname)
 			}
 		}
 		if (*cfg)
-			if (P_LoadParticleSet(cfg, true))
+			if (P_LoadParticleSet(cfg, true, true))
 				return PScript_FindParticleType(fullname);
 
 /*		if (fallback)
@@ -1243,6 +1248,13 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 				thetex = TexMgr_LoadImage(NULL, "particles/ptritexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, SRC_RGBA, data, "", (src_offset_t)data, TEXPREF_PERSIST|TEXPREF_NOPICMIP|TEXPREF_LINEAR|TEXPREF_ALPHA);
 			}
 			ptype->looks.texture = thetex;
+		}
+		else if (strstr(ptype->texname, "classicparticle"))
+		{
+			extern gltexture_t *particletexture1;
+			ptype->looks.texture = particletexture1;
+			ptype->s2 = 0.5;
+			ptype->t2 = 0.5;
 		}
 		else if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK) //sparks and special names get a nice circular texture.
 		{
@@ -1400,9 +1412,32 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	ptype->t2 = 1;
 }
 
+char *PScript_ReadLine(char *buffer, size_t buffersize, const char *filedata, size_t filesize, size_t *offset)
+{
+	const char *start = filedata + *offset;
+	const char *f = start;
+	const char *e = filedata+filesize;
+	if (f >= e)
+		return NULL;	//eof
+	while (f < e)
+	{
+		if (*f++ == '\n')
+			break;
+	}
+
+	*offset = f-filedata;
+
+	buffersize--;
+	if (buffersize >= (size_t)(f-start))
+		buffersize = f-start;
+	memcpy(buffer, start, buffersize);
+	buffer[buffersize] = 0;	//null terminate it
+
+	return buffer;
+}
 
 //This is the function that loads the effect descriptions.
-void PScript_ParseParticleEffectFile(const char *config, qboolean part_parseweak, FILE *context)
+void PScript_ParseParticleEffectFile(const char *config, qboolean part_parseweak, char *context, size_t filesize)
 {
 	const char *var, *value;
 	char *buf;
@@ -1415,14 +1450,15 @@ void PScript_ParseParticleEffectFile(const char *config, qboolean part_parseweak
 	char line[512];
 	char part_parsenamespace[MAX_QPATH];
 
-	byte *palrgba = (byte *)d_8to24table; 
+	byte *palrgba = (byte *)d_8to24table;
+	size_t offset = 0;
 
 	q_strlcpy(part_parsenamespace, config, sizeof(part_parsenamespace));
 	config = part_parsenamespace;
 
 nexteffect:
 
-	if (!fgets(line, sizeof(line), context))
+	if (!PScript_ReadLine(line, sizeof(line), context, filesize, &offset))
 		return;	//eof
 reparse:
 
@@ -1465,7 +1501,7 @@ reparse:
 		goto nexteffect;
 	}
 
-	buf = fgets(line, sizeof(line), context);
+	buf = PScript_ReadLine(line, sizeof(line), context, filesize, &offset);
 	if (!buf)
 		return;	//eof
 	while (*buf && *buf <= ' ')
@@ -1489,7 +1525,7 @@ reparse:
 		int depth = 1;
 		while(1)
 		{
-			buf = fgets(line, sizeof(line), context);
+			buf = PScript_ReadLine(line, sizeof(line), context, filesize, &offset);
 			if (!buf)
 				return;
 
@@ -1561,13 +1597,13 @@ reparse:
 
 	while(1)
 	{
-		buf = fgets(line, sizeof(line), context);
+		buf = PScript_ReadLine(line, sizeof(line), context, filesize, &offset);
 		if (!buf)
 		{
 			Con_Printf("Unexpected end of buffer with effect %s\n", ptype->name);
 			return;
 		}
-
+skipread:
 		while (*buf && *buf <= ' ')
 			buf++;	//no whitespace please.
 		if (*buf == '}')
@@ -1586,11 +1622,16 @@ reparse:
 		}
 		else
 #endif
-#if UNSUPPORTED
 			if (!strcmp(var, "shader"))
 		{
 			q_strlcpy(ptype->texname, ptype->name, sizeof(ptype->texname));
-			buf = Cbuf_GetNext(Cmd_ExecLevel, true);
+
+#if UNSUPPORTED
+			Con_DPrintf("%s.%s: shaders are not supported in this build\n", ptype->config, ptype->name);
+#endif
+			buf = PScript_ReadLine(line, sizeof(line), context, filesize, &offset);
+			if (!buf)
+				continue;
 			while (*buf && *buf <= ' ')
 				buf++;	//no leading whitespace please.
 			if (*buf == '{')
@@ -1603,8 +1644,8 @@ reparse:
 				str[2] = 0;
 				while(nest)
 				{
-					buf = Cbuf_GetNext(Cmd_ExecLevel, true);
-					if (!*buf)
+					buf = PScript_ReadLine(line, sizeof(line), context, filesize, &offset);
+					if (!buf)
 					{
 						Con_Printf("Unexpected end of buffer with effect %s\n", ptype->name);
 						break;
@@ -1621,15 +1662,15 @@ reparse:
 					str[slen++] = '\n';
 				}
 				str[slen] = 0;
+#if UNSUPPORTED
 				R_RegisterShader(ptype->texname, SUF_NONE, str);
+#endif
 				Z_Free(str);
 			}
 			else
-				Cbuf_InsertText(buf, Cmd_ExecLevel, true);
+				goto skipread;
 		}
-		else
-#endif
-			if (!strcmp(var, "texture") || !strcmp(var, "linear_texture") || !strcmp(var, "nearest_texture") || !strcmp(var, "nearesttexture"))
+		else if (!strcmp(var, "texture") || !strcmp(var, "linear_texture") || !strcmp(var, "nearest_texture") || !strcmp(var, "nearesttexture"))
 		{
 			q_strlcpy(ptype->texname, value, sizeof(ptype->texname));
 			ptype->looks.nearest = !strncmp(var, "nearest", 7);
@@ -1802,7 +1843,7 @@ reparse:
 #endif
 
 		else if (!strcmp(var, "randomvel"))
-		{
+		{	//shortcut for velwrand (and velbias for z bias)
 			ptype->velbias[0] = ptype->velbias[1] = 0;
 			ptype->velwrand[0] = ptype->velwrand[1] = atof(value);
 			if (Cmd_Argc()>3)
@@ -1845,17 +1886,18 @@ reparse:
 			ptype->orgbias[1] = atof(Cmd_Argv(2));
 			ptype->orgbias[2] = atof(Cmd_Argv(3));
 		}
-		else if (!strcmp(var, "velbias"))
-		{
-			ptype->velbias[0] = atof(value);
-			ptype->velbias[1] = atof(Cmd_Argv(2));
-			ptype->velbias[2] = atof(Cmd_Argv(3));
-		}
 		else if (!strcmp(var, "orgwrand"))
 		{
 			ptype->orgwrand[0] = atof(value);
 			ptype->orgwrand[1] = atof(Cmd_Argv(2));
 			ptype->orgwrand[2] = atof(Cmd_Argv(3));
+		}
+
+		else if (!strcmp(var, "velbias"))
+		{
+			ptype->velbias[0] = atof(value);
+			ptype->velbias[1] = atof(Cmd_Argv(2));
+			ptype->velbias[2] = atof(Cmd_Argv(3));
 		}
 		else if (!strcmp(var, "velwrand"))
 		{
@@ -1942,9 +1984,9 @@ parsefluid:
 			ptype->flags |= PT_TROVERWATER;
 			goto parsefluid;
 		}
-#if UNSUPPORTED
 		else if (!strcmp(var, "model"))
 		{
+#if UNSUPPORTED
 			partmodels_t *mod;
 			char *e;
 
@@ -2029,8 +2071,10 @@ parsefluid:
 				else
 					mod->traileffect = P_INVALID;
 			}
-		}
+#else
+			Con_DPrintf("%s.%s: model particles are not supported in this build\n", ptype->config, ptype->name);
 #endif
+		}
 		else if (!strcmp(var, "sound"))
 		{
 			const char *e;
@@ -2221,6 +2265,7 @@ parsefluid:
 			ptype->stainonimpact = atof(value);
 		else if (!strcmp(var, "blend"))
 		{
+			//small note: use premultiplied alpha where possible. this reduces the required state switches.
 			ptype->looks.premul = false;
 			if (!strcmp(value, "adda") || !strcmp(value, "add"))
 				ptype->looks.blendmode = BM_ADDA;
@@ -2234,7 +2279,7 @@ parsefluid:
 				ptype->looks.blendmode = BM_INVMODC;
 			else if (!strcmp(value, "blendcolour") || !strcmp(value, "blendcolor"))
 				ptype->looks.blendmode = BM_BLENDCOLOUR;
-			else if (!strcmp(value, "blendalpha"))
+			else if (!strcmp(value, "blendalpha") || !strcmp(value, "blend"))
 				ptype->looks.blendmode = BM_BLEND;
 			else if (!strcmp(value, "premul_subtract"))
 			{
@@ -2252,7 +2297,10 @@ parsefluid:
 				ptype->looks.blendmode = BM_PREMUL;
 			}
 			else
+			{
+				Con_DPrintf("%s.%s: uses unknown blend type '%s', assuming legacy 'blendalpha'\n", ptype->config, ptype->name, value);
 				ptype->looks.blendmode = BM_BLEND;	//fallback
+			}
 		}
 		else if (!strcmp(var, "spawnmode"))
 		{
@@ -2280,8 +2328,13 @@ parsefluid:
 			}
 			else if (!strcmp(value, "distball"))
 				ptype->spawnmode = SM_DISTBALL;
-			else
+			else if (!strcmp(value, "box"))
 				ptype->spawnmode = SM_BOX;
+			else
+			{
+				Con_DPrintf("%s.%s: uses unknown spawn type '%s', assuming 'box'\n", ptype->config, ptype->name, value);
+				ptype->spawnmode = SM_BOX;
+			}
 
 			if (Cmd_Argc()>2)
 			{
@@ -2304,8 +2357,13 @@ parsefluid:
 				ptype->looks.type = PT_CDECAL;
 			else if (!strcmp(value, "udecal"))
 				ptype->looks.type = PT_UDECAL;
-			else
+			else if (!strcmp(value, "normal"))
 				ptype->looks.type = PT_NORMAL;
+			else
+			{
+				Con_DPrintf("%s.%s: uses unknown render type '%s', assuming 'normal'\n", ptype->config, ptype->name, value);
+				ptype->looks.type = PT_NORMAL;	//fallback
+			}
 			settype = true;
 		}
 		else if (!strcmp(var, "clippeddecal"))	//mask, match
@@ -2419,7 +2477,10 @@ parsefluid:
 /*		else if (!strcmp(var, "spawnparam3"))
 			ptype->spawnparam3 = atof(value); */
 		else if (!strcmp(var, "up"))
+		{
 			ptype->orgbias[2] = atof(value);
+			Con_DPrintf("%s.%s: up is deprecated, use orgbias 0 0 Z\n", ptype->config, ptype->name);
+		}
 #endif
 
 		else if (!strcmp(var, "rampmode"))
@@ -2437,8 +2498,13 @@ parsefluid:
 				ptype->rampmode = RAMP_NEAREST;
 			else if (!strcmp(value, "lerp"))	//don't use the name 'linear'. ramps are there to avoid linear...
 				ptype->rampmode = RAMP_LERP;
-			else //if (!strcmp(value, "delta"))
+			else if (!strcmp(value, "delta"))
 				ptype->rampmode = RAMP_DELTA;
+			else
+			{
+				Con_DPrintf("%s.%s: uses unknown ramp mode '%s', assuming 'delta'\n", ptype->config, ptype->name, value);
+				ptype->rampmode = RAMP_DELTA;
+			}
 		}
 		else if (!strcmp(var, "rampindexlist"))
 		{ // better not use this with delta ramps...
@@ -2523,7 +2589,13 @@ parsefluid:
 			ptype->rampindexes++;
 		}
 		else if (!strcmp(var, "viewspace"))
+		{
+#if UNSUPPORTED
 			ptype->viewspacefrac = (Cmd_Argc()>1)?atof(value):1;
+#else
+			Con_DPrintf("%s.%s: viewspace particles are not supported in this build\n", ptype->config, ptype->name);
+#endif
+		}
 		else if (!strcmp(var, "perframe"))
 			ptype->flags |= PT_INVFRAMETIME;
 		else if (!strcmp(var, "averageout"))
@@ -2573,16 +2645,18 @@ parsefluid:
 			ptype->dl_scales[1] = atof(Cmd_Argv(2));
 			ptype->dl_scales[2] = atof(Cmd_Argv(3));
 		}
-#if UNSUPPORTED
 		else if (!strcmp(var, "spawnstain"))
 		{
+#if UNSUPPORTED
 			ptype->stain_radius = atof(value);
 			ptype->stain_rgb[0] = atof(Cmd_Argv(2));
 			ptype->stain_rgb[1] = atof(Cmd_Argv(3));
 			ptype->stain_rgb[2] = atof(Cmd_Argv(4));
-		}
+#else
+			Con_DPrintf("%s.%s: spawnstain is not supported in this build\n", ptype->config, ptype->name);
 #endif
-		else
+		}
+		else if (Cmd_Argc())
 			Con_DPrintf("%s.%s: %s is not a recognised particle type field\n", ptype->config, ptype->name, var);
 	}
 	ptype->loaded = part_parseweak?1:2;
@@ -2847,7 +2921,7 @@ static void P_ImportEffectInfo(const char *config, char *line, qboolean part_par
 
 	{
 		int i;
-		FILE *file;
+		char *file;
 		const char *line;
 		char linebuf[1024];
 		//default assumes 8*8 grid, but we allow more
@@ -2859,10 +2933,11 @@ static void P_ImportEffectInfo(const char *config, char *line, qboolean part_par
 			teximages[i][3] = 1/8.0 * (i>>3);
 		}
 
-		COM_FOpenFile("particles/particlefont.txt", &file, NULL);
+		file = (char*)COM_LoadMallocFile("particles/particlefont.txt", NULL);
 		if (file)
 		{
-			while (fgets(linebuf, sizeof(linebuf), file))
+			size_t offset = 0;
+			while (PScript_ReadLine(linebuf, sizeof(linebuf), file, com_filesize, &offset))
 			{
 				float s1,s2,t1,t2;
 				line = COM_Parse(linebuf);
@@ -2883,7 +2958,7 @@ static void P_ImportEffectInfo(const char *config, char *line, qboolean part_par
 					teximages[i][3] = t1;
 				}
 			}
-			fclose(file);
+			free(file);
 		}
 	}
 
@@ -3318,9 +3393,31 @@ void PScript_InitParticles (void)
 //#endif
 }
 
+void PScript_ClearSurfaceParticles(qmodel_t *mod)
+{
+	mod->skytime = 0;
+	mod->skytris = NULL;
+	while(mod->skytrimem)
+	{
+		void *f = mod->skytrimem;
+		mod->skytrimem = mod->skytrimem->next;
+		Z_Free(f);
+	}
+}
+static void PScript_ClearAllSurfaceParticles(void)
+{	//make sure we hit all models, even ones from the previous map. maybe this is overkill
+	extern qmodel_t	mod_known[];
+	extern int		mod_numknown;
+	int i;
+	for (i = 0; i < mod_numknown; i++)
+		PScript_ClearSurfaceParticles(&mod_known[i]);
+}
+
 void PScript_Shutdown (void)
 {
 	Cvar_SetCallback(&r_particledesc, NULL);
+
+	CL_ClearTrailStates();
 
 //	if (fallback)
 //		fallback->ShutdownParticles();
@@ -3364,13 +3461,7 @@ void PScript_Shutdown (void)
 	free_decals = NULL;
 	free_beams = NULL;
 
-	skytris = NULL;
-	while(skytrimem)
-	{
-		void *f = skytrimem;
-		skytrimem = skytrimem->next;
-		Z_Free(f);
-	}
+	PScript_ClearAllSurfaceParticles();
 
 	r_numparticles = 0;
 	r_numdecals = 0;
@@ -3425,78 +3516,80 @@ qboolean PScript_Startup (void)
 
 void PScript_RecalculateSkyTris (void)
 {
-	skytris = NULL;
-	while(skytrimem)
-	{
-		void *f = skytrimem;
-		skytrimem = skytrimem->next;
-		Z_Free(f);
-	}
+	qmodel_t *m = cl.worldmodel;
+	size_t modidx;
 
-	if (cl.worldmodel && !cl.worldmodel->needload && cl.worldmodel->type == mod_brush)
-	{
-		qmodel_t *m = cl.worldmodel;
-		int t;
-		int i;
-		int ptype;
-		msurface_t *surf;
-		char key[128];
-		const char *data = COM_Parse(cl.worldmodel->entities);
-		int *remaps;
-		remaps = malloc(sizeof(*remaps)*m->numtextures);
-		for (t = 0; t < m->numtextures; t++)
-			remaps[t] = P_INVALID;
+	PScript_ClearAllSurfaceParticles();
 
-		//parse the worldspawn entity fields for "_texpart_FOO" keys to give texture "FOO" particles from the effect specified by the value
-		if (data && com_token[0] == '{')
+	for (modidx = 0; modidx < MAX_MODELS; modidx++)
+	{
+		m = cl.model_precache[modidx];
+
+		if (m && !m->needload && m->type == mod_brush)
 		{
-			while (1)
+			int t;
+			int i;
+			int ptype;
+			msurface_t *surf;
+			char key[128];
+			const char *data = COM_Parse(m->entities);
+			int *remaps;
+			remaps = malloc(sizeof(*remaps)*m->numtextures);
+			for (t = 0; t < m->numtextures; t++)
+				remaps[t] = P_INVALID;
+
+			//parse the worldspawn entity fields for "_texpart_FOO" keys to give texture "FOO" particles from the effect specified by the value
+			if (data && com_token[0] == '{')
 			{
-				data = COM_Parse(data);
-				if (!data)
-					break; // error
-				if (com_token[0] == '}')
-					break; // end of worldspawn
-				if (com_token[0] == '_')
-					strcpy(key, com_token + 1);
-				else
-					strcpy(key, com_token);
-				while (key[strlen(key)-1] == ' ') // remove trailing spaces
-					key[strlen(key)-1] = 0;
-				data = COM_Parse(data);
-				if (!data)
-					break; // error
-				if (!q_strncasecmp("texpart_", key, 8))
+				while (1)
 				{
-					for (t = 0; t < m->numtextures; t++)
+					data = COM_Parse(data);
+					if (!data)
+						break; // error
+					if (com_token[0] == '}')
+						break; // end of worldspawn
+					if (com_token[0] == '_')
+						strcpy(key, com_token + 1);
+					else
+						strcpy(key, com_token);
+					while (key[strlen(key)-1] == ' ') // remove trailing spaces
+						key[strlen(key)-1] = 0;
+					data = COM_Parse(data);
+					if (!data)
+						break; // error
+					if (!q_strncasecmp("texpart_", key, 8))
 					{
-						if (!q_strcasecmp(key+8, m->textures[t]->name))
-							remaps[t] = PScript_FindParticleType(com_token);
+						/*in quakespasm there are always two textures added on the end (rather than pointing to textures outside the model)*/
+						for (t = 0; t < m->numtextures-2; t++)
+						{
+							if (!q_strcasecmp(key+8, m->textures[t]->name))
+								remaps[t] = PScript_FindParticleType(com_token);
+						}
 					}
 				}
 			}
-		}
 
-		for (t = 0; t < m->numtextures; t++)
-		{
-			ptype = remaps[t];
-			if (ptype == P_INVALID)
-				ptype = PScript_FindParticleType(va("tex_%s", m->textures[t]->name));
-
-			if (ptype >= 0)
+			for (t = 0; t < m->numtextures; t++)
 			{
-				for (i=0; i<m->nummodelsurfaces; i++)
+				ptype = remaps[t];
+				if (ptype == P_INVALID)
+					ptype = PScript_FindParticleType(va("tex_%s", m->textures[t]->name));
+
+				if (ptype >= 0)
 				{
-					surf = m->surfaces + i + m->firstmodelsurface;
-					if (surf->texinfo->texture == m->textures[t])
+					for (i=0; i<m->nummodelsurfaces; i++)
 					{
-						/*FIXME: it would be a good idea to determine the surface's (midpoint) pvs cluster so that we're not spamming for the entire map*/
-						PScript_EmitSkyEffectTris(m, surf, ptype);
+						surf = m->surfaces + i + m->firstmodelsurface;
+						if (surf->texinfo->texture == m->textures[t])
+						{
+							/*FIXME: it would be a good idea to determine the surface's (midpoint) pvs cluster so that we're not spamming for the entire map*/
+							PScript_EmitSkyEffectTris(m, surf, ptype);
+						}
 					}
 				}
 			}
+			free(remaps);
 		}
-		free(remaps);
 	}
 }
 /*
@@ -3546,19 +3639,15 @@ void PScript_ClearParticles (void)
 		part_type[i].beams = NULL;
 	}
 
-	skytris = NULL;
-	while(skytrimem)
-	{
-		void *f = skytrimem;
-		skytrimem = skytrimem->next;
-		Z_Free(f);
-	}
+	PScript_ClearAllSurfaceParticles();
 	r_plooksdirty = true;
+
+	CL_ClearTrailStates();
 }
 
-static qboolean P_LoadParticleSet(char *name, qboolean implicit)
+static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwarning)
 {
-	FILE *file;
+	char *file;
 	pcfg_t *cfg;
 
 	if (!*name)
@@ -3591,13 +3680,13 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 		return true;
 	}
 
-	COM_FOpenFile(va("particles/%s.cfg", name), &file, NULL);
+	file = (char*)COM_LoadMallocFile(va("particles/%s.cfg", name), NULL);
 	if (!file)
-		COM_FOpenFile(va("%s.cfg", name), &file, NULL);
+		file = (char*)COM_LoadMallocFile(va("%s.cfg", name), NULL);
 	if (file)
 	{
-		PScript_ParseParticleEffectFile(name, implicit, file);
-		fclose(file);
+		PScript_ParseParticleEffectFile(name, implicit, file, com_filesize);
+		free(file);
 	}
 	else
 	{
@@ -3609,15 +3698,10 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 			P_ImportEffectInfo_Name(name);
 			return true;
 		}
-
-		if (P_LoadParticleSet("high", true))
-			Con_Printf(CON_WARNING "Couldn't find particle description %s, loading 'high' instead\n", name);
-		else
 #endif
-		{
+		if (showwarning)
 			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
-			return false;
-		}
+		return false;
 	}
 	return true;
 }
@@ -3664,50 +3748,40 @@ static void R_ParticleDesc_Callback(struct cvar_s *var)
 	for (c = var->string; (c=COM_Parse(c)); )
 	{
 		if (*com_token)
-			P_LoadParticleSet(com_token, false);
+			P_LoadParticleSet(com_token, false, true);
+	}
+
+	if (cls.state == ca_connected && cl.model_precache[1])
+	{
+		//per-map configs. because we can.
+		memcpy(com_token, "map_", 4);
+		COM_FileBase(cl.model_precache[1]->name, com_token+4, sizeof(com_token)-4);
+		P_LoadParticleSet(com_token, false, false);
 	}
 
 	//make sure nothing is stale.
 	CL_RegisterParticles();
 }
 
-static void P_AddRainParticles(void)
+static void P_AddRainParticles(qmodel_t *mod, vec3_t axis[3], vec3_t eorg, int visframe, float contribution)
 {
 	float x;
 	float y;
-	static float skipped;
-	static float lastrendered;
 	part_type_t *type;
 
-	vec3_t org, vdist;
+	vec3_t org, vdist, worg, wnorm;
 
 	skytris_t *st;
-
-	if (!r_part_rain.value || !r_part_rain_quantity.value)
-	{
-		skipped = true;
+	if (!r_part_rain_quantity.value)
 		return;
-	}
 
-	if (lastrendered < particletime - 0.5)
-		skipped = true;	//we've gone for half a sec without any new rain. This would cause some strange effects, so reset times.
+	mod->skytime += contribution;
 
-	if (skipped)
+	for (st = mod->skytris; st; st = st->next)
 	{
-		for (st = skytris; st; st = st->next)
+		if (st->face->visframe != visframe)
 		{
-			st->nexttime = particletime;
-		}
-	}
-	skipped = false;
-
-	lastrendered = particletime;
-
-	for (st = skytris; st; st = st->next)
-	{
-		if (st->face->visframe != r_visframecount)
-		{
-			st->nexttime = particletime;
+			st->nexttime = mod->skytime;
 			continue;
 		}
 
@@ -3717,46 +3791,46 @@ static void P_AddRainParticles(void)
 		if (!type->loaded)	//woo, batch skipping.
 			continue;
 
-		while (st->nexttime < particletime)
+		while (st->nexttime < mod->skytime)
 		{
 			if (!free_particles)
 				return;
 
-			st->nexttime += 10000/(st->area*r_part_rain_quantity.value*type->rainfrequency);
+			st->nexttime += 10000.0/(st->area*r_part_rain_quantity.value*type->rainfrequency);
 
 			x = frandom()*frandom();
 			y = frandom() * (1-x);
 			VectorMA(st->org, x, st->x, org);
 			VectorMA(org, y, st->y, org);
 
+			worg[0] = DotProduct(org, axis[0]) + eorg[0];
+			worg[1] = -DotProduct(org, axis[1]) + eorg[1];
+			worg[2] = DotProduct(org, axis[2]) + eorg[2];
 
-			VectorSubtract(org, r_refdef.vieworg, vdist);
-
+			//ignore it if its too far away
+			VectorSubtract(worg, r_refdef.vieworg, vdist);
 			if (VectorLength(vdist) > (1024+512)*frandom())
 				continue;
 
 			if (st->face->flags & SURF_PLANEBACK)
-				VectorMA(org, -0.5, st->face->plane->normal, org);
+				VectorScale(st->face->plane->normal, -1, vdist);
 			else
-				VectorMA(org, 0.5, st->face->plane->normal, org);
+				VectorCopy(st->face->plane->normal, vdist);
 
-			if (!(CL_PointContentsMask(org) & FTECONTENTS_SOLID))	//should be paranoia
+			wnorm[0] = DotProduct(vdist, axis[0]);
+			wnorm[1] = -DotProduct(vdist, axis[1]);
+			wnorm[2] = DotProduct(vdist, axis[2]);
+
+			VectorMA(worg, 0.5, wnorm, worg);
+			if (!(CL_PointContentsMask(worg) & FTECONTENTS_SOLID))	//should be paranoia, at least for the world.
 			{
-				if (st->face->flags & SURF_PLANEBACK)
-				{
-					vdist[0] = -st->face->plane->normal[0];
-					vdist[1] = -st->face->plane->normal[1];
-					vdist[2] = -st->face->plane->normal[2];
-					PScript_RunParticleEffectState(org, vdist, 1, st->ptype, NULL);
-				}
-				else
-					PScript_RunParticleEffectState(org, st->face->plane->normal, 1, st->ptype, NULL);
+				PScript_RunParticleEffectState(worg, wnorm, 1, st->ptype, NULL);
 			}
 		}
 	}
 }
 
-static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int ptype)
+static void R_Part_SkyTri(qmodel_t *mod, float *v1, float *v2, float *v3, msurface_t *surf, int ptype)
 {
 	float dot;
 	float xm;
@@ -3767,13 +3841,13 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int
 
 	skytris_t *st;
 
-	skytriblock_t *mem = skytrimem;
+	skytriblock_t *mem = mod->skytrimem;
 	if (!mem || mem->count == sizeof(mem->tris)/sizeof(mem->tris[0]))
 	{
-		skytrimem = Z_Malloc(sizeof(*skytrimem));
-		skytrimem->next = mem;
-		skytrimem->count = 0;
-		mem = skytrimem;
+		mod->skytrimem = Z_Malloc(sizeof(*mod->skytrimem));
+		mod->skytrimem->next = mem;
+		mod->skytrimem->count = 0;
+		mem = mod->skytrimem;
 	}
 
 	st = &mem->tris[mem->count];
@@ -3793,7 +3867,7 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int
 	dot = DotProduct(xd, yd);
 	theta = acos(dot/(xm*ym));
 	st->area = sin(theta)*xm*ym;
-	st->nexttime = particletime;
+	st->nexttime = mod->skytime;
 	st->face = surf;
 	st->ptype = ptype;
 
@@ -3801,8 +3875,8 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int
 		return;//bummer.
 	mem->count++;
 
-	st->next = skytris;
-	skytris = st;
+	st->next = mod->skytris;
+	mod->skytris = st;
 }
 
 
@@ -3846,7 +3920,7 @@ void PScript_EmitSkyEffectTris(qmodel_t *mod, msurface_t 	*fa, int ptype)
 	v2 = 1;
 	for (v3 = 2; v3 < numverts; v3++)
 	{
-		R_Part_SkyTri(verts[v1], verts[v2], verts[v3], fa, ptype);
+		R_Part_SkyTri(mod, verts[v1], verts[v2], verts[v3], fa, ptype);
 
 		v2 = v3;
 	}
@@ -3866,7 +3940,7 @@ static void P_CleanTrailstate(trailstate_t *ts)
 	memset(ts, 0, sizeof(trailstate_t));
 }
 
-static void PScript_DelinkTrailstate(trailstate_t **tsk)
+void PScript_DelinkTrailstate(trailstate_t **tsk)
 {
 	trailstate_t *ts;
 	trailstate_t *assoc;
@@ -5335,8 +5409,17 @@ int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typ
 		// maintain run list
 		if (!(ptype->state & PS_INRUNLIST) && (ptype->particles || ptype->clippeddecals))
 		{
-			ptype->nexttorun = part_run_list;
-			part_run_list = ptype;
+			if (part_run_list)
+			{
+				//insert after, to try to avoid edge-case weirdness
+				ptype->nexttorun = part_run_list->nexttorun;
+				part_run_list->nexttorun = ptype;
+			}
+			else
+			{
+				ptype->nexttorun = part_run_list;
+				part_run_list = ptype;
+			}
 			ptype->state |= PS_INRUNLIST;
 		}
 
@@ -6220,7 +6303,6 @@ int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec
 }
 
 static vec3_t pright, pup;
-static float pframetime;
 
 static void R_AddFanSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 {
@@ -6761,7 +6843,7 @@ static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 	t->numidx += 6;
 }
 
-static void PScript_DrawParticleTypes (void)
+static void PScript_DrawParticleTypes (float pframetime)
 {
 #if UNSUPPORTED
 	float viewtranslation[16];
@@ -6788,7 +6870,6 @@ static void PScript_DrawParticleTypes (void)
 
 	int traces=r_particle_tracelimit.value;
 	int rampind;
-	static float oldtime;
 	static float flurrytime;
 	qboolean doflurry;
 	int batchflags;
@@ -6820,11 +6901,6 @@ static void PScript_DrawParticleTypes (void)
 		CL_RegisterParticles();
 		PScript_RecalculateSkyTris();
 	}
-
-	pframetime = cl.time - oldtime;
-	if (pframetime < 0)
-		pframetime = 0;
-	oldtime = cl.time;
 
 	VectorScale (vup, 1.5, pup);
 	VectorScale (vright, 1.5, pright);
@@ -7516,7 +7592,7 @@ static void PScript_DrawParticleTypes (void)
 							{
 								VectorAdd(stop, oldorg, stop);
 								VectorScale(stop, 0.5, stop);
-#ifdef UNSUPPORTED
+#if UNSUPPORTED
 								RQ_AddDistReorder(bdraw, b, type->slooks, stop);
 #endif
 							}
@@ -7548,8 +7624,10 @@ endtype:
 		{
 			if (!lastvalidtype)
 				part_run_list = type->nexttorun;
-			else
+			else if (lastvalidtype->nexttorun == type)
 				lastvalidtype->nexttorun = type->nexttorun;
+			else
+				lastvalidtype->nexttorun->nexttorun = type->nexttorun;
 			type->state &= ~PS_INRUNLIST;
 		}
 		else
@@ -7641,6 +7719,7 @@ endtype:
 	glDisable(GL_BLEND);
 	glShadeModel(GL_FLAT);
 	glDepthMask(GL_TRUE);
+	glEnable(GL_CULL_FACE);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	GL_PolygonOffset (OFFSET_NONE);
 	cl_numstris = 0;
@@ -7655,9 +7734,38 @@ R_DrawParticles
 */
 void PScript_DrawParticles (void)
 {
-	P_AddRainParticles();
+	int i;
+	entity_t *ent;
+	vec3_t axis[3];
+	float pframetime;
+	static float oldtime;
+	
+	pframetime = cl.time - oldtime;
+	if (pframetime < 0)
+		pframetime = 0;
+	if (pframetime > 1)
+		pframetime = 1;
+	oldtime = cl.time;
 
-	PScript_DrawParticleTypes();
+	if (r_part_rain.value)
+	{
+		for (i = 0; i < cl.num_entities; i++)
+		{
+			ent = &cl_entities[i];
+			if (!ent->model || ent->model->needload)
+				continue;
+			if (!ent->model->skytris)
+				continue;
+			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
+			//this timer, as well as the per-tri timer, are unable to deal with certain rates+sizes. it would be good to fix that...
+			//it would also be nice to do mdls too...
+			P_AddRainParticles(ent->model, axis, ent->origin, ((i==0)?r_visframecount:0), pframetime);
+		}
+
+		//FIXME: static entities too!
+	}
+
+	PScript_DrawParticleTypes(pframetime);
 
 //	if (fallback)
 //		fallback->DrawParticles();

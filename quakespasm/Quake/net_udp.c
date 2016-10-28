@@ -536,6 +536,12 @@ int UDP_AddrCompare (struct qsockaddr *addr1, struct qsockaddr *addr2)
 		    ((struct sockaddr_in6 *)addr2)->sin6_port)
 			return 1;
 
+		if (((struct sockaddr_in6 *)addr1)->sin6_scope_id &&
+			((struct sockaddr_in6 *)addr2)->sin6_scope_id &&
+			((struct sockaddr_in6 *)addr1)->sin6_scope_id !=
+			((struct sockaddr_in6 *)addr2)->sin6_scope_id)	//the ipv6 scope id is for use with link-local addresses, to identify the specific interface.
+			return 1;
+
 		return 0;
 	}
 	else

@@ -186,7 +186,10 @@ const char *NET_QSocketGetMaskedAddressString (const qsocket_t *s)
 }
 qboolean NET_QSocketGetProQuakeAngleHack(const qsocket_t *s)
 {
-	return s->proquake_angle_hack;
+	if (s && !s->disconnected)
+		return s->proquake_angle_hack;
+	else
+		return false;	//happens with demos
 }
 void NET_QSocketSetMSS(qsocket_t *s, int mss)
 {

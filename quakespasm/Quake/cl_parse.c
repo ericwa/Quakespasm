@@ -374,6 +374,7 @@ static unsigned int CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, c
 
 	if (bits & UF_SOLID)
 	{	//knowing the size of an entity is important for prediction
+		//without prediction, its a bit pointless.
 		/*if (cl.protocol_pext2 & PEXT2_NEWSIZEENCODING)
 		{
 			qbyte enc = MSG_ReadByte();
@@ -464,7 +465,17 @@ static unsigned int CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, c
 		/*news->lightpflags =*/ MSG_ReadByte();
 	}
 	if (bits & UF_TRAILEFFECT)
-		news->traileffectnum = MSG_ReadShort();
+	{
+		unsigned short v = MSG_ReadShort();
+		news->emiteffectnum = 0;
+		news->traileffectnum = v & 0x3fff;
+		if (v & 0x8000)
+			news->emiteffectnum = MSG_ReadShort() & 0x3fff;
+		if (news->traileffectnum >= MAX_PARTICLETYPES)
+			news->traileffectnum = 0;
+		if (news->emiteffectnum >= MAX_PARTICLETYPES)
+			news->emiteffectnum = 0;
+	}
 
 	if (bits & UF_COLORMOD)
 	{
@@ -680,13 +691,23 @@ static void CLFTE_ParseEntitiesUpdate(void)
 	}
 
 	if (cl.protocol_pext2 & PEXT2_PREDINFO)
-	{
+	{	//stats should normally be sent before the entity data.
 		VectorCopy (cl.mvelocity[0], cl.mvelocity[1]);
 		ent = CL_EntityNum(cl.viewentity);
 		cl.mvelocity[0][0] = ent->netstate.velocity[0]*(1/8.0);
 		cl.mvelocity[0][1] = ent->netstate.velocity[1]*(1/8.0);
 		cl.mvelocity[0][2] = ent->netstate.velocity[2]*(1/8.0);
 		cl.onground = (ent->netstate.eflags & EFLAGS_ONGROUND)?true:false;
+
+
+		cl.punchangle[0] = cl.statsf[STAT_PUNCHANGLE_X];
+		cl.punchangle[1] = cl.statsf[STAT_PUNCHANGLE_Y];
+		cl.punchangle[2] = cl.statsf[STAT_PUNCHANGLE_Z];
+		if (v_punchangles[0][0] != cl.punchangle[0] || v_punchangles[0][1] != cl.punchangle[1] || v_punchangles[0][2] != cl.punchangle[2])
+		{
+			VectorCopy (v_punchangles[0], v_punchangles[1]);
+			VectorCopy (cl.punchangle, v_punchangles[0]);
+		}
 	}
 
 	if (!cl.requestresend)
@@ -1535,6 +1556,10 @@ static void CL_ParseStatic (int version) //johnfitz -- added a parameter
 
 // copy it to the current state
 
+	ent->netstate = ent->baseline;
+
+	ent->trailstate = NULL;
+	ent->emitstate = NULL;
 	ent->model = cl.model_precache[ent->baseline.modelindex];
 	ent->lerpflags |= LERP_RESETANIM; //johnfitz -- lerping
 	ent->frame = ent->baseline.frame;
@@ -1742,7 +1767,8 @@ void CL_ParseServerMessage (void)
 	else if (cl_shownet.value == 2)
 		Con_Printf ("------------------\n");
 
-	cl.onground = false;	// unless the server says otherwise
+	if (!(cl.protocol_pext2 & PEXT2_PREDINFO))
+		cl.onground = false;	// unless the server says otherwise
 //
 // parse the message
 //

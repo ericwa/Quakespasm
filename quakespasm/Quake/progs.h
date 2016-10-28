@@ -79,6 +79,10 @@ void PR_EnableExtensions(ddef_t *pr_globaldefs);	//adds in the extra builtins et
 void PR_AutoCvarChanged(cvar_t *var);				//updates the autocvar_ globals when their cvar is changed
 void PR_ShutdownExtensions(void);					//nooooes!
 void PR_DumpPlatform_f(void);						//console command: writes out a qsextensions.qc file
+//special hacks...
+int PF_SV_ForceParticlePrecache(const char *s);
+int SV_Precache_Model(const char *s);
+void PR_spawnfunc_misc_model(edict_t *self);
 
 //from pr_edict, for pr_ext. reflection is messy.
 qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s);
@@ -178,6 +182,7 @@ extern struct pr_extfields_s
 	int		movement;
 	int		viewmodelforclient;
 	int		traileffectnum;
+	int		emiteffectnum;
 } pr_extfields;
 
 #endif	/* _QUAKE_PROGS_H */

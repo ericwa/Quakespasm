@@ -112,8 +112,10 @@ int PScript_FindParticleType(const char *fullname);
 int PScript_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, const char *name);
 int PScript_EntParticleTrail(vec3_t oldorg, entity_t *ent, const char *name);
 int PScript_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count);
+void PScript_DelinkTrailstate(struct trailstate_s **tsk);
 void PScript_ClearParticles (void);
 void PScript_UpdateModelEffects(qmodel_t *mod);
+void PScript_ClearSurfaceParticles(qmodel_t *mod);	//model is being unloaded.
 #else
 #define PScript_RunParticleEffectState(o,d,c,t,s) true
 #define PScript_RunParticleEffectTypeString(o,d,c,n) true	//just unconditionally returns an error
@@ -121,6 +123,8 @@ void PScript_UpdateModelEffects(qmodel_t *mod);
 #define PScript_ParticleTrail(o,e,t,d,a,s) true
 #define PScript_EntParticleTrail(o,e,n) true
 #define PScript_RunParticleEffect(o,d,p,c) true
+#define PScript_ClearSurfaceParticles(m)
+#define PScript_DelinkTrailstate(tsp)
 #endif
 
 //====================================================

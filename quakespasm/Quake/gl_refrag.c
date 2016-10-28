@@ -238,9 +238,30 @@ void R_StoreEfrags (efrag_t **ppefrag)
 			pent->visframe = r_framecount;
 
 #ifdef PSET_SCRIPT
-			if (pent->model->emiteffect >= 0)
+			if (pent->netstate.emiteffectnum > 0)
 			{
-				PScript_RunParticleEffectState(pent->origin, NULL, ((host_frametime>0.1)?0.1:host_frametime), pent->model->emiteffect, &pent->emitstate);
+				float t = cl.time-cl.oldtime;
+				vec3_t axis[3];
+				if (t < 0) t = 0; else if (t > 0.1) t= 0.1;
+				AngleVectors(pent->angles, axis[0], axis[1], axis[2]);
+				if (pent->model->type == mod_alias)
+					axis[0][2] *= -1;	//stupid vanilla bug
+				PScript_RunParticleEffectState(pent->origin, axis[0], t, cl.particle_precache[pent->netstate.emiteffectnum].index, &pent->emitstate);
+			}
+			else if (pent->model->emiteffect >= 0)
+			{
+				float t = cl.time-cl.oldtime;
+				vec3_t axis[3];
+				if (t < 0) t = 0; else if (t > 0.1) t= 0.1;
+				AngleVectors(pent->angles, axis[0], axis[1], axis[2]);
+				if (pent->model->flags & MOD_EMITFORWARDS)
+				{
+					if (pent->model->type == mod_alias)
+						axis[0][2] *= -1;	//stupid vanilla bug
+				}
+				else
+					VectorScale(axis[2], -1, axis[0]);
+				PScript_RunParticleEffectState(pent->origin, axis[0], t, pent->model->emiteffect, &pent->emitstate);
 				if (pent->model->flags & MOD_EMITREPLACE)
 					continue;
 			}

@@ -341,6 +341,7 @@ void CL_ParseTEnt (void);
 void CL_UpdateTEnts (void);
 
 void CL_ClearState (void);
+void CL_ClearTrailStates(void);
 
 //
 // cl_demo.c

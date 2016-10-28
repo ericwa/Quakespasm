@@ -1,0 +1,233 @@
+this is an attempt to fix some of the deficiencies (as I see them) in quakespasm, while trying not to change how it feels to the user.
+
+changes:
+extra builtins -
+	added lots of misc builtins, including:
+	string manipulation+buffers,
+	file access,
+	bsp introspection,
+	maths,
+	tracebox,
+	botclient stuff,
+	clientcommands,
+	etc.
+	Setting pr_checkextensions 0 will a) prevent extensions from being advertised to the mod. b) display a warning when any extended builtin is used (assuming it would otherwise crash anyway).
+stub builtins -
+	also added stubs for builtins that either don't make sense in quakespasm or would need protocol extensions.
+	these are merely present to avoid crashes and will display a warning the first time they're called.
+multicast -
+	supports pvs culling. still does not support phs.
+precache builtins -
+	these can now be used mid-map. be warned that this will result in other clients disconnecting (will still display warnings on the server).
+misc stuff -
+	MOVETYPE_FOLLOW and SOLID_CORPSE now work, .movement is supported.
+cvar changes -
+	for mods, autocvars now work. the set+seta command also now works.
+	I bumped the cbuf size, because not only were well-documented mods were being punished for it, but also stuffcmded aliases were overflowing it.
+clc_stringcmd -
+	rewrote client->server string commands a little.
+	this security fix blocks clients from being able to execute server-side aliases/cvars with names similar to 'allowed' console commands.
+SV_TouchLinks -
+	rewrote this to avoid potential crashes within recursive touch events (yes, this can happen in rare cases, even in the prior quakespasm version).
+	may have minor behaviour differences, pr_checkextensions 0 disables this, restoring prior behaviour including instability-from-recursion.
+single server socket -
+	the server now only uses a single socket per protocol family.
+	this makes NATs/firewalls much easier to deal with as servers no longer need to be DMZoned, only a single port needs to be forwarded..
+ipv6 -
+	this build can natively use ipv6, but will still assume ipv4 first.
+	uses non-hybrid sockets so this should work on winxp too.
+	use -noudp4 or -noudp6 to disable one and not the other. by default it'll try to use both.
+	reduced mtu size to avoid connectivity issues. still higher than vanilla though, which may also cause other issues.
+master servers -
+	it is now possible to automatically list your server globally. hurrah...
+	unfortunately the server list is still lame and provides no ping info, so have fun with that. :)
+	thanks to ipv6, servers might get listed twice.
+	you can turn this on with sv_public, or via the 'new game' menu.
+proquake angles -
+	now uses 16bit angles when connecting to proquake servers, or really most protocol15 servers including qrack+dp+etc.
+	also advertises protocols, allowing fte servers to serve protocol 666+999 as needed.
+bug fixes -
+	spritegroups will now animate properly - this was a vanilla glquake bug.
+model loader -
+	alpha-tested models now supported
+	spr32 sprites now supported (still using alpha testing rather than changing all sprites to use blending, so the alpha channel might as well still be 1bit)
+	many limit-exceeding models will now safely fail to load rather than crashing the engine.
+	note that some limits were not properly enforced before, and this might mean that a couple of models will newly fail to load (but won't crash the engine any more).
+	known-but-unsupported model formats will display a more helpful message, without crashing. unknown formats will similarly no longer crash.
+	bspx coloured lighting is now supported (somewhat common in the qw community). use -bspxlit argument with tyrutils-ericw's light util and discard the lit.
+	added support for tyrutil-ericw's qbsp's -notex argument that omits textures, reducing file size and avoiding gpl violations. still doesn't do replacements though.
+	fixed bsps that were compiled with vanilla qbsp's -noclip argument. will retain the correct view height, but will otherwise use the point-hull for everything.
+binds menu -
+	if provided, will parse a bindlist.lst file from the gamedir. this should take the form of lines like:
+	+thecommand "some desc" "optional much longer description of it"
+	lines with a command that is just a hyphen are treated as comments/separators.
+	quakespasm ignores that third part, fte displays it on mouse-over.
+	if any binds are provided this way, they will completely replace the built-in list.
+	there is no limit to the binds that can be added, the menu will scroll, but there's no indicator that there are more/less.
+particles -
+	now includes fte's scriptable particle system.
+	the config parser is a little different from fte (fte uses actual console commands, qs parses directly without the console).
+		this means that configs are limited to just r_part+r_effect+r_trail. setting cvars from particle configs are not supported here.
+		also currently missing support for models, embedded shaders (obviously), stains, viewspace particles.
+		tga images are supported, png+jpg are not.
+	no effects will be loaded by default, causing the engine to fall back on the existing particle system until a config is loaded.
+		users can set r_particledesc if they really specific particle effects. mods should include the config name as a namespace/prefix.
+	example usage (using FTE_SV_POINTPARTICLES with FTE_PART_NAMESPACES):
+		float myexplosion = particleeffectnum("mypartcfg.myexplosion");
+		pointparticles(myexplosion, self.origin, trace_plane_normal, 1);
+	note that DP_SV_POINTPARTICLES and FTE_SV_POINTPARTICLES qc extensions are supposed to be identical, except that *certain* mods see DP_ and assume the entire particle system too, which is NOT the case, hence the need to check both extensions.
+	note that if FTE_PART_NAMESPACES is supported, then particleeffectnum("mypartcfg.myexplosion") will automatically load the 'mypartcfg' particle set, however the engine deals with that.
+	note that for dp compat, if FTE_PART_NAMESPACE_EFFECTINFO is supported, then "effectinfo.*" or "effectinfo_*.*" are supported namespaces that will should be compatible with DP's effects (if you ignore the prefix).
+		Precaching a single particle effect like this will include this config for all particles with no namespace.
+		So for dp compat, you can use the following:
+		if (checkextension("FTE_SV_POINTPARTICLES") || checkextension("DP_SV_POINTPARTICLES"))
+		{
+			if (checkextension("FTE_PART_NAMESPACE_EFFECTINFO"))
+			{
+				particleeffectnum("effectinfo.dummy");	//so clients will attempt to load the effectinfo namespace, if not already available.
+				particleeffectnum(strcat("effectinfo_", mapname, ".dummy"));	//map-specific effects
+			}
+			//else we have no idea where we're loading the config from... lets hope its either dp or the user helps us out
+			//do precaches
+			myexplosioneffect = particleeffectnum("myexplosioneffect");
+		}
+		//later
+		if (myexplosioneffect)
+			pointparticles(myexplosioneffect, self.origin, trace_plane_normal, 1);
+		else
+			te_explosion(self.origin);	//'generic' fallback
+	(or you can just set 'r_particledesc effectinfo' in your mod's default.cfg and hope the user doesn't change it to something else)
+	note that particleeffectnum acts as a precache. you don't need to cache the result in a spawn function, but you do need to have called it early enough to avoid warning message.
+	note that any use of particleeffectnum will cause other clients to disconnect with 'illegible server message'.
+	it is *ENTIRELY* the modder's/user's responsibility to keep things consistent and not garish. pay close attention to particle sizes, texture resolution, etc.
+	mappers can add something like the following to their worldspawn entity:
+		"_texpart_sky1" "weather.tex_rainsky"
+	surfaces with the "sky1" texture will then act as emitters. this includes _texpart_*teleport or whatever. this doesn't require new gamecode.
+	r_partredirect can be used to redirect emitters (or effects) dynamically. redirections are normally meant to be a user feature, so mods should probably try to avoid tex_* effects in case the user switches gamedirs.
+		this command can work recursively, up to 5 itterations.
+replacement network protocol -
+	namely FTE's nack-based PEXT2_REPLACEMENTDELTAS protocol extension. if you're a networking nerd, the archetecture is documented here: https://sourceforge.net/p/fteqw/code/HEAD/tree/trunk/specs/replacementdeltas.txt?format=raw
+		The extension applies to a base protocol, in this case 15, 666, or 999. There are some differences for QW vs NQ base protocols due to the netchan, these are not applicable to quakespasm.
+		the protocol is specced for lots of extended entity state, but most of that will be ignored/unused by the rest of the engine, and consequently won't be transmitted either.
+	automatically disabled per-client if unsupported by that client
+		all of the below will result in 'illegible server message' in older clients. usage of other extensions will be silently stripped, which may cause weirdness (eg: viewmodelforclient).
+		use of custom particles (particleeffectnum, trailparticles, pointparticles)
+		use of late precaches (at least if they were not already precached in a spawn function) [you shouldn't rely on this anyway].
+	this server implementation has not been applied to everything:
+		makestatic - static entities will not benefit from extensions like EF_NOSHADOW.
+	entities are sent as deltas from the previous packet
+		entity data is split up to not exceed the mtu (without needing netchan changes)
+	with PEXT2_PREDINFO, stats are also sent semi-unreliably using the same mechanism (avoids reliables-stall issues).
+		clc_clientdata is redundant.
+		all stats have full precision.
+		protocol does not change simply because a mission pack is loaded.
+		gamedir added to serverinfo, the client responds by displaying a warning if the gamedir does not match
+	baselines are generated per-client and split over multiple packets, so the signon buffer size is no longer a limiting factor for maps with insane entity counts (for all supported protocols).
+	MAX_VISEDICTS is gone.
+		however, try not to have them all visible at once. drawing 5k or 10k entities is a massive performance drain, as can them all getting angry at the player.
+	this implementation will reduce overall data sizes by avoiding retransmissions, but there is no rate limiting which can result in significant burst.
+		this may result in extra packetloss bursts if you have saturated tcp/etc connections running at the time.
+	packetloss is detected serverside and triggers resends
+		it will recover fully, but new entities appearing may have significant delays to them (especially if static) proportionally to other entities.
+	interpolation code unchanged, there is no time drifting, which means the engine will not be able to hide packetloss, resulting in slightly jerky player movement.
+		because of this FTE will still be smoother for internet play.
+		still playable while simulating 50% packetloss, but not smooth. this tested with no extra ping, so would be worse online.
+		the protocol does not carry nextthink hints, and quakespasm is too stupid to infer intervals, so assumes interpolation intervals of 0.1.
+	the protocol supports prediction, but this implementation does not.
+	To prevent the server from detecting replacement deltas (so they don't appear in demos), use "sv_protocol 666-" (omitting the - will neither enable nor disable fte extensions).
+		To re-enable extensions, use "sv_protocol FTE+666"
+		Other than a couple of extended svcs that a mod might use, 666 is effectively obsolete (but still useful as a base protocol for earlier quakespasm, fitzquake, etc).
+		Using 999 as the base protocol still provides map size increases.
+		This will also cause custom particle effects to become invisible to all clients.
+	To prevent the client from advertising support for replacement deltas, use 'cl_nopext 1'.
+		The server will fall back to only the base protocol, if *either* the client or server has it disabled (or both, obviously).
+		Ideally, leave it enabled on the server and disable it as desired on the client, but I guess people are not familiar with that yet.
+		This will allow you to record compatible demos even if you don't have rcon access to the server.
+lightstyles -
+	bumped to 255 (the last index is not valid in bsps, so not relevant).
+	presense of additional lightmaps won't bug anything out, but actually using them might break other clients if they don't support this raised limit yet.
+rcon -
+	proquake-compatible rcon is implemented server-side.
+	WARNING: the password is sent as plain text! it is NOT secure! (protocol limitation from )
+	set rcon_password to enable it, the default blank value will unconditionally treat all attempts as invalid.
+	no client support. there's no real reason for this, I just didn't bother writing the code (presumably it would be like the 'test' command, but *vomit*).
+
+test mods:
+dpmod -
+	a quick test of this seems to run fine, with the exception of a few non-generic particle effect builtins which are still stubs, mostly modified quad-damage effects.
+smc -
+	this does actually run, but is not exactly enjoyable due to:
+		the use of pk3s means that everything needs to be extracted first.
+		use of md3 format (these models will be invisible)
+		high mdl poly counts making mdls unloadable (resulting in them being .. you guessed it, invisible)
+		unsupported stereo sounds (won't play, and might spam)
+		no shader support (hey, at least qs won't obey the 'depthfunc equal' lines)
+		smc loves late precaches (spammy).
+	additionally an smc bug causes monsters to be spawned underground (monsters can't move).
+	there's likely other issues. I've not tested it that extensively.
+arcane dimensions -
+	urm. still works?..
+	gains DP_QC_GETSURFACE, so broken vanilla skies stop being broken (ad's only use for this extension).
+	gains EF_NOSHADOW.
+	ad's engine particle system usage assumes dp internals, and needs a tweak in order to get it to behave more generically.
+rogue -
+	still need to test the ending with its writebyte hacks
+
+
+issues:
+	(note that listed critisisms are not always bad things for the average qs user, but are probably bad for _someone_ and do limit potential mods)
+	(some things can only be good, except for how invasive such a thing would be resulting in too many bugs, or I'm just too lazy/selfish to do them myself)
+protocol changes -
+	late precaches are in, but will still display warnings if depended upon. late precaches can still be an issue if the reliable is delayed while the unreliable is not.
+	sounds are still sent fully unreliably. this means they are subject to packetloss, and is especially significant on func_plat entities (where the sounds are typically looping, and thus might never be replaced/stopped).
+	staticsounds still use the sv.signon buffer, and are thus still limited to the underlying protocol and single-signon-buffer size.
+	pointparticles and trailparticles are new, but there is no support for most extended TE_* values (rain+snow are the only added TEs). Use pointparticles if you need such other effects.
+	while the protocol supports a range of extra entity state, much of that data is still unused (parsed and not sent). including ef_additive, tags, etc
+not added -
+	voip would be a nice idea for all those first-playthrough map demos
+	no download mechanism added. I would want to use paks, which would make this far too complex. there's no automatic gamedir switching either.
+	(there is a gamedir hint, but currently it results in only a warning print because I really cba to rewrite quakespasm's filesystem code)
+serious dp protocol issues - 
+	sending 666 or 999 to a dp client results in dp spamming loads of useless gibberish that obscures the actual error, such that few people actually report the actual problem...
+	the only way I can think of getting DP to be remotely sane is to send it an svc_version for it to crap out on, reducing the spam in the hopes that people will read up a little.
+	the alternative is to hack in some 'cmd dpcheck $somedponlycvar' and see what the client says that cvar is set to (if $foo is supported).
+	unfortunately there's no version cvar, or any other kind of useful feature that I'm aware of, so this would fuck up for other clients with seta etc getting saved into $gamedir/config.cfg and then poluting other engines.
+	(this is not a new issue)
+proquake+vanilla sucks:
+	sv_protocol=666 has higher limits. if this is inadvertantly set, then the server is permitted to send larger serverinfo packets (that exceed the 8192 limit).
+	proquake then displays 'read error' (due to recvfrom returning EMSGSIZE), which is awkward but not our bug, just a vanilla limitation.
+	(this is not a new issue)
+	note that reliables larger than 8192 but with an mtu compatible with vanilla can be used to crash both vanilla and proquake. this is true even if it is a client that sent the packets, crashing the server.
+	(this is not present in qss)
+limited renderer changes -
+	no md3 support
+	no iqm support
+	harsh mdl limits
+	sprites still alpha-tested
+	still using render-to-texture instead of glsl for drawing water (which would allow mipmaps and anisotropic filtering, instead of using a random noise texture...)
+randomization -
+	quakespasm likes seeding the random number generator as a handy trick... which can result in timers+particles getting a little too predictable
+no filesystem updates -
+	no pk3s (could potentially decompress to a temp file, and fix up over time, but meh)
+	still only numbered paks, no pak.lst file or fs enumeration
+	'game' console command is still stupid (backwards, hardcoded special cases, limited paths)
+	I did add a 'gamedir' command as an alternative name for 'game', because quakeworld. I'd do show_fps too, but cvars make that messy.
+console -
+	is still annoying
+	still prints non-ascii/non-unicode chars to stdout, which may include escape codes or other xterm/etc exploits.
+	con_printf is still horribly slow (at least with vsync), and likely to crash on someone... and not just me. fixing this would make a few poorly designed blocking things not refresh properly.
+no markup -
+	all that ^1funny ^2and ^3annoying ^7text isn't handled, and remains as gibberish.
+menu -
+	still no mouse support
+	still no way to add mod-specific cvars onto the menu
+
+compiling:
+	export CFLAGS="-Wall -Werror -Wextra -Wno-missing-field-initializers -Wno-unused-parameter -DBUILD_SPECIAL=-spiked-rFOO"
+	is the CFLAGS environment setting that I'm compiling with. I only really mention that for branding. Also I'm building in windows with cygwin.
+	There's no 3rd-party dependancies from the vanilla quakespasm code included. this isn't an issue if you're going to compile for linux, where the dependancies are generally preinstalled as part of your distro, or you can just apt-get them or whatever.
+	So if you're going to compile for windows or osx, you'll need to do an svn checkout of vanilla quakespasm first, and then overwrite with the extra files (or just apply the patch to your checkout).
+
+running:
+	win32+win64 binaries are included. linux users will need to build their own. osx users are screwed.
+	no 3rd-party libraries are included. It is assumed that you'll have previously installed vanilla QuakeSpasm and thus won't need them. In which case grab the exe that matches the archetecture of your existing QS install and just run that as if it were vanilla QuakeSpasm. Delete the other or whatever, it doesn't matter..

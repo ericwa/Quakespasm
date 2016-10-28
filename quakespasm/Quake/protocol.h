@@ -362,15 +362,16 @@ typedef struct
 	vec3_t		angles;
 	unsigned short 	modelindex;	//johnfitz -- was int
 	unsigned short 	frame;		//johnfitz -- was int
+	unsigned int	effects;
 	unsigned char	colormap;	//johnfitz -- was int
 	unsigned char	skin;		//johnfitz -- was int
 	unsigned char	alpha;		//johnfitz -- added
 	unsigned char	pmovetype;	//spike
 	unsigned short	traileffectnum;	//spike -- for qc-defined particle trails. typically evilly used for things that are not trails.
+	unsigned short	emiteffectnum;	//spike -- for qc-defined particle trails. typically evilly used for things that are not trails.
 	short	velocity[3];	//spike -- the player's velocity.
-	unsigned short	effects;
 	unsigned char	eflags;
-	unsigned char	pad;
+//	unsigned char	pad;
 } entity_state_t;
 #define EFLAGS_STEP				1
 //#define EFLAGS_GLOWTRAIL		2
@@ -379,7 +380,7 @@ typedef struct
 //#define EFLAGS_				16
 //#define EFLAGS_COLOURMAPPED	32	//.colormap=1024|(top<<4)|bottom), instead of a player number
 //#define EFLAGS_				64
-#define EFLAGS_ONGROUND			128
+#define EFLAGS_ONGROUND			128	//for bobbing more than anything else. *sigh*.
 
 typedef struct
 {

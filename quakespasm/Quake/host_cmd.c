@@ -487,7 +487,7 @@ void Host_Status_f (void)
 			j++;
 	if (j)
 		print_fn (    "effects: %i/%i\n", j, MAX_PARTICLETYPES-1);
-	for (i = 1,j=0; i < sv.max_edicts; i++)
+	for (i = 1,j=1; i < sv.num_edicts; i++)
 		if (!sv.edicts[i].free)
 			j++;
 	print_fn (    "entities:%i/%i\n", j, sv.max_edicts);
