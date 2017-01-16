@@ -1199,6 +1199,20 @@ static void GL_CheckExtensions (void)
 	{
 		Con_Warning ("GLSL alias model rendering not available, using Fitz renderer\n");
 	}
+	
+	// Lightmap format
+	// GL_BGRA and GL_UNSIGNED_INT_8_8_8_8_REV are only available on Open GL >= 1.2
+	if (gl_version_major > 1
+		|| (gl_version_major == 1 && gl_version_minor >= 2))
+	{
+		gl_lightmap_format = GL_BGRA;//FIXME: hardcoded for now!
+		gl_lightmap_type = GL_UNSIGNED_INT_8_8_8_8_REV;
+	}
+	else
+	{
+		gl_lightmap_format = GL_RGBA;
+		gl_lightmap_type = GL_UNSIGNED_BYTE;
+	}
 }
 
 /*

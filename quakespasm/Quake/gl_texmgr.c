@@ -1178,7 +1178,7 @@ static void TexMgr_LoadLightmap (gltexture_t *glt, byte *data)
 {
 	// upload it
 	GL_Bind (glt);
-	glTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes, glt->width, glt->height, 0, gl_lightmap_format, GL_UNSIGNED_BYTE, data);
+	glTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes, glt->width, glt->height, 0, gl_lightmap_format, gl_lightmap_type, data);
 
 	// set filter modes
 	TexMgr_SetFilterModes (glt);

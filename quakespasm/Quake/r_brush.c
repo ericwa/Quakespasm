@@ -28,6 +28,7 @@ extern cvar_t gl_fullbrights, r_drawflat, gl_overbright, r_oldwater; //johnfitz
 extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
 
 int		gl_lightmap_format;
+int		gl_lightmap_type;
 int		lightmap_bytes;
 
 #define	BLOCK_WIDTH	128
@@ -890,8 +891,8 @@ void GL_BuildLightmaps (void)
 		lightmap_textures[i] = NULL;
 	//johnfitz
 
-	gl_lightmap_format = GL_RGBA;//FIXME: hardcoded for now!
-
+	//ericw -- gl_lightmap_format is now set in GL_CheckExtensions
+	
 	switch (gl_lightmap_format)
 	{
 	case GL_RGBA:
@@ -1184,9 +1185,8 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 
 // bound, invert, and shift
 // store:
-	switch (gl_lightmap_format)
+	if (gl_lightmap_format == GL_RGBA && gl_lightmap_type == GL_UNSIGNED_BYTE)
 	{
-	case GL_RGBA:
 		stride -= smax * 4;
 		bl = blocklights;
 		for (i=0 ; i<tmax ; i++, dest += stride)
@@ -1211,8 +1211,9 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				*dest++ = 255;
 			}
 		}
-		break;
-	case GL_BGRA:
+	}
+	else if (gl_lightmap_format == GL_BGRA && gl_lightmap_type == GL_UNSIGNED_BYTE)
+	{
 		stride -= smax * 4;
 		bl = blocklights;
 		for (i=0 ; i<tmax ; i++, dest += stride)
@@ -1237,8 +1238,50 @@ void R_BuildLightMap (msurface_t *surf, byte *dest, int stride)
 				*dest++ = 255;
 			}
 		}
-		break;
-	default:
+	}
+	else if (gl_lightmap_format == GL_BGRA && gl_lightmap_type == GL_UNSIGNED_INT_8_8_8_8_REV)
+	{
+		stride -= smax * 4;
+		bl = blocklights;
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				if (gl_overbright.value)
+				{
+					r = *bl++ >> 8;
+					g = *bl++ >> 8;
+					b = *bl++ >> 8;
+				}
+				else
+				{
+					r = *bl++ >> 7;
+					g = *bl++ >> 7;
+					b = *bl++ >> 7;
+				}
+				
+				// GL_UNSIGNED_INT_8_8_8_8_REV means "first element" is packed in to the least-significant byte of the uint32
+				// On little-endian this gives a byte ordering of "first element", "second element", etc., so GL_BGRA is ordered B,G,R,A
+				// On big-endian it's "fourth element", "third element", etc., so GL_BGRA is ordered A,R,G,B
+				if (host_bigendian)
+				{
+					*dest++ = 255;
+					*dest++ = (r > 255)? 255 : r;
+					*dest++ = (g > 255)? 255 : g;
+					*dest++ = (b > 255)? 255 : b;
+				}
+				else
+				{
+					*dest++ = (b > 255)? 255 : b;
+					*dest++ = (g > 255)? 255 : g;
+					*dest++ = (r > 255)? 255 : r;
+					*dest++ = 255;
+				}
+			}
+		}
+	}
+	else
+	{
 		Sys_Error ("R_BuildLightMap: bad lightmap format");
 	}
 }
@@ -1261,7 +1304,7 @@ static void R_UploadLightmap(int lmap)
 
 	theRect = &lightmap_rectchange[lmap];
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, BLOCK_WIDTH, theRect->h, gl_lightmap_format,
-		  GL_UNSIGNED_BYTE, lightmaps+(lmap* BLOCK_HEIGHT + theRect->t) *BLOCK_WIDTH*lightmap_bytes);
+		  gl_lightmap_type, lightmaps+(lmap* BLOCK_HEIGHT + theRect->t) *BLOCK_WIDTH*lightmap_bytes);
 	theRect->l = BLOCK_WIDTH;
 	theRect->t = BLOCK_HEIGHT;
 	theRect->h = 0;
@@ -1322,6 +1365,6 @@ void R_RebuildAllLightmaps (void)
 			break;
 		GL_Bind (lightmap_textures[i]);
 		glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, gl_lightmap_format,
-			GL_UNSIGNED_BYTE, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
+			gl_lightmap_type, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
 	}
 }

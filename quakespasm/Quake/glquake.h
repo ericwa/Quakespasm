@@ -289,7 +289,7 @@ extern overflowtimes_t dev_overflows; //this stores the last time overflow messa
 #define CONSOLE_RESPAM_TIME 3 // seconds between repeated warning messages
 
 //johnfitz -- moved here from r_brush.c
-extern int gl_lightmap_format, lightmap_bytes;
+extern int gl_lightmap_format, gl_lightmap_type, lightmap_bytes;
 #define MAX_LIGHTMAPS 512 //johnfitz -- was 64
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
 
