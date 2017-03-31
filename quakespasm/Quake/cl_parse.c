@@ -874,13 +874,10 @@ CL_ParseStatic
 void CL_ParseStatic (int version) //johnfitz -- added a parameter
 {
 	entity_t *ent;
-	int		i;
 
-	i = cl.num_statics;
-	if (i >= MAX_STATIC_ENTITIES)
-		Host_Error ("Too many static entities");
-
-	ent = &cl_static_entities[i];
+	// mh - extended static entities begin
+	ent = (entity_t *) Hunk_Alloc (sizeof (entity_t));
+	// mh - extended static entities end
 	cl.num_statics++;
 	CL_ParseBaseline (ent, version); //johnfitz -- added second parameter
 
@@ -1144,7 +1141,7 @@ void CL_ParseServerMessage (void)
 			if (i == 2)
 			{
 				if (cl.num_statics > 128)
-					Con_DWarning ("%i static entities exceeds standard limit of 128 (max = %d).\n", cl.num_statics, MAX_STATIC_ENTITIES);
+					Con_DWarning ("%i static entities exceeds standard limit of 128.\n", cl.num_statics);
 				R_CheckEfrags ();
 			}
 			//johnfitz
