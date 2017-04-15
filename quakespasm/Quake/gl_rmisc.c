@@ -232,6 +232,9 @@ void R_Init (void)
 	Cvar_SetCallback (&r_noshadow_list, R_Model_ExtraFlags_List_f);
 	//johnfitz
 
+	Cvar_RegisterVariable (&r_width);
+	Cvar_RegisterVariable (&r_height);
+	
 	Cvar_RegisterVariable (&gl_zfix); // QuakeSpasm z-fighting fix
 	Cvar_RegisterVariable (&r_lavaalpha);
 	Cvar_RegisterVariable (&r_telealpha);
