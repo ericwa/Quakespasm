@@ -54,6 +54,8 @@ typedef struct
 	int		rowbytes;	// may be > width if displayed in a window
 	int		width;
 	int		height;
+	int		unscaled_width;
+	int		unscaled_height;
 	float		aspect;		// width / height -- < 0 is taller than wide
 	int		numpages;
 	int		recalc_refdef;	// if true, recalc vid-based stuff

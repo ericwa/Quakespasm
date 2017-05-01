@@ -154,6 +154,7 @@ static cvar_t	vid_borderless = {"vid_borderless", "0", CVAR_ARCHIVE}; // QuakeSp
 
 cvar_t		vid_gamma = {"gamma", "1", CVAR_ARCHIVE}; //johnfitz -- moved here from view.c
 cvar_t		vid_contrast = {"contrast", "1", CVAR_ARCHIVE}; //QuakeSpasm, MarkV
+cvar_t		vid_scaled = {"vid_scaled", "0", CVAR_ARCHIVE};		// QuakeSpasm, MarkV
 
 //==========================================================================
 //
@@ -348,6 +349,37 @@ static int VID_GetCurrentHeight (void)
 #else
 	return draw_context->h;
 #endif
+}
+
+/*
+=======================
+VID_CalcRenderSize
+ 
+returns the size that we will render to, possilby smaller than the actual 
+framebuffer size if the vid_scaled cvar is in use.
+=======================
+*/
+static void VID_GetRenderSize (int *w, int *h)
+{
+	float scale_factor;
+	
+#if defined(USE_SDL2)
+	SDL_GetWindowSize(draw_context, w, h);
+#else
+	*w = draw_context->w;
+	*h = draw_context->h;
+#endif
+	
+	if (vid_scaled.value == 1) {
+		scale_factor = 1/2.0f;
+	} else if (vid_scaled.value == 2) {
+		scale_factor = 1/3.0f;
+	} else {
+		scale_factor = 1.0f;
+	}
+	
+	*w *= scale_factor;
+	*h *= scale_factor;
 }
 
 /*
@@ -667,8 +699,9 @@ static qboolean VID_SetMode (int width, int height, int bpp, qboolean fullscreen
 	SDL_WM_SetCaption(caption, caption);
 #endif /* !defined(USE_SDL2) */
 
-	vid.width = VID_GetCurrentWidth();
-	vid.height = VID_GetCurrentHeight();
+	VID_GetRenderSize(&vid.width, &vid.height);
+	vid.unscaled_width = VID_GetCurrentWidth();
+	vid.unscaled_height = VID_GetCurrentHeight();
 	vid.conwidth = vid.width & 0xFFFFFFF8;
 	vid.conheight = vid.conwidth * vid.height / vid.width;
 	vid.numpages = 2;
@@ -1520,6 +1553,7 @@ void	VID_Init (void)
 	Cvar_RegisterVariable (&vid_fsaa); //QuakeSpasm
 	Cvar_RegisterVariable (&vid_desktopfullscreen); //QuakeSpasm
 	Cvar_RegisterVariable (&vid_borderless); //QuakeSpasm
+	Cvar_RegisterVariable (&vid_scaled); //QuakeSpasm
 	Cvar_SetCallback (&vid_fullscreen, VID_Changed_f);
 	Cvar_SetCallback (&vid_width, VID_Changed_f);
 	Cvar_SetCallback (&vid_height, VID_Changed_f);
@@ -1528,6 +1562,7 @@ void	VID_Init (void)
 	Cvar_SetCallback (&vid_fsaa, VID_FSAA_f);
 	Cvar_SetCallback (&vid_desktopfullscreen, VID_Changed_f);
 	Cvar_SetCallback (&vid_borderless, VID_Changed_f);
+	Cvar_SetCallback (&vid_scaled, VID_Changed_f);
 	
 	Cmd_AddCommand ("vid_unlock", VID_Unlock); //johnfitz
 	Cmd_AddCommand ("vid_restart", VID_Restart); //johnfitz

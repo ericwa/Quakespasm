@@ -237,7 +237,7 @@ void GLSLGamma_GammaCorrect (void)
 	glDisable (GL_ALPHA_TEST);
 	glDisable (GL_DEPTH_TEST);
 
-	glViewport (glx, gly, glwidth, glheight);
+	glViewport (0, 0, vid.unscaled_width, vid.unscaled_height);
 
 	smax = glwidth/(float)r_gamma_texture_width;
 	tmax = glheight/(float)r_gamma_texture_height;
