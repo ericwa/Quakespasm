@@ -112,9 +112,6 @@ float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha;
 
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
-cvar_t	r_width = {"r_width","0",CVAR_NONE};
-cvar_t	r_height = {"r_height","0",CVAR_NONE};
-
 //==============================================================================
 //
 // GLSL GAMMA CORRECTION

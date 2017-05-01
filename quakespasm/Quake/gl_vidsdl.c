@@ -325,9 +325,6 @@ VID_GetCurrentWidth
 */
 static int VID_GetCurrentWidth (void)
 {
-	if (r_width.value && r_height.value)
-		return r_width.value;
-	
 #if defined(USE_SDL2)
 	int w = 0, h = 0;
 	SDL_GetWindowSize(draw_context, &w, &h);
@@ -344,9 +341,6 @@ VID_GetCurrentHeight
 */
 static int VID_GetCurrentHeight (void)
 {
-	if (r_width.value && r_height.value)
-		return r_height.value;
-	
 #if defined(USE_SDL2)
 	int w = 0, h = 0;
 	SDL_GetWindowSize(draw_context, &w, &h);
