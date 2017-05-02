@@ -563,9 +563,9 @@ void TexMgr_RecalcWarpImageSize (void)
 
 	gl_warpimagesize = TexMgr_SafeTextureSize (512);
 
-	while (gl_warpimagesize > vid.width)
+	while (gl_warpimagesize > vid.unscaled_width)
 		gl_warpimagesize >>= 1;
-	while (gl_warpimagesize > vid.height)
+	while (gl_warpimagesize > vid.unscaled_height)
 		gl_warpimagesize >>= 1;
 
 	// ericw -- removed early exit if (gl_warpimagesize == oldsize).
