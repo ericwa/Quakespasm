@@ -181,18 +181,23 @@ static void GLSLGamma_CreateShaders (void)
 /*
 =============
 GLSLGamma_GammaCorrect
+ 
+Performs:
+- GLSL gamma correction (requires OpenGL 2.0)
+- framebuffer scaling (vid_scaled) (any OpenGL version)
 =============
 */
 void GLSLGamma_GammaCorrect (void)
 {
+	qboolean wants_gamma, wants_scaling;
 	float smax, tmax;
 
-	if (!gl_glsl_gamma_able)
+	wants_gamma = gl_glsl_gamma_able && (vid_gamma.value != 1 || vid_contrast.value != 1);
+	wants_scaling = (vid.unscaled_width != vid.width || vid.unscaled_height != vid.height);
+	
+	if (!wants_gamma && !wants_scaling)
 		return;
-
-	if (vid_gamma.value == 1 && vid_contrast.value == 1)
-		return;
-
+	
 // create render-to-texture texture if needed
 	if (!r_gamma_texture)
 	{
@@ -214,7 +219,7 @@ void GLSLGamma_GammaCorrect (void)
 	}
 
 // create shader if needed
-	if (!r_gamma_program)
+	if (wants_gamma && !r_gamma_program)
 	{
 		GLSLGamma_CreateShaders ();
 		if (!r_gamma_program)
@@ -229,15 +234,22 @@ void GLSLGamma_GammaCorrect (void)
 	glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, glx, gly, glwidth, glheight);
 
 // draw the texture back to the framebuffer with a fragment shader
-	GL_UseProgramFunc (r_gamma_program);
-	GL_Uniform1fFunc (gammaLoc, vid_gamma.value);
-	GL_Uniform1fFunc (contrastLoc, q_min(2.0, q_max(1.0, vid_contrast.value)));
-	GL_Uniform1iFunc (textureLoc, 0); // use texture unit 0
+	if (wants_gamma)
+	{
+		GL_UseProgramFunc (r_gamma_program);
+		GL_Uniform1fFunc (gammaLoc, vid_gamma.value);
+		GL_Uniform1fFunc (contrastLoc, q_min(2.0, q_max(1.0, vid_contrast.value)));
+		GL_Uniform1iFunc (textureLoc, 0); // use texture unit 0
+	}
 
 	glDisable (GL_ALPHA_TEST);
 	glDisable (GL_DEPTH_TEST);
 
 	glViewport (0, 0, vid.unscaled_width, vid.unscaled_height);
+	glMatrixMode (GL_PROJECTION);
+	glLoadIdentity ();
+	glMatrixMode (GL_MODELVIEW);
+	glLoadIdentity ();
 
 	smax = glwidth/(float)r_gamma_texture_width;
 	tmax = glheight/(float)r_gamma_texture_height;
@@ -253,9 +265,11 @@ void GLSLGamma_GammaCorrect (void)
 	glVertex2f (-1, 1);
 	glEnd ();
 	
-	GL_UseProgramFunc (0);
+// unbind program if we enabled it
+	if (wants_gamma)
+		GL_UseProgramFunc (0);
 	
-// clear cached binding
+// clear cached texture binding
 	GL_ClearBindings ();
 }
 
