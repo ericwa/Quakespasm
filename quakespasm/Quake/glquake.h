@@ -393,7 +393,7 @@ void GL_BindBuffer (GLenum target, GLuint buffer);
 void GL_ClearBufferBindings ();
 
 void GLSLGamma_DeleteTexture (void);
-void GLSLGamma_GammaCorrect (void);
+void R_Postprocess (void);
 
 float GL_WaterAlphaForSurface (msurface_t *fa);
 
