@@ -218,6 +218,14 @@
 		66991C0F1DBAB4B300C373C0 /* Quakespasm-Music.txt in CopyFiles */ = {isa = PBXBuildFile; fileRef = 66991C031DBAB47000C373C0 /* Quakespasm-Music.txt */; };
 		66991C101DBAB4B300C373C0 /* Quakespasm.html in CopyFiles */ = {isa = PBXBuildFile; fileRef = 66991C041DBAB47000C373C0 /* Quakespasm.html */; };
 		66991C111DBAB4B300C373C0 /* Quakespasm.txt in CopyFiles */ = {isa = PBXBuildFile; fileRef = 66991C051DBAB47000C373C0 /* Quakespasm.txt */; };
+		66B2E9611EBFC98D000879D9 /* r_part_fte.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9601EBFC98D000879D9 /* r_part_fte.c */; };
+		66B2E9621EBFC98D000879D9 /* r_part_fte.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9601EBFC98D000879D9 /* r_part_fte.c */; };
+		66B2E9641EBFC99B000879D9 /* pr_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9631EBFC99B000879D9 /* pr_ext.c */; };
+		66B2E9651EBFC99B000879D9 /* pr_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9631EBFC99B000879D9 /* pr_ext.c */; };
+		66B2E9671EBFC9A7000879D9 /* snd_voip.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9661EBFC9A7000879D9 /* snd_voip.c */; };
+		66B2E9681EBFC9A7000879D9 /* snd_voip.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9661EBFC9A7000879D9 /* snd_voip.c */; };
+		66B2E96A1EBFC9B5000879D9 /* fs_zip.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9691EBFC9B5000879D9 /* fs_zip.c */; };
+		66B2E96B1EBFC9B5000879D9 /* fs_zip.c in Sources */ = {isa = PBXBuildFile; fileRef = 66B2E9691EBFC9B5000879D9 /* fs_zip.c */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 		A4E3AF2A05D43FCC000F1B47 /* libmikmod.dylib in Copy Libraries */ = {isa = PBXBuildFile; fileRef = F5F5DE80017CB4370103A810 /* libmikmod.dylib */; };
@@ -478,6 +486,10 @@
 		66991C041DBAB47000C373C0 /* Quakespasm.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = Quakespasm.html; path = ../Quakespasm.html; sourceTree = "<group>"; };
 		66991C051DBAB47000C373C0 /* Quakespasm.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = Quakespasm.txt; path = ../Quakespasm.txt; sourceTree = "<group>"; };
 		66991C061DBAB48000C373C0 /* quakespasm.pak */ = {isa = PBXFileReference; lastKnownFileType = file; name = quakespasm.pak; path = ../Quake/quakespasm.pak; sourceTree = "<group>"; };
+		66B2E9601EBFC98D000879D9 /* r_part_fte.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = r_part_fte.c; path = ../Quake/r_part_fte.c; sourceTree = "<group>"; };
+		66B2E9631EBFC99B000879D9 /* pr_ext.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = pr_ext.c; path = ../Quake/pr_ext.c; sourceTree = "<group>"; };
+		66B2E9661EBFC9A7000879D9 /* snd_voip.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snd_voip.c; path = ../Quake/snd_voip.c; sourceTree = "<group>"; };
+		66B2E9691EBFC9B5000879D9 /* fs_zip.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = fs_zip.c; path = ../Quake/fs_zip.c; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* QuakeSpasm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuakeSpasm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B021C20714A5FF7E003F18D6 /* cfgfile.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = cfgfile.c; path = ../Quake/cfgfile.c; sourceTree = SOURCE_ROOT; };
@@ -644,6 +656,7 @@
 				483A78130D2EEA5400CB2E4C /* console.c */,
 				483A78140D2EEA5400CB2E4C /* crc.c */,
 				483A78150D2EEA5400CB2E4C /* cvar.c */,
+				66B2E9691EBFC9B5000879D9 /* fs_zip.c */,
 				483A78170D2EEA5400CB2E4C /* host.c */,
 				483A78160D2EEA5400CB2E4C /* host_cmd.c */,
 				48243B130D33F01A00C29F8F /* main_sdl.c */,
@@ -652,6 +665,7 @@
 				48895DB80D4914A000849ABF /* pl_osx.m */,
 				483A781A0D2EEA5400CB2E4C /* pr_cmds.c */,
 				483A781B0D2EEA5400CB2E4C /* pr_edict.c */,
+				66B2E9631EBFC99B000879D9 /* pr_ext.c */,
 				483A781C0D2EEA5400CB2E4C /* pr_exec.c */,
 				483A780E0D2EEA0F00CB2E4C /* progdefs.q1 */,
 				483A781D0D2EEA5400CB2E4C /* sbar.c */,
@@ -697,6 +711,7 @@
 				483A78690D2EEAF000CB2E4C /* r_alias.c */,
 				483A786A0D2EEAF000CB2E4C /* r_brush.c */,
 				483A786B0D2EEAF000CB2E4C /* r_part.c */,
+				66B2E9601EBFC98D000879D9 /* r_part_fte.c */,
 				483A786C0D2EEAF000CB2E4C /* r_sprite.c */,
 				483A786D0D2EEAF000CB2E4C /* r_world.c */,
 			);
@@ -721,6 +736,7 @@
 				4818B0B012D5BA1A006DD66E /* snd_umx.c */,
 				4818B0B212D5BA1A006DD66E /* snd_vorbis.c */,
 				4818B0B412D5BA1A006DD66E /* snd_wave.c */,
+				66B2E9661EBFC9A7000879D9 /* snd_voip.c */,
 			);
 			name = Sound;
 			sourceTree = "<group>";
@@ -956,6 +972,7 @@
 				664D989119CF6B78000D395C /* common.c in Sources */,
 				664D989219CF6B78000D395C /* console.c in Sources */,
 				664D989319CF6B78000D395C /* crc.c in Sources */,
+				66B2E9651EBFC99B000879D9 /* pr_ext.c in Sources */,
 				664D989419CF6B78000D395C /* cvar.c in Sources */,
 				664D989519CF6B78000D395C /* host_cmd.c in Sources */,
 				664D989619CF6B78000D395C /* host.c in Sources */,
@@ -969,6 +986,7 @@
 				664D989E19CF6B78000D395C /* wad.c in Sources */,
 				664D989F19CF6B78000D395C /* world.c in Sources */,
 				664D98A019CF6B78000D395C /* zone.c in Sources */,
+				66B2E9621EBFC98D000879D9 /* r_part_fte.c in Sources */,
 				664D98A119CF6B78000D395C /* in_sdl.c in Sources */,
 				664D98A219CF6B78000D395C /* keys.c in Sources */,
 				664D98A319CF6B78000D395C /* cl_demo.c in Sources */,
@@ -991,6 +1009,7 @@
 				664D98B419CF6B78000D395C /* gl_rlight.c in Sources */,
 				664D98B519CF6B78000D395C /* gl_rmain.c in Sources */,
 				664D98B619CF6B78000D395C /* gl_rmisc.c in Sources */,
+				66B2E9681EBFC9A7000879D9 /* snd_voip.c in Sources */,
 				664D98B719CF6B78000D395C /* gl_screen.c in Sources */,
 				664D98B819CF6B78000D395C /* gl_sky.c in Sources */,
 				664D98B919CF6B78000D395C /* gl_texmgr.c in Sources */,
@@ -1029,6 +1048,7 @@
 				664D98DA19CF6B78000D395C /* strlcpy.c in Sources */,
 				664D98DB19CF6B78000D395C /* snd_opus.c in Sources */,
 				664D98DC19CF6B78000D395C /* snd_flac.c in Sources */,
+				66B2E96B1EBFC9B5000879D9 /* fs_zip.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1042,6 +1062,7 @@
 				483A78250D2EEA5400CB2E4C /* common.c in Sources */,
 				483A78260D2EEA5400CB2E4C /* console.c in Sources */,
 				483A78270D2EEA5400CB2E4C /* crc.c in Sources */,
+				66B2E9641EBFC99B000879D9 /* pr_ext.c in Sources */,
 				483A78280D2EEA5400CB2E4C /* cvar.c in Sources */,
 				483A78290D2EEA5400CB2E4C /* host_cmd.c in Sources */,
 				483A782A0D2EEA5400CB2E4C /* host.c in Sources */,
@@ -1055,6 +1076,7 @@
 				483A78330D2EEA5400CB2E4C /* wad.c in Sources */,
 				483A78340D2EEA5400CB2E4C /* world.c in Sources */,
 				483A78350D2EEA5400CB2E4C /* zone.c in Sources */,
+				66B2E9611EBFC98D000879D9 /* r_part_fte.c in Sources */,
 				483A78380D2EEA6D00CB2E4C /* in_sdl.c in Sources */,
 				483A78390D2EEA6D00CB2E4C /* keys.c in Sources */,
 				483A78450D2EEAAB00CB2E4C /* cl_demo.c in Sources */,
@@ -1077,6 +1099,7 @@
 				483A78730D2EEAF000CB2E4C /* gl_rlight.c in Sources */,
 				483A78740D2EEAF000CB2E4C /* gl_rmain.c in Sources */,
 				483A78750D2EEAF000CB2E4C /* gl_rmisc.c in Sources */,
+				66B2E9671EBFC9A7000879D9 /* snd_voip.c in Sources */,
 				483A78760D2EEAF000CB2E4C /* gl_screen.c in Sources */,
 				483A78770D2EEAF000CB2E4C /* gl_sky.c in Sources */,
 				483A78790D2EEAF000CB2E4C /* gl_texmgr.c in Sources */,
@@ -1115,6 +1138,7 @@
 				48A7C1FD14AA34940011B754 /* strlcpy.c in Sources */,
 				4885A84C179740A0000EC703 /* snd_opus.c in Sources */,
 				48281301179C3F13004E1D61 /* snd_flac.c in Sources */,
+				66B2E96A1EBFC9B5000879D9 /* fs_zip.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
