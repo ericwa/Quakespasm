@@ -33,14 +33,6 @@ m*_t structures are in-memory
 
 */
 
-// entity effects
-
-#define	EF_BRIGHTFIELD			1
-#define	EF_MUZZLEFLASH 			2
-#define	EF_BRIGHTLIGHT 			4
-#define	EF_DIMLIGHT 			8
-
-
 /*
 ==============================================================================
 
@@ -95,7 +87,7 @@ typedef struct texture_s
 	int					anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s	*anim_next;		// in the animation sequence
 	struct texture_s	*alternate_anims;	// bmodels in frmae 1 use these
-	unsigned			offsets[MIPLEVELS];		// four mip maps stored
+//	unsigned			offsets[MIPLEVELS];		// four mip maps stored
 } texture_t;
 
 
@@ -374,12 +366,12 @@ typedef struct {
 	maliasframedesc_t	frames[1];	// variable sized
 } aliashdr_t;
 
-#define	MAXALIASVERTS	2000 //johnfitz -- was 1024
-#define	MAXALIASFRAMES	256
-#define	MAXALIASTRIS	2048
+#define	VANILLA_MAXALIASVERTS	1024
+#define	MAXALIASVERTS	65536 // spike -- was 2000 //johnfitz -- was 1024
+#define	MAXALIASFRAMES	1024  //spike -- was 256
 extern	aliashdr_t	*pheader;
 extern	stvert_t	stverts[MAXALIASVERTS];
-extern	mtriangle_t	triangles[MAXALIASTRIS];
+extern	mtriangle_t	*triangles;
 extern	trivertx_t	*poseverts[MAXALIASFRAMES];
 
 //===================================================================
@@ -388,8 +380,9 @@ extern	trivertx_t	*poseverts[MAXALIASFRAMES];
 // Whole model
 //
 
-typedef enum {mod_brush, mod_sprite, mod_alias} modtype_t;
+typedef enum {mod_brush, mod_sprite, mod_alias, mod_ext_invalid} modtype_t;
 
+//Spike -- these are misnamed/ambiguous.
 #define	EF_ROCKET	1			// leave a trail
 #define	EF_GRENADE	2			// leave a trail
 #define	EF_GIB		4			// leave a trail
@@ -398,12 +391,17 @@ typedef enum {mod_brush, mod_sprite, mod_alias} modtype_t;
 #define	EF_ZOMGIB	32			// small blood trail
 #define	EF_TRACER2	64			// orange split trail + rotate
 #define	EF_TRACER3	128			// purple trail
+#define MF_HOLEY	(1u<<14)
+#define MF_PUBLIC	(EF_ROCKET|EF_GRENADE|EF_GIB|EF_ROTATE|EF_TRACER|EF_ZOMGIB|EF_TRACER2|EF_TRACER3|MF_HOLEY)	//mask of all 'public' flags.
 
 //johnfitz -- extra flags for rendering
 #define	MOD_NOLERP		256		//don't lerp when animating
 #define	MOD_NOSHADOW	512		//don't cast a shadow
 #define	MOD_FBRIGHTHACK	1024	//when fullbrights are disabled, use a hack to render this model brighter
 //johnfitz
+//spike -- added this for particle stuff
+#define MOD_EMITREPLACE 2048	//particle effect completely replaces the model (for flames or whatever).
+#define MOD_EMITFORWARDS 4096	//particle effect is emitted forwards, rather than downwards. why down? good question.
 
 typedef struct qmodel_s
 {
@@ -418,6 +416,13 @@ typedef struct qmodel_s
 
 	int			flags;
 
+#ifdef PSET_SCRIPT
+	int			emiteffect;		//spike -- this effect is emitted per-frame by entities with this model
+	int			traileffect;	//spike -- this effect is used when entities move
+	struct skytris_s		*skytris;	//spike -- surface-based particle emission for this model
+	struct skytriblock_s	*skytrimem;	//spike -- surface-based particle emission for this model (for better cache performance+less allocs)
+	double					skytime;	//doesn't really cope with multiples. oh well...
+#endif
 //
 // volume occupied by the model graphics
 //
@@ -438,7 +443,7 @@ typedef struct qmodel_s
 	int			firstmodelsurface, nummodelsurfaces;
 
 	int			numsubmodels;
-	dmodel_t	*submodels;
+	mmodel_t	*submodels;
 
 	int			numplanes;
 	mplane_t	*planes;
@@ -480,6 +485,7 @@ typedef struct qmodel_s
 	char		*entities;
 
 	int			bspversion;
+	int			contentstransparent;	//spike -- added this so we can disable glitchy wateralpha where its not supported.
 
 //
 // alias model

@@ -145,7 +145,7 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 		model = sv.models[ (int)ent->v.modelindex ];
 
 		if (!model || model->type != mod_brush)
-			Sys_Error ("MOVETYPE_PUSH with a non bsp model");
+			Sys_Error ("SOLID_BSP with a non bsp model");
 
 		VectorSubtract (maxs, mins, size);
 		if (size[0] < 3)
@@ -278,6 +278,87 @@ void SV_UnlinkEdict (edict_t *ent)
 	ent->area.prev = ent->area.next = NULL;
 }
 
+/*
+Spike -- just builds a list of entities within the area, rather than walking them and risking the list getting corrupt.
+*/
+size_t SV_AreaTriggerEdicts(edict_t *ent, areanode_t *node, edict_t **list, size_t listspace)
+{
+	link_t		*l, *next;
+	edict_t		*touch;
+	size_t		r = 0;
+
+// touch linked edicts
+	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
+	{
+		next = l->next;
+		touch = EDICT_FROM_AREA(l);
+		if (touch == ent)
+			continue;
+		if (!touch->v.solid)
+			continue;
+		if (ent->v.absmin[0] > touch->v.absmax[0]
+		|| ent->v.absmin[1] > touch->v.absmax[1]
+		|| ent->v.absmin[2] > touch->v.absmax[2]
+		|| ent->v.absmax[0] < touch->v.absmin[0]
+		|| ent->v.absmax[1] < touch->v.absmin[1]
+		|| ent->v.absmax[2] < touch->v.absmin[2])
+			continue;
+
+		if (r == listspace)
+			return r;
+		list[r++] = touch;
+	}
+
+// recurse down both sides
+	if (node->axis != -1)
+	{
+		if (ent->v.absmax[node->axis] > node->dist)
+			r += SV_AreaTriggerEdicts(ent, node->children[0], list+r, listspace-r);
+		if (ent->v.absmin[node->axis] < node->dist)
+			r += SV_AreaTriggerEdicts(ent, node->children[1], list+r, listspace-r);
+	}
+	return r;
+}
+/*
+Spike --
+trying a different aproach, because I got an infinite loop with quakespasm's SV_TouchLinks
+this aproach should work better with recursion
+pr_checkextensions 0 will return to the old code.
+things should not normally be removed/relinked inside touch functions, but sometimes modders do it anyway, and then the excrement hits the extraction device.
+*/
+void SV_NewTouchLinks (edict_t *ent)
+{
+	edict_t		*list[8192];
+	edict_t		*touch;
+	int			old_self, old_other;
+	size_t		listsize = SV_AreaTriggerEdicts(ent, sv_areanodes, list, sizeof(list)/sizeof(list[0]));
+	size_t		i;
+
+	for (i = 0; i < listsize; i++)
+	{
+		touch = list[i];
+		//revalidate some stuff, to avoid weirdness if something moved.
+		if (!touch->v.touch || touch->v.solid != SOLID_TRIGGER)
+			continue;
+		if (ent->v.absmin[0] > touch->v.absmax[0]
+		|| ent->v.absmin[1] > touch->v.absmax[1]
+		|| ent->v.absmin[2] > touch->v.absmax[2]
+		|| ent->v.absmax[0] < touch->v.absmin[0]
+		|| ent->v.absmax[1] < touch->v.absmin[1]
+		|| ent->v.absmax[2] < touch->v.absmin[2] )
+			continue;
+		old_self = pr_global_struct->self;
+		old_other = pr_global_struct->other;
+
+		pr_global_struct->self = EDICT_TO_PROG(touch);
+		pr_global_struct->other = EDICT_TO_PROG(ent);
+		pr_global_struct->time = sv.time;
+		PR_ExecuteProgram (touch->v.touch);
+
+		pr_global_struct->self = old_self;
+		pr_global_struct->other = old_other;
+	}
+}
 
 /*
 ====================
@@ -459,7 +540,12 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 
 // if touch_triggers, touch all entities at this node and decend for more
 	if (touch_triggers)
-		SV_TouchLinks ( ent, sv_areanodes );
+	{
+		if (pr_checkextension.value)
+			SV_NewTouchLinks(ent);
+		else
+			SV_TouchLinks ( ent, sv_areanodes );
+	}
 }
 
 
@@ -561,6 +647,9 @@ LINE TESTING IN HULLS
 ==================
 SV_RecursiveHullCheck
 
+Spike -- note that the pointcontents in this function are completely redundant.
+This function should instead return the state of the contents of the mid position.
+This would avoid all redundant recursion.
 ==================
 */
 qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
@@ -777,6 +866,16 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 
 		if (clip->passedict && clip->passedict->v.size[0] && !touch->v.size[0])
 			continue;	// points never interact
+
+		if (pr_checkextension.value)
+		{
+			//corpses are nonsolid to slidebox
+			if (clip->passedict->v.solid == SOLID_SLIDEBOX && touch->v.solid == SOLID_EXT_CORPSE)
+				continue;
+			//corpses ignore slidebox or corpses
+			if (clip->passedict->v.solid == SOLID_EXT_CORPSE && (touch->v.solid == SOLID_SLIDEBOX || touch->v.solid == SOLID_EXT_CORPSE))
+				continue;
+		}
 
 	// might intersect, so do an exact clip
 		if (clip->trace.allsolid)

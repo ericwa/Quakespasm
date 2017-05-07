@@ -79,7 +79,7 @@ void W_LoadWadFile (void) //johnfitz -- filename is now hard-coded for honesty
 		free (wad_base);
 	wad_base = COM_LoadMallocFile (filename, NULL);
 	if (!wad_base)
-		Sys_Error ("W_LoadWadFile: couldn't load %s", filename);
+		Sys_Error ("W_LoadWadFile: couldn't load %s\n\nPlease make sure that quake's data is installed properly\nGamedir is %s\nBasedir is %s\n%s%s", filename, com_gamedir, com_basedir, (host_parms->userdir!=host_parms->basedir)?"Userdir is ":"", (host_parms->userdir!=host_parms->basedir)?host_parms->userdir:"");
 
 	header = (wadinfo_t *)wad_base;
 
@@ -121,7 +121,6 @@ lumpinfo_t	*W_GetLumpinfo (const char *name)
 			return lump_p;
 	}
 
-	Con_SafePrintf ("W_GetLumpinfo: %s not found\n", name); //johnfitz -- was Sys_Error
 	return NULL;
 }
 
@@ -131,7 +130,11 @@ void *W_GetLumpName (const char *name)
 
 	lump = W_GetLumpinfo (name);
 
-	if (!lump) return NULL; //johnfitz
+	if (!lump)
+	{
+		Con_SafePrintf ("W_GetLumpName: %s not found\n", name); //johnfitz -- was Sys_Error
+		return NULL; //johnfitz
+	}
 
 	return (void *)(wad_base + lump->filepos);
 }

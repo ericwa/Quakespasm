@@ -183,6 +183,9 @@ endif
 
 COMMON_LIBS:= -lm -lGL
 
+QS_CFLAGS+= -DUSE_ZLIB
+COMMON_LIBS+= -lz
+
 LIBS := $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
 
 # ---------------------------
@@ -215,7 +218,7 @@ MUSIC_OBJS:= bgmusic.o \
 	snd_modplug.o \
 	snd_xmp.o \
 	snd_umx.o
-COMOBJ_SND := snd_dma.o snd_mix.o snd_mem.o $(MUSIC_OBJS)
+COMOBJ_SND := snd_voip.o snd_dma.o snd_mix.o snd_mem.o $(MUSIC_OBJS)
 SYSOBJ_SND := snd_sdl.o
 SYSOBJ_CDA := cd_sdl.o
 SYSOBJ_INPUT := in_sdl.o
@@ -232,6 +235,7 @@ GLOBJS = \
 	gl_fog.o \
 	gl_rmisc.o \
 	r_part.o \
+	r_part_fte.o \
 	r_world.o \
 	gl_screen.o \
 	gl_sky.o \
@@ -271,6 +275,7 @@ OBJS := strlcat.o \
 	wad.o \
 	cmd.o \
 	common.o \
+	fs_zip.o \
 	crc.o \
 	cvar.o \
 	cfgfile.o \
@@ -280,6 +285,7 @@ OBJS := strlcat.o \
 	pr_cmds.o \
 	pr_edict.o \
 	pr_exec.o \
+	pr_ext.o \
 	sv_main.o \
 	sv_move.o \
 	sv_phys.o \

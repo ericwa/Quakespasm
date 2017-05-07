@@ -1007,6 +1007,12 @@ void IN_SendKeyEvents (void)
 				S_UnblockSound();
 			else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
 				S_BlockSound();
+			else if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+			{
+				vid.width = event.window.data1;
+				vid.height = event.window.data2;
+				Cvar_FindVar("scr_conscale")->callback(NULL);
+			}
 			break;
 #else
 		case SDL_ACTIVEEVENT:

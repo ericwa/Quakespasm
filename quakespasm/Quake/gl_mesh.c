@@ -49,9 +49,11 @@ int		numorder;
 
 int		allverts, alltris;
 
-int		stripverts[128];
+int		stripverts[128+2];
 int		striptris[128];
 int		stripcount;
+
+#define countof(x) (sizeof(x)/sizeof((x)[0]))
 
 /*
 ================
@@ -109,6 +111,9 @@ nexttri:
 			stripcount++;
 
 			used[j] = 2;
+
+			if (stripcount == countof(striptris))
+				goto done;
 			goto nexttri;
 		}
 	}
@@ -176,6 +181,9 @@ nexttri:
 			stripcount++;
 
 			used[j] = 2;
+
+			if (stripcount == countof(striptris))
+				goto done;
 			goto nexttri;
 		}
 	}
@@ -204,8 +212,8 @@ void BuildTris (void)
 	int		startv;
 	float	s, t;
 	int		len, bestlen, besttype;
-	int		bestverts[1024];
-	int		besttris[1024];
+	int		bestverts[countof(stripverts)];
+	int		besttris[countof(striptris)];
 	int		type;
 
 	//
@@ -214,7 +222,13 @@ void BuildTris (void)
 	numorder = 0;
 	numcommands = 0;
 	memset (used, 0, sizeof(used));
-	for (i = 0; i < pheader->numtris; i++)
+
+	//these checks are here because they don't apply when using vertex arrays instead of this legacy crap.
+	if (pheader->numtris > (int)countof(used))
+		Con_Printf ("unable to generate mesh for model, triangle limit exceeded.\n");
+	else if (pheader->numverts > (int)countof(vertexorder))
+		Con_Printf ("unable to generate mesh for model, vertex limit exceeded.\n");
+	else for (i = 0; i < pheader->numtris; i++)
 	{
 		// pick an unused triangle and start the trifan
 		if (used[i])
@@ -242,6 +256,9 @@ void BuildTris (void)
 				}
 			}
 		}
+
+		if (numcommands+4+bestlen >= (int)countof(commands))
+			break;
 
 		// mark the tris on the best strip as used
 		for (j = 0; j < bestlen; j++)
