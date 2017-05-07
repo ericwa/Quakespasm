@@ -87,6 +87,14 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 
 	return (dllhandle_t*)lib;
 }
+#else
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+}
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
+{
+	return NULL;
+}
 #endif
 
 
@@ -288,13 +296,13 @@ typedef struct
 static void SDL_Capture_Start(void *ctx)
 {
 	sdlcapture_t *d = ctx;
-	SDL_PauseAudioDevice(d->dev, FALSE);
+	SDL_PauseAudioDevice(d->dev, SDL_FALSE);
 }
 
 static void SDL_Capture_Stop(void *ctx)
 {
 	sdlcapture_t *d = ctx;
-	SDL_PauseAudioDevice(d->dev, TRUE);
+	SDL_PauseAudioDevice(d->dev, SDL_TRUE);
 }
 
 static void SDL_Capture_Shutdown(void *ctx)
