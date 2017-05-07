@@ -633,6 +633,22 @@
 				RelativePath="..\..\Quake\zone.c"
 				>
 			</File>
+			<File
+				RelativePath="..\..\Quake\fs_zip.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\pr_ext.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\r_part_fte.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\snd_voip.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -897,6 +913,10 @@
 			</File>
 			<File
 				RelativePath="..\..\Quake\zone.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\snd_voip.h"
 				>
 			</File>
 		</Filter>
