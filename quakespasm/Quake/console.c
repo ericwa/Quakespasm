@@ -540,7 +540,7 @@ void Con_DWarning (const char *fmt, ...)
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 
-	if (developer.value >= 2)
+	if (developer.value >= 1)
 	{	// don't confuse non-developers with techie stuff...
 		// (this is limit exceeded warnings)
 
