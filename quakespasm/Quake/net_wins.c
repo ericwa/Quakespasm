@@ -458,7 +458,7 @@ const char *WINS_AddrToString (struct qsockaddr *addr, qboolean masked)
 						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 0)),
 						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 1)),
 						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 2)),
-						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 3));
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 3)));
 		}
 		else
 		{
