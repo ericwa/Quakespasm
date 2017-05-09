@@ -233,6 +233,10 @@ void CL_SignonReply (void)
 		MSG_WriteByte (&cls.message, clc_stringcmd);
 		MSG_WriteString (&cls.message, va("name \"%s\"\n", cl_name.string));
 
+		//ericw -- hack to fix static entities not showing up during demo playback
+		if (cls.demoplayback)
+			CL_CheckDownloads();
+
 		cl.sendprespawn = true;
 		break;
 
