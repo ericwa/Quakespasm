@@ -663,7 +663,7 @@ static void CLFTE_ParseEntitiesUpdate(void)
 	float newtime;
 
 	//so the server can know when we got it, and guess which frames we didn't get
-	if (cl.ackframes_count < sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
+	if (!cls.demoplayback && cl.ackframes_count < sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
 		cl.ackframes[cl.ackframes_count++] = NET_QSocketGetSequenceIn(cls.netcon);
 
 	if (cl.protocol_pext2 & PEXT2_PREDINFO)
