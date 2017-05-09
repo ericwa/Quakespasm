@@ -437,6 +437,13 @@ int WINS_Write (sys_socket_t socketid, byte *buf, int len, struct qsockaddr *add
 
 //=============================================================================
 
+static unsigned short shortAtIndex(const unsigned char *bytes, int shortIndex)
+{
+	unsigned short v;
+	memcpy(&v, &bytes[shortIndex * 2], 2);
+	return v;
+}
+
 const char *WINS_AddrToString (struct qsockaddr *addr, qboolean masked)
 {
 	static char buffer[64];
@@ -448,38 +455,38 @@ const char *WINS_AddrToString (struct qsockaddr *addr, qboolean masked)
 		if (masked)
 		{
 			q_snprintf(buffer, sizeof(buffer), "[%x:%x:%x:%x::]/64", 
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[0]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[1]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[2]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[3]));
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 0)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 1)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 2)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 3));
 		}
 		else
 		{
 			if (((struct sockaddr_in6 *)addr)->sin6_scope_id)
 			{
 				q_snprintf(buffer, sizeof(buffer), "[%x:%x:%x:%x:%x:%x:%x:%x%%%i]:%d", 
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[0]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[1]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[2]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[3]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[4]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[5]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[6]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[7]),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 0)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 1)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 2)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 3)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 4)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 5)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 6)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 7)),
 						(int)((struct sockaddr_in6 *)addr)->sin6_scope_id,
 						ntohs(((struct sockaddr_in6 *)addr)->sin6_port));
 			}
 			else
 			{
 				q_snprintf(buffer, sizeof(buffer), "[%x:%x:%x:%x:%x:%x:%x:%x]:%d", 
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[0]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[1]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[2]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[3]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[4]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[5]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[6]),
-						ntohs(((struct sockaddr_in6 *)addr)->sin6_addr.u.Word[7]),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 0)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 1)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 2)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 3)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 4)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 5)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 6)),
+						ntohs(shortAtIndex(((struct sockaddr_in6 *)addr)->sin6_addr.s6_addr, 7)),
 						ntohs(((struct sockaddr_in6 *)addr)->sin6_port));
 			}
 		}
@@ -781,9 +788,9 @@ sys_socket_t WINIPv6_Init (void)
 
 	broadcastaddrv6.sin6_family = AF_INET6;
 	memset(&broadcastaddrv6.sin6_addr, 0, sizeof(broadcastaddrv6.sin6_addr));
-	broadcastaddrv6.sin6_addr.u.Byte[0] = 0xff;
-	broadcastaddrv6.sin6_addr.u.Byte[1] = 0x03;
-	broadcastaddrv6.sin6_addr.u.Byte[15] = 0x01;
+	broadcastaddrv6.sin6_addr.s6_addr[0] = 0xff;
+	broadcastaddrv6.sin6_addr.s6_addr[1] = 0x03;
+	broadcastaddrv6.sin6_addr.s6_addr[15] = 0x01;
 	broadcastaddrv6.sin6_port = htons((unsigned short)net_hostport);
 
 	Con_SafePrintf("IPv6 UDP Initialized\n");
