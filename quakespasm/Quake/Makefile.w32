@@ -173,6 +173,8 @@ QS_CFLAGS+= $(CODEC_INC)
 
 COMMON_LIBS:= -lm -lopengl32 -lwinmm
 
+# Require Windows XP, for ipv6
+QS_CFLAGS+= -DWINVER=0x0501
 #QS_CFLAGS+= -DUSE_ZLIB
 #COMMON_LIBS+= -lz
 
