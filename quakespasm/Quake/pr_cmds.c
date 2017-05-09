@@ -67,7 +67,13 @@ char *PF_VarString (int	first)
 		}
 	}
 	if (s > 255)
-		Con_DWarning("PF_VarString: %i characters exceeds standard limit of 255.\n", (int) s);
+	{
+		if (!dev_overflows.varstring || dev_overflows.varstring + CONSOLE_RESPAM_TIME < realtime)
+		{
+			Con_DWarning("PF_VarString: %i characters exceeds standard limit of 255 (max = %d).\n", (int) s, (int)(sizeof(out) - 1));
+			dev_overflows.varstring = realtime;
+		}
+	}
 	return out;
 }
 
@@ -1268,6 +1274,10 @@ static void PF_lightstyle (void)
 
 	style = G_FLOAT(OFS_PARM0);
 	val = G_STRING(OFS_PARM1);
+
+// bounds check to avoid clobbering sv struct
+	if (style < 0 || style >= MAX_LIGHTSTYLES)
+		Host_Error("PF_lightstyle: style = %d", style);
 
 // change the string in sv
 	sv.lightstyles[style] = val;

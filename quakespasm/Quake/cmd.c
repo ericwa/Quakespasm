@@ -519,7 +519,6 @@ void Cmd_List_f (void)
 	Con_SafePrintf ("\n");
 }
 
-
 static char *Cmd_TintSubstring(const char *in, const char *substr, char *out, size_t outsize)
 {
 	int l;
@@ -534,6 +533,7 @@ static char *Cmd_TintSubstring(const char *in, const char *substr, char *out, si
 	}
 	return out;
 }
+
 /*
 ============
 Cmd_Apropos_f

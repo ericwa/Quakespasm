@@ -88,8 +88,6 @@ typedef struct
 	struct trailstate_s *trailstate;
 } beam_t;
 
-#define	MAX_EFRAGS		4096 //ericw -- was 2048 //johnfitz -- was 640
-
 #define	MAX_MAPSTRING	2048
 #define	MAX_DEMOS		8
 #define	MAX_DEMONAME	16
@@ -226,6 +224,7 @@ typedef struct
 // refresh related state
 	struct qmodel_s	*worldmodel;	// cl_entitites[0].model
 	struct efrag_s	*free_efrags;
+	int			num_efrags;
 	int			num_entities;	// held in cl_entities array
 	int			num_statics;	// held in cl_staticentities array
 	entity_t	viewent;			// the gun model
@@ -314,13 +313,12 @@ extern	cvar_t	m_side;
 
 
 #define	MAX_TEMP_ENTITIES			256		//johnfitz -- was 64
-#define	MAX_STATIC_ENTITIES			2048		//johnfitz -- was 128
+#define	MAX_STATIC_ENTITIES			4096	//johnfitz -- was 128
 #define	INITIAL_MAX_VISEDICTS		256		// dynamic, now we support a decent network protocol
 
 extern	client_state_t	cl;
 
 // FIXME, allocate dynamically
-extern	efrag_t			cl_efrags[MAX_EFRAGS];
 extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		cl_dlights[MAX_DLIGHTS];

@@ -53,7 +53,6 @@ cvar_t cl_recordingdemo = {"cl_recordingdemo", "", CVAR_ROM};	//the name of the 
 client_static_t	cls;
 client_state_t	cl;
 // FIXME: put these on hunk?
-efrag_t			cl_efrags[MAX_EFRAGS];
 entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		cl_dlights[MAX_DLIGHTS];
@@ -94,8 +93,6 @@ CL_ClearState
 */
 void CL_ClearState (void)
 {
-	int			i;
-
 	if (!sv.active)
 		Host_ClearMemory ();
 
@@ -107,7 +104,6 @@ void CL_ClearState (void)
 	SZ_Clear (&cls.message);
 
 // clear other arrays
-	memset (cl_efrags, 0, sizeof(cl_efrags));
 	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 	memset (cl_temp_entities, 0, sizeof(cl_temp_entities));
@@ -117,14 +113,6 @@ void CL_ClearState (void)
 	cl_max_edicts = CLAMP (MIN_EDICTS,(int)max_edicts.value,MAX_EDICTS);
 	cl_entities = (entity_t *) Hunk_AllocName (cl_max_edicts*sizeof(entity_t), "cl_entities");
 	//johnfitz
-
-//
-// allocate the efrags and chain together into a free list
-//
-	cl.free_efrags = cl_efrags;
-	for (i=0 ; i<MAX_EFRAGS-1 ; i++)
-		cl.free_efrags[i].entnext = &cl.free_efrags[i+1];
-	cl.free_efrags[i].entnext = NULL;
 
 	cl.viewent.netstate = nullentitystate;
 #ifdef PSET_SCRIPT
@@ -624,8 +612,11 @@ void CL_RelinkEntities (void)
 	{
 		if (!ent->model)
 		{	// empty slot, ish.
-			if (ent->forcelink)
-				R_RemoveEfrags (ent);	// just became empty
+			
+			// ericw -- efrags are only used for static entities in GLQuake
+			// ent can't be static, so this is a no-op.
+			//if (ent->forcelink)
+			//	R_RemoveEfrags (ent);	// just became empty
 			continue;
 		}
 
@@ -1075,7 +1066,7 @@ int CL_ReadFromServer (void)
 
 	//temp entities
 	if (num_temp_entities > 64 && dev_peakstats.tempents <= 64)
-		Con_DWarning ("%i tempentities exceeds standard limit of 64.\n", num_temp_entities);
+		Con_DWarning ("%i tempentities exceeds standard limit of 64 (max = %d).\n", num_temp_entities, MAX_TEMP_ENTITIES);
 	dev_stats.tempents = num_temp_entities;
 	dev_peakstats.tempents = q_max(num_temp_entities, dev_peakstats.tempents);
 
@@ -1084,7 +1075,7 @@ int CL_ReadFromServer (void)
 		if (b->model && b->endtime >= cl.time)
 			num_beams++;
 	if (num_beams > 24 && dev_peakstats.beams <= 24)
-		Con_DWarning ("%i beams exceeded standard limit of 24.\n", num_beams);
+		Con_DWarning ("%i beams exceeded standard limit of 24 (max = %d).\n", num_beams, MAX_BEAMS);
 	dev_stats.beams = num_beams;
 	dev_peakstats.beams = q_max(num_beams, dev_peakstats.beams);
 
@@ -1093,7 +1084,7 @@ int CL_ReadFromServer (void)
 		if (l->die >= cl.time && l->radius)
 			num_dlights++;
 	if (num_dlights > 32 && dev_peakstats.dlights <= 32)
-		Con_DWarning ("%i dlights exceeded standard limit of 32.\n", num_dlights);
+		Con_DWarning ("%i dlights exceeded standard limit of 32 (max = %d).\n", num_dlights, MAX_DLIGHTS);
 	dev_stats.dlights = num_dlights;
 	dev_peakstats.dlights = q_max(num_dlights, dev_peakstats.dlights);
 
