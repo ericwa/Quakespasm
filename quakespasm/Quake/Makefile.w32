@@ -34,7 +34,7 @@ check_gcc = $(shell if echo | $(CC) $(1) -Werror -S -o /dev/null -xc - > /dev/nu
 # ---------------------------
 
 DEBUG   ?= 0
-WINSOCK2?= 0
+WINSOCK2?= 1
 
 # ---------------------------
 # build variables
