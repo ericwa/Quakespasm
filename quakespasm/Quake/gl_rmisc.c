@@ -116,7 +116,7 @@ R_SetWateralpha_f -- ericw
 */
 static void R_SetWateralpha_f (cvar_t *var)
 {
-	if (cls.state && !(cl.worldmodel->contentstransparent&SURF_DRAWWATER) && var->value < 1)
+	if (cls.state && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWWATER) && var->value < 1)
 		Con_Warning("Map does not appear to be water-vised\n");
 	map_wateralpha = var->value;
 	map_fallbackalpha = var->value;
@@ -129,7 +129,8 @@ R_SetLavaalpha_f -- ericw
 */
 static void R_SetLavaalpha_f (cvar_t *var)
 {
-	if (cls.state && !(cl.worldmodel->contentstransparent&SURF_DRAWLAVA) && var->value && var->value < 1)
+	if (cls.state && cl.worldmodel &&
+		!(cl.worldmodel->contentstransparent&SURF_DRAWLAVA) && var->value && var->value < 1)
 		Con_Warning("Map does not appear to be lava-vised\n");
 	map_lavaalpha = var->value;
 }
@@ -141,7 +142,7 @@ R_SetTelealpha_f -- ericw
 */
 static void R_SetTelealpha_f (cvar_t *var)
 {
-	if (cls.state && !(cl.worldmodel->contentstransparent&SURF_DRAWTELE) && var->value && var->value < 1)
+	if (cls.state && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWTELE) && var->value && var->value < 1)
 		Con_Warning("Map does not appear to be tele-vised\n");
 	map_telealpha = var->value;
 }
@@ -153,7 +154,7 @@ R_SetSlimealpha_f -- ericw
 */
 static void R_SetSlimealpha_f (cvar_t *var)
 {
-	if (cls.state && !(cl.worldmodel->contentstransparent&SURF_DRAWSLIME) && var->value && var->value < 1)
+	if (cls.state && cl.worldmodel && !(cl.worldmodel->contentstransparent&SURF_DRAWSLIME) && var->value && var->value < 1)
 		Con_Warning("Map does not appear to be slime-vised\n");
 	map_slimealpha = var->value;
 }
