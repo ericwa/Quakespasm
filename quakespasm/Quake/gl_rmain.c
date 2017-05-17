@@ -184,7 +184,7 @@ R_Postprocess
  
 Performs:
 - GLSL gamma correction (requires OpenGL 2.0)
-- framebuffer scaling (vid_scaled) (any OpenGL version)
+- framebuffer scaling (vid_scale) (any OpenGL version)
 =============
 */
 void R_Postprocess (void)
