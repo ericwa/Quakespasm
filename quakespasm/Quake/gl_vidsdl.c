@@ -370,7 +370,7 @@ static void VID_GetRenderSize (int *w, int *h)
 	*h = draw_context->h;
 #endif
 	
-	scale_factor = 1.0f / CLAMP(1.0f, vid_scale.value, 4.0f);
+	scale_factor = 1.0f / CLAMP(1, (int)vid_scale.value, 4);
 	
 	*w *= scale_factor;
 	*h *= scale_factor;
