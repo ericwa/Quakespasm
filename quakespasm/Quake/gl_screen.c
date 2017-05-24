@@ -322,7 +322,7 @@ static void SCR_CalcRefdef (void)
 	r_refdef.vrect.x = (glwidth - r_refdef.vrect.width)/2;
 	r_refdef.vrect.y = (glheight - sb_lines - r_refdef.vrect.height)/2;
 	//johnfitz
-	
+
 	r_refdef.fov_x = AdaptFovx(scr_fov.value, vid.width, vid.height);
 	r_refdef.fov_y = CalcFovy (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
@@ -421,7 +421,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_centertime);
 	Cvar_RegisterVariable (&scr_printspeed);
 	Cvar_RegisterVariable (&gl_triplebuffer);
-	
+
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);

@@ -968,14 +968,14 @@ void R_ScaleView (void)
 
 	if (r_scale.value == 1)
 		return;
-	
+
 	// copied from R_SetupGL()
 	scale = CLAMP(1, (int)r_scale.value, 4);
 	srcx = glx + r_refdef.vrect.x;
 	srcy = gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height;
 	srcw = r_refdef.vrect.width / scale;
 	srch = r_refdef.vrect.height / scale;
-	
+
 	// create render-to-texture texture if needed
 	if (!r_scaleview_texture)
 	{
@@ -985,7 +985,7 @@ void R_ScaleView (void)
 		r_scaleview_texture_width = 0;
 		r_scaleview_texture_height = 0;
 	}
-	
+
 	// resize render-to-texture texture if needed
 	if (r_scaleview_texture_width < srcw
 		|| r_scaleview_texture_height < srch)
@@ -1106,7 +1106,7 @@ void R_RenderView (void)
 		R_RenderScene ();
 	}
 	//johnfitz
-	
+
 	R_ScaleView ();
 
 	//johnfitz -- modified r_speeds output
