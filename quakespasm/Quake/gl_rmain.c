@@ -966,9 +966,6 @@ void R_ScaleView (void)
 	int scale;
 	int srcx, srcy, srcw, srch;
 
-	if (r_scale.value == 1)
-		return;
-
 	// copied from R_SetupGL()
 	scale = CLAMP(1, (int)r_scale.value, 4);
 	srcx = glx + r_refdef.vrect.x;
@@ -976,6 +973,9 @@ void R_ScaleView (void)
 	srcw = r_refdef.vrect.width / scale;
 	srch = r_refdef.vrect.height / scale;
 
+	if (scale == 1)
+		return;
+	
 	// create render-to-texture texture if needed
 	if (!r_scaleview_texture)
 	{
