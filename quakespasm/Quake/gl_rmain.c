@@ -975,16 +975,19 @@ void R_ScaleView (void)
 
 	if (scale == 1)
 		return;
-	
-	// create render-to-texture texture if needed
+
+	// make sure texture unit 0 is selected
+	GL_DisableMultitexture ();
+
+	// create (if needed) and bind the render-to-texture texture
 	if (!r_scaleview_texture)
 	{
 		glGenTextures (1, &r_scaleview_texture);
-		glBindTexture (GL_TEXTURE_2D, r_scaleview_texture);
 		
 		r_scaleview_texture_width = 0;
 		r_scaleview_texture_height = 0;
 	}
+	glBindTexture (GL_TEXTURE_2D, r_scaleview_texture);
 
 	// resize render-to-texture texture if needed
 	if (r_scaleview_texture_width < srcw
@@ -1005,7 +1008,6 @@ void R_ScaleView (void)
 	}
 
 	// copy the framebuffer to the texture
-	GL_DisableMultitexture();
 	glBindTexture (GL_TEXTURE_2D, r_scaleview_texture);
 	glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, srcx, srcy, srcw, srch);
 
