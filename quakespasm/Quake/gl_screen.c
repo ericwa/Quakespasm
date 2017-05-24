@@ -88,6 +88,10 @@ cvar_t		scr_showfps = {"scr_showfps", "0", CVAR_NONE};
 cvar_t		scr_clock = {"scr_clock", "0", CVAR_NONE};
 //johnfitz
 
+//ericw -- scaling
+cvar_t		scr_vidscale = {"scr_vidscale", "1", CVAR_ARCHIVE};
+//ericw
+
 cvar_t		scr_viewsize = {"viewsize","100", CVAR_ARCHIVE};
 cvar_t		scr_fov = {"fov","90",CVAR_NONE};	// 10 - 170
 cvar_t		scr_fov_adapt = {"fov_adapt","1",CVAR_ARCHIVE};
@@ -322,7 +326,7 @@ static void SCR_CalcRefdef (void)
 	r_refdef.vrect.x = (glwidth - r_refdef.vrect.width)/2;
 	r_refdef.vrect.y = (glheight - sb_lines - r_refdef.vrect.height)/2;
 	//johnfitz
-
+	
 	r_refdef.fov_x = AdaptFovx(scr_fov.value, vid.width, vid.height);
 	r_refdef.fov_y = CalcFovy (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
@@ -421,7 +425,9 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_centertime);
 	Cvar_RegisterVariable (&scr_printspeed);
 	Cvar_RegisterVariable (&gl_triplebuffer);
-
+	Cvar_RegisterVariable (&scr_vidscale);
+	Cvar_SetCallback (&scr_vidscale, SCR_Callback_refdef);
+	
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);

@@ -395,6 +395,8 @@ void GL_ClearBufferBindings ();
 void GLSLGamma_DeleteTexture (void);
 void GLSLGamma_GammaCorrect (void);
 
+void R_ScaleView_DeleteTexture (void);
+
 float GL_WaterAlphaForSurface (msurface_t *fa);
 
 #endif	/* __GLQUAKE_H */
