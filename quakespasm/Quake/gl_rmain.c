@@ -112,7 +112,7 @@ float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha;
 
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
-extern cvar_t scr_vidscale;
+cvar_t	r_scale = {"r_scale", "1", CVAR_ARCHIVE};
 
 //==============================================================================
 //
@@ -474,15 +474,16 @@ R_SetupGL
 */
 void R_SetupGL (void)
 {
-	int vidscale = CLAMP(1, (int)scr_vidscale.value, 4);
-	
+	int scale;
+
 	//johnfitz -- rewrote this section
 	glMatrixMode(GL_PROJECTION);
     glLoadIdentity ();
+	scale =  CLAMP(1, (int)r_scale.value, 4);
 	glViewport (glx + r_refdef.vrect.x,
 				gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height,
-				r_refdef.vrect.width / vidscale,
-				r_refdef.vrect.height / vidscale);
+				r_refdef.vrect.width / scale,
+				r_refdef.vrect.height / scale);
 	//johnfitz
 
     GL_SetFrustum (r_fovx, r_fovy); //johnfitz -- use r_fov* vars
@@ -962,18 +963,18 @@ R_ScaleView
 void R_ScaleView (void)
 {
 	float smax, tmax;
-	int vidscale;
+	int scale;
 	int srcx, srcy, srcw, srch;
-	
-	if (scr_vidscale.value == 1)
+
+	if (r_scale.value == 1)
 		return;
 	
 	// copied from R_SetupGL()
-	vidscale = CLAMP(1, (int)scr_vidscale.value, 4);
+	scale = CLAMP(1, (int)r_scale.value, 4);
 	srcx = glx + r_refdef.vrect.x;
 	srcy = gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height;
-	srcw = r_refdef.vrect.width / vidscale;
-	srch = r_refdef.vrect.height / vidscale;
+	srcw = r_refdef.vrect.width / scale;
+	srch = r_refdef.vrect.height / scale;
 	
 	// create render-to-texture texture if needed
 	if (!r_scaleview_texture)

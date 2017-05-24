@@ -236,10 +236,11 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_lavaalpha);
 	Cvar_RegisterVariable (&r_telealpha);
 	Cvar_RegisterVariable (&r_slimealpha);
+	Cvar_RegisterVariable (&r_scale);
 	Cvar_SetCallback (&r_lavaalpha, R_SetLavaalpha_f);
 	Cvar_SetCallback (&r_telealpha, R_SetTelealpha_f);
 	Cvar_SetCallback (&r_slimealpha, R_SetSlimealpha_f);
-
+	
 	R_InitParticles ();
 	R_SetClearColor_f (&r_clearcolor); //johnfitz
 
