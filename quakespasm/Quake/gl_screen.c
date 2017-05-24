@@ -784,17 +784,17 @@ void SCR_ScreenShot_f (void)
 	}
 
 //get data
-	if (!(buffer = (byte *) malloc(vid.unscaled_width*vid.unscaled_height*3)))
+	if (!(buffer = (byte *) malloc(glwidth*glheight*3)))
 	{
 		Con_Printf ("SCR_ScreenShot_f: Couldn't allocate memory\n");
 		return;
 	}
 
 	glPixelStorei (GL_PACK_ALIGNMENT, 1);/* for widths that aren't a multiple of 4 */
-	glReadPixels (0, 0, vid.unscaled_width, vid.unscaled_height, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+	glReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, buffer);
 
 // now write the file
-	if (Image_WriteTGA (tganame, buffer, vid.unscaled_width, vid.unscaled_height, 24, false))
+	if (Image_WriteTGA (tganame, buffer, glwidth, glheight, 24, false))
 		Con_Printf ("Wrote %s\n", tganame);
 	else
 		Con_Printf ("SCR_ScreenShot_f: Couldn't create a TGA file\n");
@@ -1080,7 +1080,7 @@ void SCR_UpdateScreen (void)
 
 	V_UpdateBlend (); //johnfitz -- V_UpdatePalette cleaned up and renamed
 
-	R_Postprocess ();
+	GLSLGamma_GammaCorrect ();
 
 	GL_EndRendering ();
 }

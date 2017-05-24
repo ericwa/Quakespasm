@@ -154,7 +154,6 @@ static cvar_t	vid_borderless = {"vid_borderless", "0", CVAR_ARCHIVE}; // QuakeSp
 
 cvar_t		vid_gamma = {"gamma", "1", CVAR_ARCHIVE}; //johnfitz -- moved here from view.c
 cvar_t		vid_contrast = {"contrast", "1", CVAR_ARCHIVE}; //QuakeSpasm, MarkV
-cvar_t		vid_scale = {"vid_scale", "1", CVAR_ARCHIVE};	// QuakeSpasm
 
 //==========================================================================
 //
@@ -349,31 +348,6 @@ static int VID_GetCurrentHeight (void)
 #else
 	return draw_context->h;
 #endif
-}
-
-/*
-=======================
-VID_CalcRenderSize
- 
-returns the size that we will render to, possilby smaller than the actual 
-framebuffer size if the vid_scale cvar is in use.
-=======================
-*/
-static void VID_GetRenderSize (int *w, int *h)
-{
-	float scale_factor;
-	
-#if defined(USE_SDL2)
-	SDL_GetWindowSize(draw_context, w, h);
-#else
-	*w = draw_context->w;
-	*h = draw_context->h;
-#endif
-	
-	scale_factor = 1.0f / CLAMP(1, (int)vid_scale.value, 4);
-	
-	*w *= scale_factor;
-	*h *= scale_factor;
 }
 
 /*
@@ -693,9 +667,8 @@ static qboolean VID_SetMode (int width, int height, int bpp, qboolean fullscreen
 	SDL_WM_SetCaption(caption, caption);
 #endif /* !defined(USE_SDL2) */
 
-	VID_GetRenderSize(&vid.width, &vid.height);
-	vid.unscaled_width = VID_GetCurrentWidth();
-	vid.unscaled_height = VID_GetCurrentHeight();
+	vid.width = VID_GetCurrentWidth();
+	vid.height = VID_GetCurrentHeight();
 	vid.conwidth = vid.width & 0xFFFFFFF8;
 	vid.conheight = vid.conwidth * vid.height / vid.width;
 	vid.numpages = 2;
@@ -1536,8 +1509,7 @@ void	VID_Init (void)
 					 "vid_vsync",
 					 "vid_fsaa",
 					 "vid_desktopfullscreen",
-					 "vid_borderless",
-					 "vid_scale"};
+					 "vid_borderless"};
 #define num_readvars	( sizeof(read_vars)/sizeof(read_vars[0]) )
 
 	Cvar_RegisterVariable (&vid_fullscreen); //johnfitz
@@ -1548,7 +1520,6 @@ void	VID_Init (void)
 	Cvar_RegisterVariable (&vid_fsaa); //QuakeSpasm
 	Cvar_RegisterVariable (&vid_desktopfullscreen); //QuakeSpasm
 	Cvar_RegisterVariable (&vid_borderless); //QuakeSpasm
-	Cvar_RegisterVariable (&vid_scale); //QuakeSpasm
 	Cvar_SetCallback (&vid_fullscreen, VID_Changed_f);
 	Cvar_SetCallback (&vid_width, VID_Changed_f);
 	Cvar_SetCallback (&vid_height, VID_Changed_f);
@@ -1557,7 +1528,6 @@ void	VID_Init (void)
 	Cvar_SetCallback (&vid_fsaa, VID_FSAA_f);
 	Cvar_SetCallback (&vid_desktopfullscreen, VID_Changed_f);
 	Cvar_SetCallback (&vid_borderless, VID_Changed_f);
-	Cvar_SetCallback (&vid_scale, VID_Changed_f);
 	
 	Cmd_AddCommand ("vid_unlock", VID_Unlock); //johnfitz
 	Cmd_AddCommand ("vid_restart", VID_Restart); //johnfitz

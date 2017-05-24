@@ -118,9 +118,9 @@ qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_d
 //
 //==============================================================================
 
-static GLuint r_postprocess_texture;
+static GLuint r_gamma_texture;
 static GLuint r_gamma_program;
-static int r_postprocess_texture_width, r_postprocess_texture_height;
+static int r_gamma_texture_width, r_gamma_texture_height;
 
 // uniforms used in gamma shader
 static GLuint gammaLoc;
@@ -134,8 +134,8 @@ GLSLGamma_DeleteTexture
 */
 void GLSLGamma_DeleteTexture (void)
 {
-	glDeleteTextures (1, &r_postprocess_texture);
-	r_postprocess_texture = 0;
+	glDeleteTextures (1, &r_gamma_texture);
+	r_gamma_texture = 0;
 	r_gamma_program = 0; // deleted in R_DeleteShaders
 }
 
@@ -180,46 +180,41 @@ static void GLSLGamma_CreateShaders (void)
 
 /*
 =============
-R_Postprocess
- 
-Performs:
-- GLSL gamma correction (requires OpenGL 2.0)
-- framebuffer scaling (vid_scale) (any OpenGL version)
+GLSLGamma_GammaCorrect
 =============
 */
-void R_Postprocess (void)
+void GLSLGamma_GammaCorrect (void)
 {
-	qboolean wants_gamma, wants_scaling;
 	float smax, tmax;
 
-	wants_gamma = gl_glsl_gamma_able && (vid_gamma.value != 1 || vid_contrast.value != 1);
-	wants_scaling = (vid.unscaled_width != vid.width || vid.unscaled_height != vid.height);
-	
-	if (!wants_gamma && !wants_scaling)
+	if (!gl_glsl_gamma_able)
 		return;
-	
-// create render-to-texture texture if needed
-	if (!r_postprocess_texture)
-	{
-		glGenTextures (1, &r_postprocess_texture);
-		glBindTexture (GL_TEXTURE_2D, r_postprocess_texture);
 
-		r_postprocess_texture_width = glwidth;
-		r_postprocess_texture_height = glheight;
+	if (vid_gamma.value == 1 && vid_contrast.value == 1)
+		return;
+
+// create render-to-texture texture if needed
+	if (!r_gamma_texture)
+	{
+		glGenTextures (1, &r_gamma_texture);
+		glBindTexture (GL_TEXTURE_2D, r_gamma_texture);
+
+		r_gamma_texture_width = glwidth;
+		r_gamma_texture_height = glheight;
 
 		if (!gl_texture_NPOT)
 		{
-			r_postprocess_texture_width = TexMgr_Pad(r_postprocess_texture_width);
-			r_postprocess_texture_height = TexMgr_Pad(r_postprocess_texture_height);
+			r_gamma_texture_width = TexMgr_Pad(r_gamma_texture_width);
+			r_gamma_texture_height = TexMgr_Pad(r_gamma_texture_height);
 		}
 	
-		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, r_postprocess_texture_width, r_postprocess_texture_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA8, r_gamma_texture_width, r_gamma_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
 
 // create shader if needed
-	if (wants_gamma && !r_gamma_program)
+	if (!r_gamma_program)
 	{
 		GLSLGamma_CreateShaders ();
 		if (!r_gamma_program)
@@ -230,29 +225,22 @@ void R_Postprocess (void)
 	
 // copy the framebuffer to the texture
 	GL_DisableMultitexture();
-	glBindTexture (GL_TEXTURE_2D, r_postprocess_texture);
+	glBindTexture (GL_TEXTURE_2D, r_gamma_texture);
 	glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, glx, gly, glwidth, glheight);
 
 // draw the texture back to the framebuffer with a fragment shader
-	if (wants_gamma)
-	{
-		GL_UseProgramFunc (r_gamma_program);
-		GL_Uniform1fFunc (gammaLoc, vid_gamma.value);
-		GL_Uniform1fFunc (contrastLoc, q_min(2.0, q_max(1.0, vid_contrast.value)));
-		GL_Uniform1iFunc (textureLoc, 0); // use texture unit 0
-	}
+	GL_UseProgramFunc (r_gamma_program);
+	GL_Uniform1fFunc (gammaLoc, vid_gamma.value);
+	GL_Uniform1fFunc (contrastLoc, q_min(2.0, q_max(1.0, vid_contrast.value)));
+	GL_Uniform1iFunc (textureLoc, 0); // use texture unit 0
 
 	glDisable (GL_ALPHA_TEST);
 	glDisable (GL_DEPTH_TEST);
 
-	glViewport (0, 0, vid.unscaled_width, vid.unscaled_height);
-	glMatrixMode (GL_PROJECTION);
-	glLoadIdentity ();
-	glMatrixMode (GL_MODELVIEW);
-	glLoadIdentity ();
+	glViewport (glx, gly, glwidth, glheight);
 
-	smax = glwidth/(float)r_postprocess_texture_width;
-	tmax = glheight/(float)r_postprocess_texture_height;
+	smax = glwidth/(float)r_gamma_texture_width;
+	tmax = glheight/(float)r_gamma_texture_height;
 
 	glBegin (GL_QUADS);
 	glTexCoord2f (0, 0);
@@ -265,11 +253,9 @@ void R_Postprocess (void)
 	glVertex2f (-1, 1);
 	glEnd ();
 	
-// unbind program if we enabled it
-	if (wants_gamma)
-		GL_UseProgramFunc (0);
+	GL_UseProgramFunc (0);
 	
-// clear cached texture binding
+// clear cached binding
 	GL_ClearBindings ();
 }
 
