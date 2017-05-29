@@ -1511,7 +1511,7 @@ void SV_SendServerinfo (client_t *client)
 retry:
 	MSG_WriteByte (&client->message, svc_print);
 //	sprintf (message, "%c\nFITZQUAKE %1.2f SERVER (%i CRC)\n", 2, FITZQUAKE_VERSION, pr_crc); //johnfitz -- include fitzquake version
-	sprintf (message, "%c\nQuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR" Server (%i CRC)\n", 2, (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH, pr_crc); //spike -- quakespasm has moved on, and has its own server capabilities now. Advertising = good, right?
+	sprintf (message, "%c\nQuakeSpasm "QUAKESPASM_VER_STRING" Server (%i CRC)\n", 2, pr_crc); //spike -- quakespasm has moved on, and has its own server capabilities now. Advertising = good, right?
 	MSG_WriteString (&client->message,message);
 
 //	lack of serverinfo means any csqc info might as well be sent the lame dp way

@@ -1205,7 +1205,7 @@ static void _Datagram_ServerControlPacket (sys_socket_t acceptsock, struct qsock
 			if (*com_token)	//the master server needs this. This tells the master which game we should be listed as.
 				{MSG_WriteString(&net_message, va("\\gamename\\%s", com_token));net_message.cursize--;}
 			MSG_WriteString(&net_message, "\\protocol\\3");net_message.cursize--;	//this is stupid
-			MSG_WriteString(&net_message, va("\\ver\\QuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR, (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH));net_message.cursize--;
+			MSG_WriteString(&net_message, "\\ver\\QuakeSpasm "QUAKESPASM_VER_STRING);net_message.cursize--;
 			MSG_WriteString(&net_message, va("\\nqprotocol\\%u", sv.protocol));net_message.cursize--;
 			if (*gamedir)
 				{MSG_WriteString(&net_message, va("\\modname\\%s", gamedir));net_message.cursize--;}

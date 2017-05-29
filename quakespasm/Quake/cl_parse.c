@@ -2171,7 +2171,7 @@ static qboolean CL_ParseSpecialPrints(const char *printtext)
 		if (realtime > cl.printversionresponse)
 		{
 			MSG_WriteByte (&cls.message, clc_stringcmd);
-			MSG_WriteString(&cls.message,va("say QuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR, (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH));
+			MSG_WriteString(&cls.message,va("say QuakeSpasm " QUAKESPASM_VER_STRING));
 			cl.printversionresponse = realtime+20;
 		}
 	}

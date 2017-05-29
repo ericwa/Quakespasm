@@ -465,7 +465,7 @@ void Host_Status_f (void)
 		print_fn = SV_ClientPrintf;
 
 	print_fn (    "host:    %s\n", Cvar_VariableString ("hostname"));
-	print_fn (    "version: QuakeSpasm %1.2f.%d"BUILD_SPECIAL_STR"\n", (float)QUAKESPASM_VERSION, QUAKESPASM_VER_PATCH);
+	print_fn (    "version: QuakeSpasm "QUAKESPASM_VER_STRING"\n");
 	if (ipv4Available)
 		print_fn ("tcp/ip:  %s\n", my_ipv4_address);	//Spike -- FIXME: we should really have ports displayed here or something
 	if (ipv6Available)
