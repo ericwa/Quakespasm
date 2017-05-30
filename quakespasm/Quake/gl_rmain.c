@@ -124,10 +124,13 @@ static GLuint r_gamma_texture;
 static GLuint r_gamma_program;
 static int r_gamma_texture_width, r_gamma_texture_height;
 
+static GLuint r_lut_texture;
+
 // uniforms used in gamma shader
 static GLuint gammaLoc;
 static GLuint contrastLoc;
 static GLuint textureLoc;
+static GLuint lutTextureLoc;
 
 /*
 =============
@@ -160,13 +163,26 @@ static void GLSLGamma_CreateShaders (void)
 		"#version 110\n"
 		"\n"
 		"uniform sampler2D GammaTexture;\n"
+		"uniform sampler2D LutTexture;\n"
 		"uniform float GammaValue;\n"
 		"uniform float ContrastValue;\n"
 		"\n"
 		"void main(void) {\n"
 		"	  vec4 frag = texture2D(GammaTexture, gl_TexCoord[0].xy);\n"
+		"	  // apply palette lut\n"
+		"     int r = int(clamp(frag.r, 0.0, 1.0) * 31.0);\n"
+		"     int g = int(clamp(frag.g, 0.0, 1.0) * 63.0);\n"
+		"     int b = int(clamp(frag.b, 0.0, 1.0) * 31.0);\n"
+//		"	  int r = 31; int g = 0; int b = 0;\n" // r in [0,31] g in [0, 63], b in [0,31]
+	    "     int idx = b + (g * 32) + (r * 32 * 64);\n"
+		"	  vec2 lutTexCoord = vec2(mod(float(idx), 256.0)/256.0 + (0.5/256.0), float(idx / 256)/256.0 + (0.5/256.0));\n"
+		"	  vec4 lutValue = texture2D(LutTexture, lutTexCoord);\n"
+		"     frag.rgb = (0.06 * frag.rgb) + 0.94 * lutValue.rgb;\n"
+//		"	  frag = 0.1 * frag + 0.9 * vec4(1.0, 0.0, 0.0, 1.0);\n"
+		"	  // apply contrast and gamma\n"
 		"	  frag.rgb = frag.rgb * ContrastValue;\n"
 		"	  gl_FragColor = vec4(pow(frag.rgb, vec3(GammaValue)), 1.0);\n"
+		//"	  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
 		"}\n";
 
 	if (!gl_glsl_gamma_able)
@@ -178,7 +194,44 @@ static void GLSLGamma_CreateShaders (void)
 	gammaLoc = GL_GetUniformLocation (&r_gamma_program, "GammaValue");
 	contrastLoc = GL_GetUniformLocation (&r_gamma_program, "ContrastValue");
 	textureLoc = GL_GetUniformLocation (&r_gamma_program, "GammaTexture");
+	lutTextureLoc = GL_GetUniformLocation(&r_gamma_program, "LutTexture");
 }
+
+#define SQR(a) ((a)*(a))
+
+static int colordist2(int r1, int g1, int b1, int r2, int g2, int b2)
+{
+	return SQR(r2 - r1) + SQR(g2 - g1) + SQR(b2 - b1);
+}
+
+int closestPaletteIndex(int r8, int g8, int b8)
+{
+	int i, besti;
+	int dist, bestdist;
+	const byte *pal = (const byte *)d_8to24table;
+	
+	bestdist = (255 * 255 * 255) + 1;
+	besti = INT_MAX;
+	
+	for (i = 0; i < 256; i++)
+	{
+		int r, g, b;
+		r = pal[i*4];
+		g = pal[i*4+1];
+		b = pal[i*4+2];
+		
+		dist = colordist2(r,g,b,r8,g8,b8);
+		if (dist < bestdist) {
+			bestdist = dist;
+			besti = i;
+		}
+	}
+	
+	return besti;
+}
+
+// FIXME: Hack
+void TexMgr_LoadPalette (void);
 
 /*
 =============
@@ -188,12 +241,13 @@ GLSLGamma_GammaCorrect
 void GLSLGamma_GammaCorrect (void)
 {
 	float smax, tmax;
+	int i;
 
 	if (!gl_glsl_gamma_able)
 		return;
 
-	if (vid_gamma.value == 1 && vid_contrast.value == 1)
-		return;
+//	if (vid_gamma.value == 1 && vid_contrast.value == 1)
+//		return;
 
 // create render-to-texture texture if needed
 	if (!r_gamma_texture)
@@ -214,6 +268,72 @@ void GLSLGamma_GammaCorrect (void)
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
+	
+	if (!r_lut_texture)
+	{
+		// FIXME: Hack
+		TexMgr_LoadPalette();
+		
+		int i,r,g,b;
+		unsigned char *texdata;
+		
+		texdata = (unsigned char *) calloc(256 * 256 * 4, 1);
+		
+		glGenTextures (1, &r_lut_texture);
+		glBindTexture (GL_TEXTURE_2D, r_lut_texture);
+		
+		// make an RGB 565 to quake palette lookup table
+		// This fits exactly in a 256x256 texture.
+		
+		// for each color in the 16-bit colorspace...
+		i=0;
+		for (r = 0; r < 32; r++)
+		{
+			for (g = 0; g < 64; g++)
+			{
+				for (b = 0; b < 32; b++)
+				{
+					int idx = b + (g * 32) + (r * 32 * 64);
+					int lut_x = idx / 256;
+					int lut_y = idx % 256;
+
+					
+					
+					// convert rgb 565 to 888
+					int r8 = r << 3;
+					int g8 = g << 2;
+					int b8 = b << 3;
+
+					int bestPalIndex = closestPaletteIndex(r8, g8, b8);
+					
+					
+					const byte *pal = (const byte *)d_8to24table;
+					int newr = pal[4*bestPalIndex];
+					int newg = pal[4*bestPalIndex+1];
+					int newb = pal[4*bestPalIndex+2];
+//
+
+//					int newr = r8;
+//					int newg = g8;
+//					int newb = b8;
+					
+					// insert the r,g,b values of bestPalIndex into the LUT
+					texdata[4*i] = newr;
+					texdata[4*i+1] = newg;
+					texdata[4*i+2] = newb;
+					texdata[4*i+3] = 255;
+					
+					i++;
+				}
+			}
+		}
+		
+		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, texdata);
+		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		
+		free(texdata);
+	}
 
 // create shader if needed
 	if (!r_gamma_program)
@@ -229,13 +349,20 @@ void GLSLGamma_GammaCorrect (void)
 	GL_DisableMultitexture();
 	glBindTexture (GL_TEXTURE_2D, r_gamma_texture);
 	glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, glx, gly, glwidth, glheight);
-
+	
+// bind textures
+	GL_SelectTexture(GL_TEXTURE0);
+	glBindTexture (GL_TEXTURE_2D, r_gamma_texture);
+	GL_SelectTexture(GL_TEXTURE1);
+	glBindTexture (GL_TEXTURE_2D, r_lut_texture);
+	
 // draw the texture back to the framebuffer with a fragment shader
 	GL_UseProgramFunc (r_gamma_program);
 	GL_Uniform1fFunc (gammaLoc, vid_gamma.value);
 	GL_Uniform1fFunc (contrastLoc, q_min(2.0, q_max(1.0, vid_contrast.value)));
 	GL_Uniform1iFunc (textureLoc, 0); // use texture unit 0
-
+	GL_Uniform1iFunc (lutTextureLoc, 1); // use texture unit 1
+	
 	glDisable (GL_ALPHA_TEST);
 	glDisable (GL_DEPTH_TEST);
 
@@ -244,6 +371,8 @@ void GLSLGamma_GammaCorrect (void)
 	smax = glwidth/(float)r_gamma_texture_width;
 	tmax = glheight/(float)r_gamma_texture_height;
 
+	//R_Clear();
+	
 	glBegin (GL_QUADS);
 	glTexCoord2f (0, 0);
 	glVertex2f (-1, -1);
@@ -259,6 +388,7 @@ void GLSLGamma_GammaCorrect (void)
 	
 // clear cached binding
 	GL_ClearBindings ();
+	GL_SelectTexture(GL_TEXTURE0);
 }
 
 /*
