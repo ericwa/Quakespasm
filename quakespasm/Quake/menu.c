@@ -40,6 +40,7 @@ void M_Menu_Main_f (void);
 		void M_Menu_GameOptions_f (void);
 		void M_Menu_Search_f (void);
 		void M_Menu_ServerList_f (void);
+	void M_Menu_Mods_f (void);
 	void M_Menu_Options_f (void);
 		void M_Menu_Keys_f (void);
 		void M_Menu_Video_f (void);
@@ -57,6 +58,7 @@ void M_Main_Draw (void);
 		void M_GameOptions_Draw (void);
 		void M_Search_Draw (void);
 		void M_ServerList_Draw (void);
+	void M_Mods_Draw (void);
 	void M_Options_Draw (void);
 		void M_Keys_Draw (void);
 		void M_Video_Draw (void);
@@ -74,6 +76,7 @@ void M_Main_Key (int key);
 		void M_GameOptions_Key (int key);
 		void M_Search_Key (int key);
 		void M_ServerList_Key (int key);
+	void M_Mods_Key (int key);
 	void M_Options_Key (int key);
 		void M_Keys_Key (int key);
 		void M_Video_Key (int key);
@@ -83,6 +86,8 @@ void M_Main_Key (int key);
 qboolean	m_entersound;		// play after drawing a frame, so caching
 								// won't disrupt the sound
 qboolean	m_recursiveDraw;
+
+qboolean	m_have_mods_menu;
 
 enum m_state_e	m_return_state;
 qboolean	m_return_onerror;
@@ -238,7 +243,7 @@ void M_ToggleMenu_f (void)
 /* MAIN MENU */
 
 int	m_main_cursor;
-#define	MAIN_ITEMS	5
+#define	MAIN_ITEMS	(m_have_mods_menu ? 6 : 5)
 
 
 void M_Menu_Main_f (void)
@@ -263,7 +268,11 @@ void M_Main_Draw (void)
 	M_DrawTransPic (16, 4, Draw_CachePic ("gfx/qplaque.lmp") );
 	p = Draw_CachePic ("gfx/ttl_main.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
-	M_DrawTransPic (72, 32, Draw_CachePic ("gfx/mainmenu.lmp") );
+	if (m_have_mods_menu)
+		p = Draw_CachePic ("gfx/mainmenu2.lmp");
+	else
+		p = Draw_CachePic ("gfx/mainmenu.lmp");
+	M_DrawTransPic (72, 32, p );
 
 	f = (int)(realtime * 10)%6;
 
@@ -273,6 +282,8 @@ void M_Main_Draw (void)
 
 void M_Main_Key (int key)
 {
+	int	remapped_cursor;
+	
 	switch (key)
 	{
 	case K_ESCAPE:
@@ -304,7 +315,13 @@ void M_Main_Key (int key)
 	case K_ABUTTON:
 		m_entersound = true;
 
-		switch (m_main_cursor)
+	// ericw -- remap cursor index 2 (Options) to 3 for the switch statement
+		if (!m_have_mods_menu && m_main_cursor >= 2)
+			remapped_cursor = m_main_cursor + 1;
+		else
+			remapped_cursor = m_main_cursor;
+			
+		switch (remapped_cursor)
 		{
 		case 0:
 			M_Menu_SinglePlayer_f ();
@@ -315,14 +332,18 @@ void M_Main_Key (int key)
 			break;
 
 		case 2:
+			M_Menu_Mods_f ();
+			break;
+				
+		case 3:
 			M_Menu_Options_f ();
 			break;
 
-		case 3:
+		case 4:
 			M_Menu_Help_f ();
 			break;
 
-		case 4:
+		case 5:
 			M_Menu_Quit_f ();
 			break;
 		}
@@ -967,6 +988,145 @@ again:
 	if (m_net_cursor == 1 && !tcpipAvailable)
 		goto again;
 }
+
+//=============================================================================
+/* MODS MENU */
+
+#define	MAX_MOD_ROWS		1000	/* ericw -- scrolling list, show this many at a time */
+#define	MAX_MOD_ROWS_VISBLE	20		/* ericw -- scrolling list, show this many at a time */
+
+char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
+int		modlist_len;
+
+int		modlist_top_row;
+int		modlist_selected_row;
+
+// FIXME: This is redefined from host_cmd.c
+typedef struct filelist_item_s
+{
+	char			name[32];
+	struct filelist_item_s	*next;
+} filelist_item_t;
+
+extern filelist_item_t	*modlist;
+
+static void M_Mods_PopulateMods (void)
+{
+	filelist_item_t *mod;
+	static qboolean built;
+	
+	// NOTE: currently only build the mod list once.
+	if (built)
+		return;
+	
+	built = true;
+	
+	modlist_len = 0;
+	modlist_top_row = 0;
+	modlist_selected_row = 0;
+
+	// insert id1 first
+	q_strlcpy(m_modnames[modlist_len++], "id1", sizeof(m_modnames[0]));
+	
+	for (mod = modlist; mod; mod = mod->next) {
+		if (modlist_len >= MAX_MOD_ROWS)
+			break;
+		if (!strcasecmp("id1", mod->name))
+			continue;
+		q_strlcpy(m_modnames[modlist_len++], mod->name, sizeof(m_modnames[0]));
+	}
+}
+
+static void M_Mods_MoveSelection (qboolean down)
+{
+	// move cursor
+	modlist_selected_row += (down ? 1 : -1);
+	
+	// wrap around
+	if (modlist_selected_row < 0)
+		modlist_selected_row = modlist_len - 1;
+	if (modlist_selected_row >= modlist_len)
+		modlist_selected_row = 0;
+	
+	// move window if needed
+	if (modlist_selected_row < modlist_top_row)
+		modlist_top_row = modlist_selected_row;
+	if (modlist_selected_row > (modlist_top_row + MAX_MOD_ROWS_VISBLE - 1))
+		modlist_top_row = modlist_selected_row - (MAX_MOD_ROWS_VISBLE - 1);
+}
+
+void M_Menu_Mods_f (void)
+{
+	m_entersound = true;
+	m_state = m_mods;
+	
+	IN_Deactivate(modestate == MS_WINDOWED);
+	key_dest = key_menu;
+	
+	M_Mods_PopulateMods();
+}
+
+void M_Mods_Draw (void)
+{
+	int		i;
+	qpic_t	*p;
+	const char	*current_mod;
+	
+	if (m_have_mods_menu)
+	{
+		p = Draw_CachePic ("gfx/p_mod.lmp");
+		M_DrawPic ( (320-p->width)/2, 4, p);
+	}
+	
+	current_mod = COM_SkipPath(com_gamedir);
+	for (i = 0; i < MAX_MOD_ROWS_VISBLE; i++)
+	{
+		if (!Q_strcmp(m_modnames[modlist_top_row + i], current_mod))
+			M_PrintWhite (16, 32 + 8*i, m_modnames[modlist_top_row + i]);
+		else
+			M_Print (16, 32 + 8*i, m_modnames[modlist_top_row + i]);
+	}
+	
+	// line cursor
+	M_DrawCharacter (8, 32 + (modlist_selected_row - modlist_top_row)*8, 12+((int)(realtime*4)&1));
+}
+
+void M_Mods_Key (int k)
+{
+	switch (k)
+	{
+		case K_ESCAPE:
+		case K_BBUTTON:
+			M_Menu_Main_f ();
+			break;
+			
+		case K_ENTER:
+		case K_KP_ENTER:
+		case K_ABUTTON:
+			S_LocalSound ("misc/menu2.wav");
+
+			m_state = m_none;
+			IN_Activate();
+			key_dest = key_game;
+
+			// issue the load command
+			Cbuf_AddText (va ("game %s\n", m_modnames[modlist_selected_row]) );
+			return;
+			
+		case K_UPARROW:
+		case K_LEFTARROW:
+			S_LocalSound ("misc/menu1.wav");
+			M_Mods_MoveSelection (false);
+			break;
+			
+		case K_DOWNARROW:
+		case K_RIGHTARROW:
+			S_LocalSound ("misc/menu1.wav");
+			M_Mods_MoveSelection (true);
+			break;
+	}
+}
+
 
 //=============================================================================
 /* OPTIONS MENU */
@@ -2517,11 +2677,20 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
 	Cmd_AddCommand ("menu_multiplayer", M_Menu_MultiPlayer_f);
 	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
+	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
 	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
 	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddCommand ("menu_video", M_Menu_Video_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
+	
+	// ericw -- check for graphics for mods menu
+	if (COM_FileExists("gfx/p_mod.lmp", NULL)
+		&& COM_FileExists("gfx/mainmenu2.lmp", NULL)
+		&& !COM_CheckParm("-nomodmenu"))
+	{
+		m_have_mods_menu = true;
+	}
 }
 
 
@@ -2621,6 +2790,10 @@ void M_Draw (void)
 	case m_slist:
 		M_ServerList_Draw ();
 		break;
+			
+	case m_mods:
+		M_Mods_Draw ();
+		break;
 	}
 
 	if (m_entersound)
@@ -2702,6 +2875,10 @@ void M_Keydown (int key)
 
 	case m_slist:
 		M_ServerList_Key (key);
+		return;
+
+	case m_mods:
+		M_Mods_Key(key);
 		return;
 	}
 }
