@@ -1103,12 +1103,8 @@ void M_Mods_Key (int k)
 		case K_ENTER:
 		case K_KP_ENTER:
 		case K_ABUTTON:
-			S_LocalSound ("misc/menu2.wav");
-
-			m_state = m_none;
-			IN_Activate();
-			key_dest = key_game;
-
+			M_Menu_Main_f ();
+			
 			// issue the load command
 			Cbuf_AddText (va ("game %s\n", m_modnames[modlist_selected_row]) );
 			return;
