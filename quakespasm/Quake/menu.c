@@ -2792,6 +2792,19 @@ void M_Draw (void)
 		break;
 	}
 
+	// ericw -- print active mod
+	{
+		const char *modname = COM_SkipPath(com_gamedir);
+		if (q_strcasecmp("id1", modname))
+		{
+			char active_mod[1024];
+			q_snprintf(active_mod, sizeof(active_mod), "current mod: %s", modname);
+			
+			GL_SetCanvas (CANVAS_BOTTOMLEFT);
+			M_Print(0, 24*8, active_mod);
+		}
+	}
+	
 	if (m_entersound)
 	{
 		S_LocalSound ("misc/menu2.wav");
