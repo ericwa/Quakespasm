@@ -2793,6 +2793,7 @@ void M_Draw (void)
 	}
 
 	// ericw -- print active mod
+	if (scr_currentmod.value)
 	{
 		const char *modname = COM_SkipPath(com_gamedir);
 		if (q_strcasecmp("id1", modname))
