@@ -992,23 +992,14 @@ again:
 //=============================================================================
 /* MODS MENU */
 
-#define	MAX_MOD_ROWS		1000	/* ericw -- scrolling list, show this many at a time */
-#define	MAX_MOD_ROWS_VISBLE	20		/* ericw -- scrolling list, show this many at a time */
+#define	MAX_MOD_ROWS		1000	/* ericw -- max mods in list */
+#define	MAX_MOD_ROWS_VISBLE	20		/* ericw -- show this many at a time */
 
 char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
 int		modlist_len;
 
 int		modlist_top_row;
 int		modlist_selected_row;
-
-// FIXME: This is redefined from host_cmd.c
-typedef struct filelist_item_s
-{
-	char			name[32];
-	struct filelist_item_s	*next;
-} filelist_item_t;
-
-extern filelist_item_t	*modlist;
 
 static void M_Mods_PopulateMods (void)
 {
@@ -1037,24 +1028,6 @@ static void M_Mods_PopulateMods (void)
 	}
 }
 
-static void M_Mods_MoveSelection (qboolean down)
-{
-	// move cursor
-	modlist_selected_row += (down ? 1 : -1);
-	
-	// wrap around
-	if (modlist_selected_row < 0)
-		modlist_selected_row = modlist_len - 1;
-	if (modlist_selected_row >= modlist_len)
-		modlist_selected_row = 0;
-	
-	// move window if needed
-	if (modlist_selected_row < modlist_top_row)
-		modlist_top_row = modlist_selected_row;
-	if (modlist_selected_row > (modlist_top_row + MAX_MOD_ROWS_VISBLE - 1))
-		modlist_top_row = modlist_selected_row - (MAX_MOD_ROWS_VISBLE - 1);
-}
-
 void M_Menu_Mods_f (void)
 {
 	m_entersound = true;
@@ -1071,6 +1044,12 @@ void M_Mods_Draw (void)
 	int		i;
 	qpic_t	*p;
 	const char	*current_mod;
+	
+	// move window if needed
+	if (modlist_selected_row < modlist_top_row)
+		modlist_top_row = modlist_selected_row;
+	if (modlist_selected_row > (modlist_top_row + MAX_MOD_ROWS_VISBLE - 1))
+		modlist_top_row = modlist_selected_row;
 	
 	if (m_have_mods_menu)
 	{
@@ -1112,13 +1091,33 @@ void M_Mods_Key (int k)
 		case K_UPARROW:
 		case K_LEFTARROW:
 			S_LocalSound ("misc/menu1.wav");
-			M_Mods_MoveSelection (false);
+			modlist_selected_row = CLAMP(0, modlist_selected_row - 1, modlist_len - 1);
 			break;
 			
 		case K_DOWNARROW:
 		case K_RIGHTARROW:
 			S_LocalSound ("misc/menu1.wav");
-			M_Mods_MoveSelection (true);
+			modlist_selected_row = CLAMP(0, modlist_selected_row + 1, modlist_len - 1);
+			break;
+
+		case K_PGUP:
+			S_LocalSound ("misc/menu1.wav");
+			modlist_selected_row = CLAMP(0, modlist_selected_row - MAX_MOD_ROWS_VISBLE, modlist_len - 1);
+			break;
+
+		case K_PGDN:
+			S_LocalSound ("misc/menu1.wav");
+			modlist_selected_row = CLAMP(0, modlist_selected_row + MAX_MOD_ROWS_VISBLE, modlist_len - 1);
+			break;
+
+		case K_HOME:
+			S_LocalSound ("misc/menu1.wav");
+			modlist_selected_row = 0;
+			break;
+
+		case K_END:
+			S_LocalSound ("misc/menu1.wav");
+			modlist_selected_row = modlist_len - 1;
 			break;
 	}
 }
