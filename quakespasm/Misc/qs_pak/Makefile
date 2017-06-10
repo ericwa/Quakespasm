@@ -1,4 +1,6 @@
 INPUT := gfx/conback.lmp \
+	gfx/mainmenu2.lmp \
+	gfx/p_mod.lmp \
 	maps/e1m1.ent \
 	maps/e1m2.ent \
 	maps/e1m4.ent \
