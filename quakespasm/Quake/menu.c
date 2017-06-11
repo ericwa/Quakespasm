@@ -996,10 +996,10 @@ again:
 #define	MAX_MOD_ROWS_VISBLE	20		/* ericw -- show this many at a time */
 
 char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
-int		modlist_len;
+int		m_modnames_len;
 
-int		modlist_top_row;
-int		modlist_selected_row;
+int		m_modnames_top;
+int		m_modnames_cursor;
 
 static void M_Mods_PopulateMods (void)
 {
@@ -1012,19 +1012,19 @@ static void M_Mods_PopulateMods (void)
 	
 	built = true;
 	
-	modlist_len = 0;
-	modlist_top_row = 0;
-	modlist_selected_row = 0;
+	m_modnames_len = 0;
+	m_modnames_top = 0;
+	m_modnames_cursor = 0;
 
 	// insert id1 first
-	q_strlcpy(m_modnames[modlist_len++], "id1", sizeof(m_modnames[0]));
+	q_strlcpy(m_modnames[m_modnames_len++], "id1", sizeof(m_modnames[0]));
 	
 	for (mod = modlist; mod; mod = mod->next) {
-		if (modlist_len >= MAX_MOD_ROWS)
+		if (m_modnames_len >= MAX_MOD_ROWS)
 			break;
 		if (!strcasecmp("id1", mod->name))
 			continue;
-		q_strlcpy(m_modnames[modlist_len++], mod->name, sizeof(m_modnames[0]));
+		q_strlcpy(m_modnames[m_modnames_len++], mod->name, sizeof(m_modnames[0]));
 	}
 }
 
@@ -1046,10 +1046,10 @@ void M_Mods_Draw (void)
 	const char	*current_mod;
 	
 	// move window if needed
-	if (modlist_selected_row < modlist_top_row)
-		modlist_top_row = modlist_selected_row;
-	if (modlist_selected_row > (modlist_top_row + MAX_MOD_ROWS_VISBLE - 1))
-		modlist_top_row = modlist_selected_row;
+	if (m_modnames_cursor < m_modnames_top)
+		m_modnames_top = m_modnames_cursor;
+	if (m_modnames_cursor > (m_modnames_top + MAX_MOD_ROWS_VISBLE - 1))
+		m_modnames_top = m_modnames_cursor;
 	
 	if (m_have_mods_menu)
 	{
@@ -1060,14 +1060,14 @@ void M_Mods_Draw (void)
 	current_mod = COM_SkipPath(com_gamedir);
 	for (i = 0; i < MAX_MOD_ROWS_VISBLE; i++)
 	{
-		if (!Q_strcmp(m_modnames[modlist_top_row + i], current_mod))
-			M_PrintWhite (16, 32 + 8*i, m_modnames[modlist_top_row + i]);
+		if (!Q_strcmp(m_modnames[m_modnames_top + i], current_mod))
+			M_PrintWhite (16, 32 + 8*i, m_modnames[m_modnames_top + i]);
 		else
-			M_Print (16, 32 + 8*i, m_modnames[modlist_top_row + i]);
+			M_Print (16, 32 + 8*i, m_modnames[m_modnames_top + i]);
 	}
 	
 	// line cursor
-	M_DrawCharacter (8, 32 + (modlist_selected_row - modlist_top_row)*8, 12+((int)(realtime*4)&1));
+	M_DrawCharacter (8, 32 + (m_modnames_cursor - m_modnames_top)*8, 12+((int)(realtime*4)&1));
 }
 
 void M_Mods_Key (int k)
@@ -1085,39 +1085,39 @@ void M_Mods_Key (int k)
 			M_Menu_Main_f ();
 			
 			// issue the load command
-			Cbuf_AddText (va ("game %s\n", m_modnames[modlist_selected_row]) );
+			Cbuf_AddText (va ("game %s\n", m_modnames[m_modnames_cursor]) );
 			return;
 			
 		case K_UPARROW:
 		case K_LEFTARROW:
 			S_LocalSound ("misc/menu1.wav");
-			modlist_selected_row = CLAMP(0, modlist_selected_row - 1, modlist_len - 1);
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor - 1, m_modnames_len - 1);
 			break;
 			
 		case K_DOWNARROW:
 		case K_RIGHTARROW:
 			S_LocalSound ("misc/menu1.wav");
-			modlist_selected_row = CLAMP(0, modlist_selected_row + 1, modlist_len - 1);
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor + 1, m_modnames_len - 1);
 			break;
 
 		case K_PGUP:
 			S_LocalSound ("misc/menu1.wav");
-			modlist_selected_row = CLAMP(0, modlist_selected_row - MAX_MOD_ROWS_VISBLE, modlist_len - 1);
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor - MAX_MOD_ROWS_VISBLE, m_modnames_len - 1);
 			break;
 
 		case K_PGDN:
 			S_LocalSound ("misc/menu1.wav");
-			modlist_selected_row = CLAMP(0, modlist_selected_row + MAX_MOD_ROWS_VISBLE, modlist_len - 1);
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor + MAX_MOD_ROWS_VISBLE, m_modnames_len - 1);
 			break;
 
 		case K_HOME:
 			S_LocalSound ("misc/menu1.wav");
-			modlist_selected_row = 0;
+			m_modnames_cursor = 0;
 			break;
 
 		case K_END:
 			S_LocalSound ("misc/menu1.wav");
-			modlist_selected_row = modlist_len - 1;
+			m_modnames_cursor = m_modnames_len - 1;
 			break;
 	}
 }
