@@ -1022,7 +1022,7 @@ static void M_Mods_PopulateMods (void)
 	for (mod = modlist; mod; mod = mod->next) {
 		if (m_modnames_len >= MAX_MOD_ROWS)
 			break;
-		if (!strcasecmp("id1", mod->name))
+		if (!q_strcasecmp("id1", mod->name))
 			continue;
 		q_strlcpy(m_modnames[m_modnames_len++], mod->name, sizeof(m_modnames[0]));
 	}

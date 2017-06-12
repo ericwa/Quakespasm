@@ -230,6 +230,7 @@ void Modlist_Init (void)
 {
 	WIN32_FIND_DATA	fdat, mod_fdat;
 	HANDLE		fhnd, mod_fhnd;
+	DWORD		attribs;
 	char		dir_string[MAX_OSPATH], mod_string[MAX_OSPATH];
 
 	q_snprintf (dir_string, sizeof(dir_string), "%s/*", com_basedir);
@@ -239,10 +240,17 @@ void Modlist_Init (void)
 
 	do
 	{
-		if (!strcmp(fdat.cFileName, "."))
+		if (!strcmp(fdat.cFileName, ".") || !strcmp(fdat.cFileName, ".."))
 			continue;
-
-#if 0
+#if 1
+		// treat all subdirectories as mods
+		q_snprintf (mod_string, sizeof(mod_string), "%s/%s", com_basedir, fdat.cFileName);
+		attribs = GetFileAttributes (mod_string);
+		if (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			Modlist_Add(fdat.cFileName);
+		}
+#else
 		q_snprintf (mod_string, sizeof(mod_string), "%s/%s/progs.dat", com_basedir, fdat.cFileName);
 		mod_fhnd = FindFirstFile(mod_string, &mod_fdat);
 		if (mod_fhnd != INVALID_HANDLE_VALUE) {
@@ -257,9 +265,6 @@ void Modlist_Init (void)
 				Modlist_Add(fdat.cFileName);
 			}
 		}
-#else
-		// don't bother testing for pak files / progs.dat
-		Modlist_Add(fdat.cFileName);
 #endif
 	} while (FindNextFile(fhnd, &fdat));
 
