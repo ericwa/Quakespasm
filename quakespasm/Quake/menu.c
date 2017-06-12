@@ -997,8 +997,6 @@ again:
 
 char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
 int		m_modnames_len;
-
-int		m_modnames_top;
 int		m_modnames_cursor;
 
 static void M_Mods_PopulateMods (void)
@@ -1013,7 +1011,6 @@ static void M_Mods_PopulateMods (void)
 	built = true;
 	
 	m_modnames_len = 0;
-	m_modnames_top = 0;
 	m_modnames_cursor = 0;
 
 	// insert id1 first
@@ -1044,12 +1041,10 @@ void M_Mods_Draw (void)
 	int		i;
 	qpic_t	*p;
 	const char	*current_mod;
+	int		toprow;
 	
 	// move window if needed
-	if (m_modnames_cursor < m_modnames_top)
-		m_modnames_top = m_modnames_cursor;
-	if (m_modnames_cursor > (m_modnames_top + MAX_MOD_ROWS_VISBLE - 1))
-		m_modnames_top = m_modnames_cursor;
+	toprow = (m_modnames_cursor / MAX_MOD_ROWS_VISBLE) * MAX_MOD_ROWS_VISBLE;
 	
 	if (m_have_mods_menu)
 	{
@@ -1060,14 +1055,14 @@ void M_Mods_Draw (void)
 	current_mod = COM_SkipPath(com_gamedir);
 	for (i = 0; i < MAX_MOD_ROWS_VISBLE; i++)
 	{
-		if (!Q_strcmp(m_modnames[m_modnames_top + i], current_mod))
-			M_PrintWhite (16, 32 + 8*i, m_modnames[m_modnames_top + i]);
+		if (!Q_strcmp(m_modnames[toprow + i], current_mod))
+			M_PrintWhite (16, 32 + 8*i, m_modnames[toprow + i]);
 		else
-			M_Print (16, 32 + 8*i, m_modnames[m_modnames_top + i]);
+			M_Print (16, 32 + 8*i, m_modnames[toprow + i]);
 	}
 	
 	// line cursor
-	M_DrawCharacter (8, 32 + (m_modnames_cursor - m_modnames_top)*8, 12+((int)(realtime*4)&1));
+	M_DrawCharacter (8, 32 + (m_modnames_cursor - toprow)*8, 12+((int)(realtime*4)&1));
 }
 
 void M_Mods_Key (int k)
