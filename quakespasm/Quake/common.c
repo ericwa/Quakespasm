@@ -2510,13 +2510,13 @@ static void COM_Game_f (void)
 			TexMgr_NewGame ();
 			Draw_NewGame ();
 			R_NewGame ();
+			M_NewGame ();
 		}
 		ExtraMaps_NewGame ();
 		DemoList_Rebuild ();
 
 		Con_Printf("\"game\" changed to \"%s\"\n", COM_GetGameNames(true));
-		Con_Printf("enter \"exec quake.rc\" to load new configs\n");
-		//Cbuf_InsertText ("exec quake.rc\n");
+		Cbuf_InsertText ("exec quake.rc\n");
 	}
 	else //Diplay the current gamedir
 		Con_Printf("\"game\" is \"%s\"\n", COM_GetGameNames(true));
