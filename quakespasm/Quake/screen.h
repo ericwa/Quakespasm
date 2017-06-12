@@ -77,6 +77,9 @@ extern	cvar_t		scr_conscale;
 extern	cvar_t		scr_scale;
 extern	cvar_t		scr_crosshairscale;
 //johnfitz
+//quakespasm
+extern	cvar_t		scr_currentmod;
+//quakespasm
 
 extern int scr_tileclear_updates; //johnfitz
 
