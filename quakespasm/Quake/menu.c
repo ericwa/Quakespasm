@@ -2674,15 +2674,23 @@ void M_Init (void)
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 	
-	// ericw -- check for graphics for mods menu
-	if (COM_FileExists("gfx/p_mod.lmp", NULL)
-		&& COM_FileExists("gfx/mainmenu2.lmp", NULL)
-		&& !COM_CheckParm("-nomodmenu"))
+	M_NewGame ();
+}
+
+void M_NewGame (void)
+{
+// ericw -- check for graphics for mods menu
+	if (COM_FileExists ("gfx/p_mod.lmp", NULL)
+		&& COM_FileExists ("gfx/mainmenu2.lmp", NULL)
+		&& !COM_CheckParm ("-nomodmenu"))
 	{
 		m_have_mods_menu = true;
 	}
+	else
+	{
+		m_have_mods_menu = false;
+	}
 }
-
 
 void M_Draw (void)
 {
