@@ -993,7 +993,7 @@ again:
 /* MODS MENU */
 
 #define	MAX_MOD_ROWS		1000	/* ericw -- max mods in list */
-#define	MAX_MOD_ROWS_VISBLE	20		/* ericw -- show this many at a time */
+#define	MAX_MOD_ROWS_VISBLE	19		/* ericw -- show this many at a time */
 
 char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
 int		m_modnames_len;
@@ -1044,8 +1044,8 @@ void M_Mods_Draw (void)
 	int		toprow;
 	int		page;
 	int		numpages;
-	
-	// move window if needed
+	char	page_string[64];
+
 	page = (m_modnames_cursor / MAX_MOD_ROWS_VISBLE);
 	numpages = 1 + ((m_modnames_len - 1) / MAX_MOD_ROWS_VISBLE);
 	toprow = page * MAX_MOD_ROWS_VISBLE;
@@ -1055,6 +1055,9 @@ void M_Mods_Draw (void)
 		p = Draw_CachePic ("gfx/p_mod.lmp");
 		M_DrawPic ( (320-p->width)/2, 4, p);
 	}
+	
+	q_snprintf (page_string, sizeof(page_string), "page:%2i/%2i", page + 1, numpages);
+	M_Print ((320/2) - 8*(strlen(page_string)/2), 32 + (8*MAX_MOD_ROWS_VISBLE), page_string);
 	
 	current_mod = COM_SkipPath(com_gamedir);
 	for (i = 0; i < MAX_MOD_ROWS_VISBLE; i++)
