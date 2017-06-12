@@ -286,6 +286,8 @@ void Modlist_Init (void)
 	{
 		if (!strcmp(dir_t->d_name, ".") || !strcmp(dir_t->d_name, ".."))
 			continue;
+		if (!q_strcasecmp (COM_FileGetExtension (dir_t->d_name), "app")) // skip .app bundles on macOS
+			continue;
 		q_snprintf(mod_string, sizeof(mod_string), "%s%s/", dir_string, dir_t->d_name);
 		mod_dir_p = opendir(mod_string);
 		if (mod_dir_p == NULL)
