@@ -1056,7 +1056,7 @@ void M_Mods_Draw (void)
 		M_DrawPic ( (320-p->width)/2, 4, p);
 	}
 	
-	q_snprintf (page_string, sizeof(page_string), "page:%2i/%2i", page + 1, numpages);
+	q_snprintf (page_string, sizeof(page_string), "page:%2i /%2i", page + 1, numpages);
 	M_Print ((320/2) - 8*(strlen(page_string)/2), 32 + (8*MAX_MOD_ROWS_VISBLE), page_string);
 	
 	current_mod = COM_SkipPath(com_gamedir);
