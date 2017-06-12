@@ -1042,9 +1042,13 @@ void M_Mods_Draw (void)
 	qpic_t	*p;
 	const char	*current_mod;
 	int		toprow;
+	int		page;
+	int		numpages;
 	
 	// move window if needed
-	toprow = (m_modnames_cursor / MAX_MOD_ROWS_VISBLE) * MAX_MOD_ROWS_VISBLE;
+	page = (m_modnames_cursor / MAX_MOD_ROWS_VISBLE);
+	numpages = 1 + ((m_modnames_len - 1) / MAX_MOD_ROWS_VISBLE);
+	toprow = page * MAX_MOD_ROWS_VISBLE;
 	
 	if (m_have_mods_menu)
 	{
