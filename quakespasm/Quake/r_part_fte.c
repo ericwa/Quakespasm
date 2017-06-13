@@ -3565,6 +3565,8 @@ void PScript_RecalculateSkyTris (void)
 						/*in quakespasm there are always two textures added on the end (rather than pointing to textures outside the model)*/
 						for (t = 0; t < m->numtextures-2; t++)
 						{
+							if (!m->textures[t])
+								continue;
 							if (!q_strcasecmp(key+8, m->textures[t]->name))
 								remaps[t] = PScript_FindParticleType(com_token);
 						}
@@ -3576,7 +3578,10 @@ void PScript_RecalculateSkyTris (void)
 			{
 				ptype = remaps[t];
 				if (ptype == P_INVALID)
-					ptype = PScript_FindParticleType(va("tex_%s", m->textures[t]->name));
+				{
+					if (m->textures[t])
+						ptype = PScript_FindParticleType(va("tex_%s", m->textures[t]->name));
+				}
 
 				if (ptype >= 0)
 				{
