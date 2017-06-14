@@ -2454,7 +2454,7 @@ static void Host_Download_f(void)
 		host_client->download.ackpos = 0;
 		
 		fsize = -1;
-		if (0)
+		if (!COM_DownloadNameOkay(fname))
 			SV_ClientPrintf("refusing download of %s - restricted filename\n", fname);
 		else
 		{
