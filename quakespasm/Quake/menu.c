@@ -42,6 +42,7 @@ void M_Menu_Main_f (void);
 		void M_Menu_ServerList_f (void);
 	void M_Menu_Options_f (void);
 		void M_Menu_Keys_f (void);
+		void M_Menu_Mods_f (void);
 		void M_Menu_Video_f (void);
 	void M_Menu_Help_f (void);
 	void M_Menu_Quit_f (void);
@@ -59,6 +60,7 @@ void M_Main_Draw (void);
 		void M_ServerList_Draw (void);
 	void M_Options_Draw (void);
 		void M_Keys_Draw (void);
+		void M_Mods_Draw (void);
 		void M_Video_Draw (void);
 	void M_Help_Draw (void);
 	void M_Quit_Draw (void);
@@ -74,6 +76,7 @@ void M_Main_Key (int key);
 		void M_GameOptions_Key (int key);
 		void M_Search_Key (int key);
 		void M_ServerList_Key (int key);
+	void M_Mods_Key (int key);
 	void M_Options_Key (int key);
 		void M_Keys_Key (int key);
 		void M_Video_Key (int key);
@@ -263,7 +266,8 @@ void M_Main_Draw (void)
 	M_DrawTransPic (16, 4, Draw_CachePic ("gfx/qplaque.lmp") );
 	p = Draw_CachePic ("gfx/ttl_main.lmp");
 	M_DrawPic ( (320-p->width)/2, 4, p);
-	M_DrawTransPic (72, 32, Draw_CachePic ("gfx/mainmenu.lmp") );
+	p = Draw_CachePic ("gfx/mainmenu.lmp");
+	M_DrawTransPic (72, 32, p );
 
 	f = (int)(realtime * 10)%6;
 
@@ -273,6 +277,8 @@ void M_Main_Draw (void)
 
 void M_Main_Key (int key)
 {
+	int	remapped_cursor;
+	
 	switch (key)
 	{
 	case K_ESCAPE:
@@ -969,6 +975,155 @@ again:
 }
 
 //=============================================================================
+/* MODS MENU */
+
+#define	MAX_MOD_ROWS		1000	/* ericw -- max mods in list */
+#define	MAX_MOD_ROWS_VISBLE	19		/* ericw -- show this many at a time */
+
+char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
+int		m_modnames_len;
+int		m_modnames_cursor;
+
+static void M_Mods_PopulateMods (void)
+{
+	filelist_item_t *mod;
+	static qboolean built;
+	
+	// NOTE: currently only build the mod list once.
+	if (built)
+		return;
+	
+	built = true;
+	
+	m_modnames_len = 0;
+	m_modnames_cursor = 0;
+
+	// insert id1 first
+	q_strlcpy(m_modnames[m_modnames_len++], "id1", sizeof(m_modnames[0]));
+	
+	for (mod = modlist; mod; mod = mod->next) {
+		if (m_modnames_len >= MAX_MOD_ROWS)
+			break;
+		if (!q_strcasecmp("id1", mod->name))
+			continue;
+		q_strlcpy(m_modnames[m_modnames_len++], mod->name, sizeof(m_modnames[0]));
+	}
+}
+
+void M_Menu_Mods_f (void)
+{
+	m_entersound = true;
+	m_state = m_mods;
+	
+	IN_Deactivate(modestate == MS_WINDOWED);
+	key_dest = key_menu;
+	
+	M_Mods_PopulateMods();
+}
+
+void M_Mods_Draw (void)
+{
+	int		i, y;
+	qpic_t	*p;
+	const char	*current_mod;
+	int		toprow;
+	int		page;
+	int		numpages;
+	char	page_string[64];
+	const char *title;
+
+	page = (m_modnames_cursor / MAX_MOD_ROWS_VISBLE);
+	numpages = 1 + ((m_modnames_len - 1) / MAX_MOD_ROWS_VISBLE);
+	toprow = page * MAX_MOD_ROWS_VISBLE;
+
+	y = 4;
+	
+	// plaque
+	p = Draw_CachePic ("gfx/qplaque.lmp");
+	M_DrawTransPic (16, y, p);
+	
+	//p = Draw_CachePic ("gfx/vidmodes.lmp");
+	p = Draw_CachePic ("gfx/p_option.lmp");
+	M_DrawPic ( (320-p->width)/2, y, p);
+	
+	y += 28;
+	
+	// title
+	title = "Mods";
+	M_PrintWhite ((320-8*strlen(title))/2, y, title);
+	
+	y += 16;
+	
+	q_snprintf (page_string, sizeof(page_string), "page:%2i /%2i", page + 1, numpages);
+	M_Print ((320/2) - 8*(strlen(page_string)/2), y + (8*MAX_MOD_ROWS_VISBLE), page_string);
+	
+	current_mod = COM_SkipPath(com_gamedir);
+	for (i = 0; i < MAX_MOD_ROWS_VISBLE; i++)
+	{
+		if (!Q_strcmp(m_modnames[toprow + i], current_mod))
+			M_PrintWhite (16, y + 8*i, m_modnames[toprow + i]);
+		else
+			M_Print (16, y + 8*i, m_modnames[toprow + i]);
+	}
+	
+	// line cursor
+	M_DrawCharacter (8, y + (m_modnames_cursor - toprow)*8, 12+((int)(realtime*4)&1));
+}
+
+void M_Mods_Key (int k)
+{
+	switch (k)
+	{
+		case K_ESCAPE:
+		case K_BBUTTON:
+			M_Menu_Main_f ();
+			break;
+			
+		case K_ENTER:
+		case K_KP_ENTER:
+		case K_ABUTTON:
+			M_Menu_Main_f ();
+			
+			// issue the load command
+			Cbuf_AddText (va ("game %s\n", m_modnames[m_modnames_cursor]) );
+			return;
+			
+		case K_UPARROW:
+		case K_LEFTARROW:
+			S_LocalSound ("misc/menu1.wav");
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor - 1, m_modnames_len - 1);
+			break;
+			
+		case K_DOWNARROW:
+		case K_RIGHTARROW:
+			S_LocalSound ("misc/menu1.wav");
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor + 1, m_modnames_len - 1);
+			break;
+
+		case K_PGUP:
+			S_LocalSound ("misc/menu1.wav");
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor - MAX_MOD_ROWS_VISBLE, m_modnames_len - 1);
+			break;
+
+		case K_PGDN:
+			S_LocalSound ("misc/menu1.wav");
+			m_modnames_cursor = CLAMP(0, m_modnames_cursor + MAX_MOD_ROWS_VISBLE, m_modnames_len - 1);
+			break;
+
+		case K_HOME:
+			S_LocalSound ("misc/menu1.wav");
+			m_modnames_cursor = 0;
+			break;
+
+		case K_END:
+			S_LocalSound ("misc/menu1.wav");
+			m_modnames_cursor = m_modnames_len - 1;
+			break;
+	}
+}
+
+
+//=============================================================================
 /* OPTIONS MENU */
 
 enum
@@ -993,6 +1148,7 @@ enum
 //#ifdef _WIN32
 //	OPT_USEMOUSE,
 //#endif
+	OPT_MODS,
 	OPT_VIDEO,	// This is the last before OPTIONS_ITEMS
 	OPTIONS_ITEMS
 };
@@ -1250,6 +1406,9 @@ void M_Options_Draw (void)
 	M_Print (16, 32 + 8*OPT_LOOKSTRAFE,	"            Lookstrafe");
 	M_DrawCheckbox (220, 32 + 8*OPT_LOOKSTRAFE, lookstrafe.value);
 
+	// OPT_MODS:
+	M_Print (16, 32 + 8*OPT_MODS,		"                  Mods");
+	
 	// OPT_VIDEO:
 	if (vid_menudrawfn)
 		M_Print (16, 32 + 8*OPT_VIDEO,	"         Video Options");
@@ -1288,6 +1447,9 @@ void M_Options_Key (int k)
 				Cbuf_AddText ("resetcfg\n");
 				Cbuf_AddText ("exec default.cfg\n");
 			}
+			break;
+		case OPT_MODS:
+			M_Menu_Mods_f ();
 			break;
 		case OPT_VIDEO:
 			M_Menu_Video_f ();
@@ -2546,13 +2708,13 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
 	Cmd_AddCommand ("menu_multiplayer", M_Menu_MultiPlayer_f);
 	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
+	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
 	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
 	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddCommand ("menu_video", M_Menu_Video_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 }
-
 
 void M_Draw (void)
 {
@@ -2650,8 +2812,12 @@ void M_Draw (void)
 	case m_slist:
 		M_ServerList_Draw ();
 		break;
+			
+	case m_mods:
+		M_Mods_Draw ();
+		break;
 	}
-
+	
 	if (m_entersound)
 	{
 		S_LocalSound ("misc/menu2.wav");
@@ -2731,6 +2897,10 @@ void M_Keydown (int key)
 
 	case m_slist:
 		M_ServerList_Key (key);
+		return;
+
+	case m_mods:
+		M_Mods_Key(key);
 		return;
 	}
 }
