@@ -61,7 +61,7 @@ cvar_t	host_framerate = {"host_framerate","0",CVAR_NONE};	// set for slow motion
 cvar_t	host_speeds = {"host_speeds","0",CVAR_NONE};			// set for running times
 cvar_t	host_maxfps = {"host_maxfps", "72", CVAR_ARCHIVE}; //johnfitz
 cvar_t	host_timescale = {"host_timescale", "0", CVAR_NONE}; //johnfitz
-cvar_t	max_edicts = {"max_edicts", "8192", CVAR_NONE}; //johnfitz //ericw -- changed from 2048 to 8192, removed CVAR_ARCHIVE
+cvar_t	max_edicts = {"max_edicts", "15000", CVAR_NONE}; //johnfitz //ericw -- changed from 2048 to 8192, removed CVAR_ARCHIVE
 
 cvar_t	sys_ticrate = {"sys_ticrate","0.05",CVAR_NONE}; // dedicated server
 cvar_t	serverprofile = {"serverprofile","0",CVAR_NONE};
@@ -150,6 +150,8 @@ void Host_Error (const char *error, ...)
 	q_vsnprintf (string, sizeof(string), error, argptr);
 	va_end (argptr);
 	Con_Printf ("Host_Error: %s\n",string);
+
+	Con_Redirect(NULL);
 
 	if (sv.active)
 		Host_ShutdownServer (false);
@@ -439,16 +441,22 @@ void SV_DropClient (qboolean crash)
 	NET_Close (host_client->netconnection);
 	host_client->netconnection = NULL;
 
+	SVFTE_DestroyFrames(host_client);	//release any delta state
+
 // free the client (the body stays around)
 	host_client->active = false;
 	host_client->name[0] = 0;
 	host_client->old_frags = -999999;
 	net_activeconnections--;
 
+	if (host_client->download.file)
+		fclose(host_client->download.file);
+	memset(&host_client->download, 0, sizeof(host_client->download));
+
 // send notification to all clients
 	for (i = 0, client = svs.clients; i < svs.maxclients; i++, client++)
 	{
-		if (!client->active)
+		if (!client->knowntoqc)
 			continue;
 		MSG_WriteByte (&client->message, svc_updatename);
 		MSG_WriteByte (&client->message, host_client - svs.clients);
@@ -493,7 +501,7 @@ void Host_ShutdownServer(qboolean crash)
 		count = 0;
 		for (i=0, host_client = svs.clients ; i<svs.maxclients ; i++, host_client++)
 		{
-			if (host_client->active && host_client->message.cursize)
+			if (host_client->active && host_client->message.cursize && host_client->netconnection)
 			{
 				if (NET_CanSendMessage (host_client->netconnection))
 				{
@@ -525,6 +533,8 @@ void Host_ShutdownServer(qboolean crash)
 		if (host_client->active)
 			SV_DropClient(crash);
 
+	sv.worldmodel = NULL;
+
 //
 // clear structures
 //
@@ -550,6 +560,9 @@ void Host_ClearMemory (void)
 	Hunk_FreeToLowMark (host_hunklevel);
 	cls.signon = 0;
 	free(sv.edicts); // ericw -- sv.edicts switched to use malloc()
+	free(cl.static_entities);
+	free(sv.static_entities);	//spike -- this is dynamic too, now
+	free(sv.ambientsounds);
 	memset (&sv, 0, sizeof(sv));
 	memset (&cl, 0, sizeof(cl));
 }
@@ -576,7 +589,7 @@ qboolean Host_FilterTime (float time)
 
 	//johnfitz -- max fps cvar
 	maxfps = CLAMP (10.0, host_maxfps.value, 1000.0);
-	if (!cls.timedemo && realtime - oldrealtime < 1.0/maxfps)
+	if (host_maxfps.value && !cls.timedemo && realtime - oldrealtime < 1.0/maxfps)
 		return false; // framerate is too high
 	//johnfitz
 
@@ -589,7 +602,7 @@ qboolean Host_FilterTime (float time)
 	//johnfitz
 	else if (host_framerate.value > 0)
 		host_frametime = host_framerate.value;
-	else // don't allow really long or short frames
+	else if (host_maxfps.value)// don't allow really long or short frames
 		host_frametime = CLAMP (0.001, host_frametime, 0.1); //johnfitz -- use CLAMP
 
 	return true;
@@ -701,6 +714,18 @@ void _Host_Frame (float time)
 	Cbuf_Execute ();
 
 	NET_Poll();
+
+	if (cl.sendprespawn)
+	{
+		if (CL_CheckDownloads())
+		{
+			cl.sendprespawn = false;
+			MSG_WriteByte (&cls.message, clc_stringcmd);
+			MSG_WriteString (&cls.message, "prespawn");
+		}
+		else if (!cls.message.cursize)
+			MSG_WriteByte (&cls.message, clc_nop);
+	}
 
 // if running the server locally, make intentions now
 	if (sv.active)
@@ -879,8 +904,13 @@ void Host_Init (void)
 	host_initialized = true;
 	Con_Printf ("\n========= Quake Initialized =========\n\n");
 
+	//spike -- create these aliases, because they're useful.
+	Cbuf_AddText ("alias startmap_sp \"map start\"\n");
+	Cbuf_AddText ("alias startmap_dm \"map start\"\n");
+
 	if (cls.state != ca_dedicated)
 	{
+		Cbuf_AddText ("cl_warncmd 0\n");
 		Cbuf_InsertText ("exec quake.rc\n");
 	// johnfitz -- in case the vid mode was locked during vid_init, we can unlock it now.
 		// note: two leading newlines because the command buffer swallows one of them.
@@ -889,11 +919,15 @@ void Host_Init (void)
 
 	if (cls.state == ca_dedicated)
 	{
+		Cbuf_AddText ("cl_warncmd 0\n");
+		Cbuf_AddText ("exec default.cfg\n");	//spike -- someone decided that quake.rc shouldn't be execed on dedicated servers, but that means you'll get bad defaults
+		Cbuf_AddText ("cl_warncmd 1\n");
+		Cbuf_AddText ("exec server.cfg\n");		//spike -- for people who want things explicit.
 		Cbuf_AddText ("exec autoexec.cfg\n");
 		Cbuf_AddText ("stuffcmds");
 		Cbuf_Execute ();
 		if (!sv.active)
-			Cbuf_AddText ("map start\n");
+			Cbuf_AddText ("startmap_dm\n");
 	}
 }
 

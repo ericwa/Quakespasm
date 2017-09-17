@@ -109,6 +109,7 @@ cvar_t	r_telealpha = {"r_telealpha","0",CVAR_NONE};
 cvar_t	r_slimealpha = {"r_slimealpha","0",CVAR_NONE};
 
 float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha;
+float	map_fallbackalpha;
 
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
@@ -347,12 +348,15 @@ qboolean R_CullModelForEntity (entity_t *e)
 R_RotateForEntity -- johnfitz -- modified to take origin and angles instead of pointer to entity
 ===============
 */
-void R_RotateForEntity (vec3_t origin, vec3_t angles)
+void R_RotateForEntity (vec3_t origin, vec3_t angles, unsigned char scale)
 {
 	glTranslatef (origin[0],  origin[1],  origin[2]);
 	glRotatef (angles[1],  0, 0, 1);
 	glRotatef (-angles[0],  0, 1, 0);
 	glRotatef (angles[2],  1, 0, 0);
+
+	if (scale != 16)
+		glScalef (scale/16.0, scale/16.0, scale/16.0);
 }
 
 /*
@@ -635,7 +639,7 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 			continue;
 
 		//johnfitz -- chasecam
-		if (currententity == &cl_entities[cl.viewentity])
+		if (currententity == &cl.entities[cl.viewentity])
 			currententity->angles[0] *= 0.3;
 		//johnfitz
 
@@ -649,6 +653,9 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 				break;
 			case mod_sprite:
 				R_DrawSpriteModel (currententity);
+				break;
+			case mod_ext_invalid:
+				//nothing. could draw a blob instead.
 				break;
 		}
 	}
@@ -812,7 +819,7 @@ void R_ShowTris (void)
 		{
 			currententity = cl_visedicts[i];
 
-			if (currententity == &cl_entities[cl.viewentity]) // chasecam
+			if (currententity == &cl.entities[cl.viewentity]) // chasecam
 				currententity->angles[0] *= 0.3;
 
 			switch (currententity->model->type)
@@ -931,6 +938,9 @@ void R_RenderScene (void)
 	R_RenderDlights (); //triangle fan dlights -- johnfitz -- moved after water
 
 	R_DrawParticles ();
+#ifdef PSET_SCRIPT
+	PScript_DrawParticles();
+#endif
 
 	Fog_DisableGFog (); //johnfitz
 
@@ -1120,9 +1130,9 @@ void R_RenderView (void)
 	time2 = Sys_DoubleTime ();
 	if (r_pos.value)
 		Con_Printf ("x %i y %i z %i (pitch %i yaw %i roll %i)\n",
-			(int)cl_entities[cl.viewentity].origin[0],
-			(int)cl_entities[cl.viewentity].origin[1],
-			(int)cl_entities[cl.viewentity].origin[2],
+			(int)cl.entities[cl.viewentity].origin[0],
+			(int)cl.entities[cl.viewentity].origin[1],
+			(int)cl.entities[cl.viewentity].origin[2],
 			(int)cl.viewangles[PITCH],
 			(int)cl.viewangles[YAW],
 			(int)cl.viewangles[ROLL]);

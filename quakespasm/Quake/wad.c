@@ -125,7 +125,6 @@ lumpinfo_t	*W_GetLumpinfo (const char *name)
 			return lump_p;
 	}
 
-	Con_SafePrintf ("W_GetLumpinfo: %s not found\n", name); //johnfitz -- was Sys_Error
 	return NULL;
 }
 
@@ -135,7 +134,11 @@ void *W_GetLumpName (const char *name)
 
 	lump = W_GetLumpinfo (name);
 
-	if (!lump) return NULL; //johnfitz
+	if (!lump)
+	{
+		Con_SafePrintf ("W_GetLumpName: %s not found\n", name); //johnfitz -- was Sys_Error
+		return NULL; //johnfitz
+	}
 
 	return (void *)(wad_base + lump->filepos);
 }

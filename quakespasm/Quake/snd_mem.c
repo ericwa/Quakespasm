@@ -52,33 +52,56 @@ static void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, byte *data)
 		sc->width = 1;
 	else
 		sc->width = inwidth;
-	sc->stereo = 0;
+	if (sc->stereo == 1)
+	{	//crappy approach to stereo - strip it out by merging left+right channels
+		sc->stereo = 0;
 
-// resample / decimate to the current source rate
-
-	if (stepscale == 1 && inwidth == 1 && sc->width == 1)
-	{
-// fast special case
-		for (i = 0; i < outcount; i++)
-			((signed char *)sc->data)[i] = (int)( (unsigned char)(data[i]) - 128);
-	}
-	else
-	{
-// general case
 		samplefrac = 0;
 		fracstep = stepscale*256;
 		for (i = 0; i < outcount; i++)
 		{
 			srcsample = samplefrac >> 8;
+			srcsample<<=1;
 			samplefrac += fracstep;
 			if (inwidth == 2)
-				sample = LittleShort ( ((short *)data)[srcsample] );
+				sample = LittleShort ( ((short *)data)[srcsample] ) + LittleShort ( ((short *)data)[srcsample+1] );
 			else
-				sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+				sample = ((int)( (unsigned char)(data[srcsample]) - 128) << 8) + ((int)( (unsigned char)(data[srcsample+1]) - 128) << 8);
+			sample /= 2;
 			if (sc->width == 2)
 				((short *)sc->data)[i] = sample;
 			else
 				((signed char *)sc->data)[i] = sample >> 8;
+		}
+	}
+	else
+	{
+	// resample / decimate to the current source rate
+
+		if (stepscale == 1 && inwidth == 1 && sc->width == 1)
+		{
+	// fast special case
+			for (i = 0; i < outcount; i++)
+				((signed char *)sc->data)[i] = (int)( (unsigned char)(data[i]) - 128);
+		}
+		else
+		{
+	// general case
+			samplefrac = 0;
+			fracstep = stepscale*256;
+			for (i = 0; i < outcount; i++)
+			{
+				srcsample = samplefrac >> 8;
+				samplefrac += fracstep;
+				if (inwidth == 2)
+					sample = LittleShort ( ((short *)data)[srcsample] );
+				else
+					sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+				if (sc->width == 2)
+					((short *)sc->data)[i] = sample;
+				else
+					((signed char *)sc->data)[i] = sample >> 8;
+			}
 		}
 	}
 }
@@ -122,7 +145,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	}
 
 	info = GetWavinfo (s->name, data, com_filesize);
-	if (info.channels != 1)
+	if (info.channels != 1 && info.channels != 2)
 	{
 		Con_Printf ("%s is a stereo sample\n",s->name);
 		return NULL;
@@ -137,7 +160,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	stepscale = (float)info.rate / shm->speed;
 	len = info.samples / stepscale;
 
-	len = len * info.width * info.channels;
+	len = len * info.width;// * info.channels;
 
 	if (info.samples == 0 || len == 0)
 	{
@@ -149,11 +172,11 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	if (!sc)
 		return NULL;
 
-	sc->length = info.samples;
+	sc->length = info.samples / info.channels;
 	sc->loopstart = info.loopstart;
 	sc->speed = info.rate;
 	sc->width = info.width;
-	sc->stereo = info.channels;
+	sc->stereo = info.channels-1;
 
 	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
 

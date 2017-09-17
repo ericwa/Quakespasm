@@ -86,6 +86,7 @@ void R_DrawSpriteModel (entity_t *e)
 	mspriteframe_t	*frame;
 	float			*s_up, *s_right;
 	float			angle, sr, cr;
+	float			scale;
 
 	//TODO: frustum cull it?
 
@@ -144,7 +145,12 @@ void R_DrawSpriteModel (entity_t *e)
 	if (psprite->type == SPR_ORIENTED)
 		GL_PolygonOffset (OFFSET_DECAL);
 
-	glColor3f (1,1,1);
+	if (e->netstate.scale != 16)
+		scale = e->netstate.scale/16.0;
+	else
+		scale = 1;
+
+	glColor3f (e->netstate.colormod[0]/32.0,e->netstate.colormod[0]/32.0,e->netstate.colormod[0]/32.0);
 
 	GL_DisableMultitexture();
 
@@ -154,27 +160,29 @@ void R_DrawSpriteModel (entity_t *e)
 	glBegin (GL_TRIANGLE_FAN); //was GL_QUADS, but changed to support r_showtris
 
 	glTexCoord2f (0, frame->tmax);
-	VectorMA (e->origin, frame->down, s_up, point);
-	VectorMA (point, frame->left, s_right, point);
+	VectorMA (e->origin, frame->down*scale, s_up, point);
+	VectorMA (point, frame->left*scale, s_right, point);
 	glVertex3fv (point);
 
 	glTexCoord2f (0, 0);
-	VectorMA (e->origin, frame->up, s_up, point);
-	VectorMA (point, frame->left, s_right, point);
+	VectorMA (e->origin, frame->up*scale, s_up, point);
+	VectorMA (point, frame->left*scale, s_right, point);
 	glVertex3fv (point);
 
 	glTexCoord2f (frame->smax, 0);
-	VectorMA (e->origin, frame->up, s_up, point);
-	VectorMA (point, frame->right, s_right, point);
+	VectorMA (e->origin, frame->up*scale, s_up, point);
+	VectorMA (point, frame->right*scale, s_right, point);
 	glVertex3fv (point);
 
 	glTexCoord2f (frame->smax, frame->tmax);
-	VectorMA (e->origin, frame->down, s_up, point);
-	VectorMA (point, frame->right, s_right, point);
+	VectorMA (e->origin, frame->down*scale, s_up, point);
+	VectorMA (point, frame->right*scale, s_right, point);
 	glVertex3fv (point);
 
 	glEnd ();
 	glDisable (GL_ALPHA_TEST);
+
+	glColor3f (1, 1, 1);
 
 	//johnfitz: offset decals
 	if (psprite->type == SPR_ORIENTED)

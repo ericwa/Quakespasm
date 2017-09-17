@@ -42,7 +42,7 @@ typedef struct edict_s
 	qboolean	free;
 	link_t		area;			/* linked to a division node or leaf */
 
-	int		num_leafs;
+	unsigned int		num_leafs;
 	int		leafnums[MAX_ENT_LEAFS];
 
 	entity_state_t	baseline;
@@ -64,6 +64,7 @@ extern	dfunction_t	*pr_functions;
 extern	dstatement_t	*pr_statements;
 extern	globalvars_t	*pr_global_struct;
 extern	float		*pr_globals;	/* same as pr_global_struct */
+extern	ddef_t		*pr_fielddefs;	//yay reflection.
 
 extern	int		pr_edict_size;	/* in bytes */
 
@@ -73,9 +74,28 @@ void PR_Init (void);
 void PR_ExecuteProgram (func_t fnum);
 void PR_LoadProgs (void);
 
+//from pr_ext.c
+void PR_EnableExtensions(ddef_t *pr_globaldefs);	//adds in the extra builtins etc
+void PR_AutoCvarChanged(cvar_t *var);				//updates the autocvar_ globals when their cvar is changed
+void PR_ShutdownExtensions(void);					//nooooes!
+void PR_DumpPlatform_f(void);						//console command: writes out a qsextensions.qc file
+//special hacks...
+int PF_SV_ForceParticlePrecache(const char *s);
+int SV_Precache_Model(const char *s);
+int SV_Precache_Sound(const char *s);
+void PR_spawnfunc_misc_model(edict_t *self);
+
+//from pr_edict, for pr_ext. reflection is messy.
+qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s);
+const char *PR_UglyValueString (int type, eval_t *val);
+ddef_t *ED_FindField (const char *name);
+ddef_t *ED_FindGlobal (const char *name);
+dfunction_t *ED_FindFunction (const char *fn_name);
+
 const char *PR_GetString (int num);
 int PR_SetEngineString (const char *s);
 int PR_AllocString (int bufferlength, char **ptr);
+void PR_ClearEngineString(int num);
 
 void PR_Profile_f (void);
 
@@ -138,7 +158,49 @@ FUNC_NORETURN void PR_RunError (const char *error, ...) FUNC_PRINTF(1,2);
 void ED_PrintEdicts (void);
 void ED_PrintNum (int ent);
 
-eval_t *GetEdictFieldValue(edict_t *ed, const char *field);
+eval_t *GetEdictFieldValue(edict_t *ed, int fldofs);	//handles invalid offsets with a null
+int ED_FindFieldOffset (const char *name);
+
+
+//from pr_cmds, no longer static so that pr_ext can use them.
+sizebuf_t *WriteDest (void);
+char *PR_GetTempString (void);
+char *PF_VarString (int	first);
+#define	STRINGTEMP_BUFFERS		16
+#define	STRINGTEMP_LENGTH		1024
+void PF_Fixme(void);	//the 'unimplemented' builtin. woot.
+
+extern struct pr_extfuncs_s
+{	//various global qc entry points that might be called by the engine, if set.
+	func_t		endframe;
+	func_t		parseclientcommand;
+} pr_extfuncs;
+extern	cvar_t	pr_checkextension;	//if 0, extensions are disabled (unless they'd be fatal, but they're still spammy)
+
+extern struct pr_extfields_s
+{	//various fields that might be wanted by the engine. -1 == invalid
+	//I should probably use preprocessor magic for this list or something
+	int		items2;				//float
+	int		gravity;			//float
+	int		alpha;				//float
+	int		movement;			//vector
+	int		viewmodelforclient;	//entity
+	int		traileffectnum;		//float
+	int		emiteffectnum;		//float
+	int		scale;				//float
+	int		colormod;			//vector
+	int		tag_entity;			//entity
+	int		tag_index;			//float
+	int		button3;			//float
+	int		button4;			//float
+	int		button5;			//float
+	int		button6;			//float
+	int		button7;			//float
+	int		button8;			//float
+	int		viewzoom;			//float
+	int		modelflags;			//float, the upper 8 bits of .effects
+	//REMEMBER TO ADD THESE TO qsextensions.qc AND pr_edict.c
+} pr_extfields;
 
 #endif	/* _QUAKE_PROGS_H */
 

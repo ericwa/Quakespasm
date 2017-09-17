@@ -53,6 +53,7 @@ typedef struct entity_s
 	int						update_type;
 
 	entity_state_t			baseline;		// to fill in defaults in updates
+	entity_state_t			netstate;		// the latest network state
 
 	double					msgtime;		// time of last update
 	vec3_t					msg_origins[2];	// last two updates (0 is newest)
@@ -91,6 +92,9 @@ typedef struct entity_s
 	vec3_t					currentorigin;	//johnfitz -- transform lerping
 	vec3_t					previousangles;	//johnfitz -- transform lerping
 	vec3_t					currentangles;	//johnfitz -- transform lerping
+
+	struct trailstate_s		*trailstate;	//spike -- managed by the particle system, so we don't loose our position and spawn the wrong number of particles, and we can track beams etc
+	struct trailstate_s		*emitstate;		//spike -- for effects which are not so static.
 } entity_t;
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!

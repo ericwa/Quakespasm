@@ -601,6 +601,9 @@ LINE TESTING IN HULLS
 ==================
 SV_RecursiveHullCheck
 
+Spike -- note that the pointcontents in this function are completely redundant.
+This function should instead return the state of the contents of the mid position.
+This would avoid all redundant recursion.
 ==================
 */
 qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
@@ -817,6 +820,16 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 
 		if (clip->passedict && clip->passedict->v.size[0] && !touch->v.size[0])
 			continue;	// points never interact
+
+		if (pr_checkextension.value)
+		{
+			//corpses are nonsolid to slidebox
+			if (clip->passedict->v.solid == SOLID_SLIDEBOX && touch->v.solid == SOLID_EXT_CORPSE)
+				continue;
+			//corpses ignore slidebox or corpses
+			if (clip->passedict->v.solid == SOLID_EXT_CORPSE && (touch->v.solid == SOLID_SLIDEBOX || touch->v.solid == SOLID_EXT_CORPSE))
+				continue;
+		}
 
 	// might intersect, so do an exact clip
 		if (clip->trace.allsolid)

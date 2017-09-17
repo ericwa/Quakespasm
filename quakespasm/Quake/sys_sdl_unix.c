@@ -119,6 +119,14 @@ int Sys_FileOpenWrite (const char *path)
 	return i;
 }
 
+int Sys_FileOpenStdio (FILE *file)
+{
+	int		i;
+	i = findhandle ();
+	sys_handles[i] = file;
+	return i;
+}
+
 void Sys_FileClose (int handle)
 {
 	fclose (sys_handles[handle]);
@@ -376,6 +384,8 @@ void Sys_Error (const char *error, ...)
 	char		text[1024];
 
 	fputs (errortxt1, stderr);
+
+	Con_Redirect(NULL);
 
 	Host_Shutdown ();
 

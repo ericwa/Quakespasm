@@ -69,6 +69,54 @@ static inline int Buf_GetC(stdio_buffer_t *buf)
 	return buf->buffer[buf->pos++];
 }
 
+/*small function to read files with stb_image - single-file image loader library.
+** downloaded from: https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
+** only use jpeg+png formats, because tbh there's not much need for the others.
+** */
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_JPEG
+#ifdef LODEPNG_NO_COMPILE_DECODER
+	#define STBI_ONLY_PNG
+#endif
+#include "stb_image.h"
+static byte *Image_LoadSTBI(FILE *f, int *width, int *height)
+{
+	int bytesPerPixel;
+	byte *heap = stbi_load_from_file(f, width, height, &bytesPerPixel, 4);
+	fclose(f);
+	if (heap)
+	{	//this is silly, but we do it for consistency.
+		//frankly, most people should be using tga-inside-pk3.
+		byte *hunk = Hunk_Alloc(*width**height*4);
+		memcpy(hunk, heap, *width**height*4);
+		free(heap);
+		return hunk;
+	}
+	return NULL;
+}
+
+byte *Image_LoadPNG(FILE *f, int *width, int *height, qboolean *malloced)
+{
+#ifdef LODEPNG_NO_COMPILE_DECODER
+	return Image_LoadSTBI (f, width, height);
+#else
+	unsigned w, h;
+	unsigned char *out = NULL, *in;
+	size_t insize = com_filesize;
+
+	in = malloc(com_filesize);
+	if (!in)
+		return NULL;
+	if (com_filesize == fread(in, 1, com_filesize, f))
+	{
+		*malloced = true;
+		lodepng_decode32(&out, &w, &h, in, insize);
+	}
+	free(in);
+	return out;
+#endif
+}
+
 /*
 ============
 Image_LoadImage
@@ -78,19 +126,44 @@ returns a pointer to hunk allocated RGBA data
 TODO: search order: tga png jpg pcx lmp
 ============
 */
-byte *Image_LoadImage (const char *name, int *width, int *height)
+byte *Image_LoadImage (const char *name, int *width, int *height, qboolean *malloced)
 {
 	FILE	*f;
+	char *prefixes[3] = {"", "textures/", "textures/"};
+	int i;
 
-	q_snprintf (loadfilename, sizeof(loadfilename), "%s.tga", name);
-	COM_FOpenFile (loadfilename, &f, NULL);
-	if (f)
-		return Image_LoadTGA (f, width, height);
+	*malloced = false;
 
-	q_snprintf (loadfilename, sizeof(loadfilename), "%s.pcx", name);
-	COM_FOpenFile (loadfilename, &f, NULL);
-	if (f)
-		return Image_LoadPCX (f, width, height);
+	for (i = 0; i < sizeof(prefixes)/sizeof(prefixes[0]); i++)
+	{
+		if (i == 2)	//last resort...
+			name = COM_SkipPath(name);
+
+		q_snprintf (loadfilename, sizeof(loadfilename), "%s%s.tga", prefixes[i], name);
+		COM_FOpenFile (loadfilename, &f, NULL);
+		if (f)
+			return Image_LoadTGA (f, width, height);
+
+		q_snprintf (loadfilename, sizeof(loadfilename), "%s%s.png", prefixes[i], name);
+		COM_FOpenFile (loadfilename, &f, NULL);
+		if (f)
+			return Image_LoadPNG (f, width, height, malloced);
+
+		q_snprintf (loadfilename, sizeof(loadfilename), "%s%s.jpeg", prefixes[i], name);
+		COM_FOpenFile (loadfilename, &f, NULL);
+		if (f)
+			return Image_LoadSTBI (f, width, height);
+
+		q_snprintf (loadfilename, sizeof(loadfilename), "%s%s.jpg", prefixes[i], name);
+		COM_FOpenFile (loadfilename, &f, NULL);
+		if (f)
+			return Image_LoadSTBI (f, width, height);
+
+		q_snprintf (loadfilename, sizeof(loadfilename), "%s%s.pcx", prefixes[i], name);
+		COM_FOpenFile (loadfilename, &f, NULL);
+		if (f)
+			return Image_LoadPCX (f, width, height);
+	}
 
 	return NULL;
 }

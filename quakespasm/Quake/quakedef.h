@@ -48,9 +48,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // combined version string like "0.92.1-beta1"
 #define	QUAKESPASM_VER_STRING	QS_STRINGIFY(QUAKESPASM_VERSION) "." QS_STRINGIFY(QUAKESPASM_VER_PATCH) QUAKESPASM_VER_SUFFIX
 
+#define ENGINE_NAME_AND_VER "QSS" " " QUAKESPASM_VER_STRING
+
 //define	PARANOID			// speed sapping error checking
 
 #define	GAMENAME	"id1"		// directory to look in by default
+
+#define PSET_SCRIPT		//enable the scriptable particle system (poorly ported from FTE)
+#define PSET_SCRIPT_EFFECTINFO	//scripted particle system can load dp's effects
+
 
 #include "q_stdinc.h"
 
@@ -88,15 +94,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // per-level limits
 //
-#define	MIN_EDICTS	256		// johnfitz -- lowest allowed value for max_edicts cvar
-#define	MAX_EDICTS	32000		// johnfitz -- highest allowed value for max_edicts cvar
-						// ents past 8192 can't play sounds in the standard protocol
-#define	MAX_LIGHTSTYLES	64
-#define	MAX_MODELS	2048		// johnfitz -- was 256
-#define	MAX_SOUNDS	2048		// johnfitz -- was 256
+#define	MIN_EDICTS			256		// johnfitz -- lowest allowed value for max_edicts cvar
+#define	MAX_EDICTS			32000	// johnfitz -- highest allowed value for max_edicts cvar
+									// ents past 8192 can't play sounds in the standard protocol
+#define	MAX_LIGHTSTYLES		255		//spike -- file format max of 255, increasing will break saved games.
+#define	MAX_MODELS			4096	// johnfitz -- was 256
+#define	MAX_SOUNDS			2048	// johnfitz -- was 256
+#define	MAX_PARTICLETYPES	2048
 
 #define	SAVEGAME_COMMENT_LENGTH	39
 
+#define	MAX_LIGHTSTYLES_VANILLA	64
 #define	MAX_STYLESTRING		64
 
 //
@@ -118,6 +126,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	STAT_TOTALMONSTERS	12
 #define	STAT_SECRETS		13	// bumped on client side by svc_foundsecret
 #define	STAT_MONSTERS		14	// bumped by svc_killedmonster
+
+#define STAT_ITEMS			15	//replaces clc_clientdata info
+#define STAT_VIEWHEIGHT		16	//replaces clc_clientdata info
+//#define STAT_TIME			17	//zquake, redundant for nq.
+//#define STAT_MATCHSTARTTIME 18
+//#define STAT_VIEW2			20
+#define STAT_VIEWZOOM		21 // DP
+#define STAT_IDEALPITCH		25	//nq-emu
+#define STAT_PUNCHANGLE_X	26	//nq-emu
+#define STAT_PUNCHANGLE_Y	27	//nq-emu
+#define STAT_PUNCHANGLE_Z	28	//nq-emu
 
 // stock defines
 //
@@ -186,7 +205,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //===========================================
 
-#define	MAX_SCOREBOARD		16
+#define	MAX_SCOREBOARD		255
 #define	MAX_SCOREBOARDNAME	32
 
 #define	SOUND_CHANNELS		8
@@ -218,6 +237,7 @@ typedef struct
 #include "cmd.h"
 #include "crc.h"
 
+#include "snd_voip.h"
 #include "progs.h"
 #include "server.h"
 
@@ -314,6 +334,9 @@ void Host_Quit_f (void);
 void Host_ClientCommands (const char *fmt, ...) FUNC_PRINTF(1,2);
 void Host_ShutdownServer (qboolean crash);
 void Host_WriteConfiguration (void);
+
+void Host_AppendDownloadData(client_t *client, sizebuf_t *buf);
+void Host_DownloadAck(client_t *client);
 
 void ExtraMaps_Init (void);
 void Modlist_Init (void);

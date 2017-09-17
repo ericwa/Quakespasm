@@ -101,7 +101,7 @@ void Sky_LoadTexture (texture_t *mt)
 	static byte	back_data[128*128]; //FIXME: Hunk_Alloc
 	unsigned	*rgba;
 
-	src = (byte *)mt + mt->offsets[0];
+	src = (byte *)(mt+1);
 
 // extract back layer and upload
 	for (i=0 ; i<128 ; i++)
@@ -155,6 +155,7 @@ void Sky_LoadSkyBox (const char *name)
 	char	filename[MAX_OSPATH];
 	byte	*data;
 	qboolean nonefound = true;
+	qboolean malloced;
 
 	if (strcmp(skybox_name, name) == 0)
 		return; //no change
@@ -179,7 +180,7 @@ void Sky_LoadSkyBox (const char *name)
 	{
 		mark = Hunk_LowMark ();
 		q_snprintf (filename, sizeof(filename), "gfx/env/%s%s", name, suf[i]);
-		data = Image_LoadImage (filename, &width, &height);
+		data = Image_LoadImage (filename, &width, &height, &malloced);
 		if (data)
 		{
 			skybox_textures[i] = TexMgr_LoadImage (cl.worldmodel, filename, width, height, SRC_RGBA, data, filename, 0, TEXPREF_NONE);
@@ -190,6 +191,8 @@ void Sky_LoadSkyBox (const char *name)
 			Con_Printf ("Couldn't load %s\n", filename);
 			skybox_textures[i] = notexture;
 		}
+		if (malloced)
+			free(data);
 		Hunk_FreeToLowMark (mark);
 	}
 

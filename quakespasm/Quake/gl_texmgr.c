@@ -808,6 +808,8 @@ TexMgr_AlphaEdgeFix
 
 eliminate pink edges on sprites, etc.
 operates in place on 32bit data
+
+spike -- small note that would be better to use premultiplied alpha to completely eliminate these skirts without the possibility of misbehaving.
 ===============
 */
 static void TexMgr_AlphaEdgeFix (byte *data, int width, int height)
@@ -1004,6 +1006,23 @@ static byte *TexMgr_PadImageH (byte *in, int width, int height, byte padbyte)
 	return data;
 }
 
+static byte *TexMgr_PreMultiply32(byte *in, size_t width, size_t height)
+{
+	size_t pixels = width * height;
+	byte *out = (byte *) Hunk_Alloc(pixels*4);
+	byte *result = out;
+	while (pixels --> 0)
+	{
+		out[0] = (in[0]*in[3])>>8;
+		out[1] = (in[1]*in[3])>>8;
+		out[2] = (in[2]*in[3])>>8;
+		out[3] = in[3];
+		in += 4;
+		out += 4;
+	}
+	return result;
+}
+
 /*
 ================
 TexMgr_LoadImage32 -- handles 32bit source data
@@ -1012,6 +1031,10 @@ TexMgr_LoadImage32 -- handles 32bit source data
 static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 {
 	int	internalformat,	miplevel, mipwidth, mipheight, picmip;
+
+	//do this before any rescaling
+	if (glt->flags & TEXPREF_PREMULTIPLY)
+		data = (unsigned*)TexMgr_PreMultiply32((byte*)data, glt->width, glt->height);
 
 	if (!gl_texture_NPOT)
 	{
@@ -1154,7 +1177,7 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data)
 	data = (byte *)TexMgr_8to32(data, glt->width * glt->height, usepal);
 
 	// fix edges
-	if (glt->flags & TEXPREF_ALPHA)
+	if ((glt->flags & TEXPREF_ALPHA) && !(glt->flags & TEXPREF_PREMULTIPLY))
 		TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
 	else
 	{
@@ -1194,6 +1217,7 @@ gltexture_t *TexMgr_LoadImage (qmodel_t *owner, const char *name, int width, int
 	unsigned short crc;
 	gltexture_t *glt;
 	int mark;
+	qboolean malloced;
 
 	if (isDedicated)
 		return NULL;
@@ -1210,6 +1234,7 @@ gltexture_t *TexMgr_LoadImage (qmodel_t *owner, const char *name, int width, int
 	case SRC_RGBA:
 		crc = CRC_Block(data, width * height * 4);
 		break;
+	case SRC_EXTERNAL:
 	default: /* not reachable but avoids compiler warnings */
 		crc = 0;
 	}
@@ -1247,6 +1272,24 @@ gltexture_t *TexMgr_LoadImage (qmodel_t *owner, const char *name, int width, int
 	case SRC_LIGHTMAP:
 		TexMgr_LoadLightmap (glt, data);
 		break;
+	case SRC_EXTERNAL:
+		data = Image_LoadImage (glt->source_file, (int *)&glt->source_width, (int *)&glt->source_height, &malloced); //simple file
+		if (!data)
+		{
+			glt->source_width = glt->source_height = 1;
+			glt->width = glt->source_width;
+			glt->height = glt->source_height;
+			TexMgr_LoadImage8 (glt, (byte*)"\x07");
+		}
+		else
+		{
+			glt->width = glt->source_width;
+			glt->height = glt->source_height;
+			TexMgr_LoadImage32 (glt, (unsigned *)data);
+			if (malloced)
+				free(data);
+		}
+		break;
 	case SRC_RGBA:
 		TexMgr_LoadImage32 (glt, (unsigned *)data);
 		break;
@@ -1275,6 +1318,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 	byte	translation[256];
 	byte	*src, *dst, *data = NULL, *translated;
 	int	mark, size, i;
+	qboolean malloced = false;
 //
 // get source data
 //
@@ -1300,7 +1344,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 		fclose (f);
 	}
 	else if (glt->source_file[0] && !glt->source_offset)
-		data = Image_LoadImage (glt->source_file, (int *)&glt->source_width, (int *)&glt->source_height); //simple file
+		data = Image_LoadImage (glt->source_file, (int *)&glt->source_width, (int *)&glt->source_height, &malloced); //simple file
 	else if (!glt->source_file[0] && glt->source_offset)
 		data = (byte *) glt->source_offset; //image in memory
 
@@ -1380,11 +1424,14 @@ invalid:
 	case SRC_LIGHTMAP:
 		TexMgr_LoadLightmap (glt, data);
 		break;
+	case SRC_EXTERNAL:
 	case SRC_RGBA:
 		TexMgr_LoadImage32 (glt, (unsigned *)data);
 		break;
 	}
 
+	if (malloced)
+		free(data);
 	Hunk_FreeToLowMark(mark);
 }
 

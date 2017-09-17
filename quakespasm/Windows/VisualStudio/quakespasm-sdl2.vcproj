@@ -374,6 +374,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Quake\fs_zip.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\Quake\console.c"
 				>
 			</File>
@@ -502,6 +506,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Quake\pr_ext.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\Quake\pr_edict.c"
 				>
 			</File>
@@ -522,6 +530,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Quake\r_part_fte.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\Quake\r_sprite.c"
 				>
 			</File>
@@ -535,6 +547,10 @@
 			</File>
 			<File
 				RelativePath="..\..\Quake\snd_codec.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\snd_voip.c"
 				>
 			</File>
 			<File

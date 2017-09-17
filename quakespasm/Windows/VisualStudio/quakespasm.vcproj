@@ -630,6 +630,22 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Quake\fs_zip.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\snd_voip.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\pr_ext.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\Quake\r_part_fte.c"
+				>
+			</File>
+			<File
 				RelativePath="..\SDL\main\SDL_win32_main.c"
 				>
 			</File>

@@ -10,6 +10,9 @@ DO_USERDIRS=0
 ### Enable/Disable SDL2
 USE_SDL2=0
 
+### Enable the use of zlib, for compressed pk3s.
+USE_ZLIB=1
+
 ### Enable/Disable codecs for streaming music support
 USE_CODEC_WAVE=1
 USE_CODEC_FLAC=0
@@ -176,7 +179,12 @@ ifeq ($(USE_CODEC_UMX),1)
 CFLAGS+= -DUSE_CODEC_UMX
 endif
 
-COMMON_LIBS:= -lm -lGL
+COMMON_LIBS:= -ldl -lm -lGL
+
+ifeq ($(USE_ZLIB),1)
+CFLAGS+= -DUSE_ZLIB
+COMMON_LIBS+= -lz
+endif
 
 LIBS := $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
 
@@ -209,7 +217,7 @@ MUSIC_OBJS:= bgmusic.o \
 	snd_mikmod.o \
 	snd_xmp.o \
 	snd_umx.o
-COMOBJ_SND := snd_dma.o snd_mix.o snd_mem.o $(MUSIC_OBJS)
+COMOBJ_SND := snd_voip.o snd_dma.o snd_mix.o snd_mem.o $(MUSIC_OBJS)
 SYSOBJ_SND := snd_sdl.o
 SYSOBJ_CDA := cd_sdl.o
 SYSOBJ_INPUT := in_sdl.o
@@ -226,6 +234,7 @@ GLOBJS = \
 	gl_fog.o \
 	gl_rmisc.o \
 	r_part.o \
+	r_part_fte.o \
 	r_world.o \
 	gl_screen.o \
 	gl_sky.o \
@@ -265,6 +274,7 @@ OBJS := strlcat.o \
 	wad.o \
 	cmd.o \
 	common.o \
+	fs_zip.o \
 	crc.o \
 	cvar.o \
 	cfgfile.o \
@@ -272,6 +282,7 @@ OBJS := strlcat.o \
 	host_cmd.o \
 	mathlib.o \
 	pr_cmds.o \
+	pr_ext.o \
 	pr_edict.o \
 	pr_exec.o \
 	sv_main.o \

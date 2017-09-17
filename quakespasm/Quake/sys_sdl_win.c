@@ -118,6 +118,14 @@ int Sys_FileOpenWrite (const char *path)
 	return i;
 }
 
+int Sys_FileOpenStdio (FILE *file)
+{
+	int		i;
+	i = findhandle ();
+	sys_handles[i] = file;
+	return i;
+}
+
 void Sys_FileClose (int handle)
 {
 	fclose (sys_handles[handle]);
@@ -302,6 +310,8 @@ void Sys_Error (const char *error, ...)
 	q_vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
+	Con_Redirect(NULL);
+
 	if (isDedicated)
 		WriteFile (houtput, errortxt1, strlen(errortxt1), &dummy, NULL);
 	/* SDL will put these into its own stderr log,
@@ -336,7 +346,14 @@ void Sys_Printf (const char *fmt, ...)
 
 	if (isDedicated)
 	{
-		WriteFile(houtput, text, strlen(text), &dummy, NULL);
+		if (*text == 1 || *text == 2)
+		{	//mostly for Con_[D]Warning
+			SetConsoleTextAttribute(houtput, FOREGROUND_RED);
+			WriteFile(houtput, text+1, strlen(text+1), &dummy, NULL);
+			SetConsoleTextAttribute(houtput, FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED);
+		}
+		else
+			WriteFile(houtput, text, strlen(text), &dummy, NULL);
 	}
 	else
 	{

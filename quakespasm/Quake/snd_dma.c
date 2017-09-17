@@ -24,6 +24,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // snd_dma.c -- main control for any streaming sound output device
 
+/* FIXME -- spike
+** with SDL, the SDL api provides a callback that is called whenever SDL thinks more audio is needed
+** if we were to move our mixing into the callback instead, we would obsolete _snd_mixahead and reduce audio latency as a result (instead of having to pre-mix audio just in case).
+** this callback can typically also be assumed to be on another thread, so mixing audio there would result in a drop in cpu usage on the main thread, increasing framerates.
+** typically quake's audio mixer isn't that expensive, but when you have maps with 1000 static sounds with 8-channel surround sound, things can start to get pricy.
+**
+** S_Update_ would become a stub, and we'd need to call SDL_LockAudio to block the callback from happening any time we change an audio channel.
+** snd_mix.c would also need to be threadsafe with regard to the rest of the code
+**
+** alternatively, sdl2 provides a different audio api that more closely matches what we currently do, where we would directly submit audio (snd_mixahead would again be obsolete).
+*/
+
 #include "quakedef.h"
 #include "snd_codec.h"
 #include "bgmusic.h"
@@ -39,8 +51,9 @@ static void S_StopAllSoundsC (void);
 // Internal sound data & structures
 // =======================================================================
 
-channel_t	snd_channels[MAX_CHANNELS];
+channel_t	*snd_channels;
 int		total_channels;
+int		max_channels;
 
 static int	snd_blocked = 0;
 static qboolean	snd_initialized = false;
@@ -52,6 +65,7 @@ vec3_t		listener_origin;
 vec3_t		listener_forward;
 vec3_t		listener_right;
 vec3_t		listener_up;
+float		voicevolumescale = 1;	//for audio ducking while speaking
 
 #define	sound_nominal_clip_dist	1000.0
 
@@ -182,7 +196,9 @@ void S_Init (void)
 	Cvar_RegisterVariable(&sndspeed);
 	Cvar_RegisterVariable(&snd_mixspeed);
 	Cvar_RegisterVariable(&snd_filterquality);
-	
+
+	S_Voip_Init();
+
 	if (safemode || COM_CheckParm("-nosound"))
 		return;
 
@@ -401,11 +417,17 @@ void SND_Spatialize (channel_t *ch)
 	vec_t	lscale, rscale, scale;
 	vec3_t	source_vec;
 
+	if (ch->entchannel == -2)
+	{
+		ch->leftvol = ch->master_vol;	//voip comes out full volume
+		ch->rightvol = ch->master_vol;
+		return;
+	}
 // anything coming from the view entity will always be full volume
 	if (ch->entnum == cl.viewentity)
 	{
-		ch->leftvol = ch->master_vol;
-		ch->rightvol = ch->master_vol;
+		ch->leftvol = ch->master_vol * voicevolumescale;
+		ch->rightvol = ch->master_vol * voicevolumescale;
 		return;
 	}
 
@@ -427,12 +449,12 @@ void SND_Spatialize (channel_t *ch)
 
 // add in distance effect
 	scale = (1.0 - dist) * rscale;
-	ch->rightvol = (int) (ch->master_vol * scale);
+	ch->rightvol = (int) (ch->master_vol * scale * voicevolumescale);
 	if (ch->rightvol < 0)
 		ch->rightvol = 0;
 
 	scale = (1.0 - dist) * lscale;
-	ch->leftvol = (int) (ch->master_vol * scale);
+	ch->leftvol = (int) (ch->master_vol * scale * voicevolumescale);
 	if (ch->leftvol < 0)
 		ch->leftvol = 0;
 }
@@ -532,20 +554,17 @@ void S_StopSound (int entnum, int entchannel)
 
 void S_StopAllSounds (qboolean clear)
 {
-	int		i;
-
 	if (!sound_started)
 		return;
 
 	total_channels = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS;	// no statics
-
-	for (i = 0; i < MAX_CHANNELS; i++)
-	{
-		if (snd_channels[i].sfx)
-			snd_channels[i].sfx = NULL;
+	if (max_channels != total_channels + 64)
+	{	//shrink it if needed
+		max_channels = total_channels + 64;
+		free(snd_channels);
+		snd_channels = malloc(sizeof(channel_t) * max_channels);
 	}
-
-	memset(snd_channels, 0, MAX_CHANNELS * sizeof(channel_t));
+	memset(snd_channels, 0, max_channels * sizeof(channel_t));
 
 	if (clear)
 		S_ClearBuffer ();
@@ -593,10 +612,18 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 	if (!sfx)
 		return;
 
-	if (total_channels == MAX_CHANNELS)
+	if (total_channels == max_channels)
 	{
-		Con_Printf ("total_channels == MAX_CHANNELS\n");
-		return;
+		int nm = max_channels+64;
+		ss = realloc(snd_channels, sizeof(*ss)*nm);
+		if (!ss)
+		{
+			Con_Printf ("unable to increase max_channels\n");
+			return;
+		}
+		snd_channels = ss;
+		memset(snd_channels+max_channels, 0, sizeof(*ss)*(nm-max_channels));
+		max_channels = nm;
 	}
 
 	ss = &snd_channels[total_channels];
@@ -632,14 +659,15 @@ S_UpdateAmbientSounds
 static void S_UpdateAmbientSounds (void)
 {
 	mleaf_t		*l;
-	int		vol, ambient_channel;
+	int		ambient_channel;
 	channel_t	*chan;
+	static float vol, levels[NUM_AMBIENTS];	//Spike: fixing ambient levels not changing at high enough framerates due to integer precison.
 
 // no ambients when disconnected
-	if (cls.state != ca_connected)
+	if (cls.state != ca_connected || cls.signon != SIGNONS)
 		return;
 // calc ambient sound levels
-	if (!cl.worldmodel)
+	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
 
 	l = Mod_PointInLeaf (listener_origin, cl.worldmodel);
@@ -660,20 +688,20 @@ static void S_UpdateAmbientSounds (void)
 			vol = 0;
 
 	// don't adjust volume too fast
-		if (chan->master_vol < vol)
+		if (levels[ambient_channel] < vol)
 		{
-			chan->master_vol += (int) (host_frametime * ambient_fade.value);
-			if (chan->master_vol > vol)
-				chan->master_vol = vol;
+			levels[ambient_channel] += (host_frametime * ambient_fade.value);
+			if (levels[ambient_channel] > vol)
+				levels[ambient_channel] = vol;
 		}
 		else if (chan->master_vol > vol)
 		{
-			chan->master_vol -= (int) (host_frametime * ambient_fade.value);
-			if (chan->master_vol < vol)
-				chan->master_vol = vol;
+			levels[ambient_channel] -= (host_frametime * ambient_fade.value);
+			if (levels[ambient_channel] < vol)
+				levels[ambient_channel] = vol;
 		}
 
-		chan->leftvol = chan->rightvol = chan->master_vol;
+		chan->leftvol = chan->rightvol = chan->master_vol = levels[ambient_channel];
 	}
 }
 

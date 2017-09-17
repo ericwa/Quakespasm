@@ -371,6 +371,8 @@ void PR_ExecuteProgram (func_t fnum)
 
 	f = &pr_functions[fnum];
 
+	//FIXME: if this is a builtin, then we're going to crash.
+
 	pr_trace = false;
 
 // make a stack frame
@@ -383,7 +385,7 @@ void PR_ExecuteProgram (func_t fnum)
     {
 	st++;	/* next statement */
 
-	if (++profile > 100000)
+	if (++profile > 10000000)	//spike -- was 100000
 	{
 		pr_xstatement = st - pr_statements;
 		PR_RunError("runaway loop error");
@@ -612,7 +614,7 @@ void PR_ExecuteProgram (func_t fnum)
 		{ // Built-in function
 			int i = -newf->first_statement;
 			if (i >= pr_numbuiltins)
-				PR_RunError("Bad builtin call number %d", i);
+				i = 0;	//just invoke the fixme builtin.
 			pr_builtins[i]();
 			break;
 		}
