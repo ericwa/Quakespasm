@@ -128,7 +128,7 @@ typedef struct
 	int			flags;
 } mtexinfo_t;
 
-#define	VERTEXSIZE	7
+#define	VERTEXSIZE	11
 
 typedef struct glpoly_s
 {

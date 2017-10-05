@@ -810,6 +810,7 @@ static GLuint useAlphaTestLoc;
 #define vertAttrIndex 0
 #define texCoordsAttrIndex 1
 #define LMCoordsAttrIndex 2
+#define facePlaneAttrIndex 3
 
 /*
  =============
@@ -821,7 +822,8 @@ void GLWorld_CreateShaders (void)
 	const glsl_attrib_binding_t bindings[] = {
 		{ "Vert", vertAttrIndex },
 		{ "TexCoords", texCoordsAttrIndex },
-		{ "LMCoords", LMCoordsAttrIndex }
+		{ "LMCoords", LMCoordsAttrIndex },
+		{ "FacePlane", facePlaneAttrIndex },
 	};
 	
 	const GLchar *vertSource = \
@@ -830,9 +832,13 @@ void GLWorld_CreateShaders (void)
 	"attribute vec3 Vert;\n"
 	"attribute vec2 TexCoords;\n"
 	"attribute vec2 LMCoords;\n"
+	"attribute vec4 FacePlane;\n"
+	"\n"
+	"varying vec4 FragmentFacePlane;\n"
 	"\n"
 	"void main()\n"
 	"{\n"
+	"	FragmentFacePlane = FacePlane;\n"
 	"	gl_TexCoord[0] = vec4(TexCoords, 0.0, 0.0);\n"
 	"	gl_TexCoord[1] = vec4(LMCoords, 0.0, 0.0);\n"
 	"	gl_Position = gl_ModelViewProjectionMatrix * vec4(Vert, 1.0);\n"
@@ -850,6 +856,9 @@ void GLWorld_CreateShaders (void)
 	"uniform bool UseFullbrightTex;\n"
 	"uniform bool UseOverbright;\n"
 	"uniform bool UseAlphaTest;\n"
+	"\n"
+	"varying vec4 FragmentFacePlane;\n"
+	"\n"
 	"void main()\n"
 	"{\n"
 	"	vec4 result = texture2D(Tex, gl_TexCoord[0].xy);\n"
@@ -865,8 +874,10 @@ void GLWorld_CreateShaders (void)
 	"	float fog = exp(-gl_Fog.density * gl_Fog.density * gl_FogFragCoord * gl_FogFragCoord);\n"
 	"	fog = clamp(fog, 0.0, 1.0);\n"
 	"	result = mix(gl_Fog.color, result, fog);\n"
+	"	result = mix(result, FragmentFacePlane, 0.5);\n"
 	"	result.a = gl_Color.a;\n"
 	"	gl_FragColor = result;\n"
+	"	gl_FragDepth = gl_FragCoord.z;\n"
 	"}\n";
 	
 	if (!gl_glsl_alias_able)
@@ -914,10 +925,12 @@ void R_DrawTextureChains_GLSL (qmodel_t *model, entity_t *ent, texchain_t chain)
 	GL_EnableVertexAttribArrayFunc (vertAttrIndex);
 	GL_EnableVertexAttribArrayFunc (texCoordsAttrIndex);
 	GL_EnableVertexAttribArrayFunc (LMCoordsAttrIndex);
+	GL_EnableVertexAttribArrayFunc (facePlaneAttrIndex);
 	
 	GL_VertexAttribPointerFunc (vertAttrIndex,      3, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0));
 	GL_VertexAttribPointerFunc (texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
 	GL_VertexAttribPointerFunc (LMCoordsAttrIndex,  2, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0) + 5);
+	GL_VertexAttribPointerFunc (facePlaneAttrIndex, 4, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0) + 7);
 	
 // set uniforms
 	GL_Uniform1iFunc (texLoc, 0);
@@ -985,6 +998,7 @@ void R_DrawTextureChains_GLSL (qmodel_t *model, entity_t *ent, texchain_t chain)
 	GL_DisableVertexAttribArrayFunc (vertAttrIndex);
 	GL_DisableVertexAttribArrayFunc (texCoordsAttrIndex);
 	GL_DisableVertexAttribArrayFunc (LMCoordsAttrIndex);
+	GL_DisableVertexAttribArrayFunc (facePlaneAttrIndex);
 	
 	GL_UseProgramFunc (0);
 	GL_SelectTexture (GL_TEXTURE0);

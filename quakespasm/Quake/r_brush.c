@@ -858,6 +858,12 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 
 		poly->verts[i][5] = s;
 		poly->verts[i][6] = t;
+		
+		// ericw -- plane
+		poly->verts[i][7] = fa->plane->normal[0];
+		poly->verts[i][8] = fa->plane->normal[1];
+		poly->verts[i][9] = fa->plane->normal[2];
+		poly->verts[i][10] = fa->plane->dist;
 	}
 
 	//johnfitz -- removed gl_keeptjunctions code
