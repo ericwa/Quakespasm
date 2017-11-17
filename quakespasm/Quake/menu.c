@@ -978,11 +978,11 @@ again:
 /* MODS MENU */
 
 #define	MAX_MOD_ROWS		1000	/* ericw -- max mods in list */
-#define	MAX_MOD_ROWS_VISBLE	19		/* ericw -- show this many at a time */
+#define	MAX_MOD_ROWS_VISBLE	16		/* ericw -- show this many at a time */
 
 char	m_modnames[MAX_MOD_ROWS][MAX_QPATH+1];
-int		m_modnames_len;
-int		m_modnames_cursor;
+int	m_modnames_len;
+int	m_modnames_cursor;
 
 static void M_Mods_PopulateMods (void)
 {
@@ -1042,7 +1042,6 @@ void M_Mods_Draw (void)
 	p = Draw_CachePic ("gfx/qplaque.lmp");
 	M_DrawTransPic (16, y, p);
 	
-	//p = Draw_CachePic ("gfx/vidmodes.lmp");
 	p = Draw_CachePic ("gfx/p_option.lmp");
 	M_DrawPic ( (320-p->width)/2, y, p);
 	
@@ -1054,20 +1053,20 @@ void M_Mods_Draw (void)
 	
 	y += 16;
 	
-	q_snprintf (page_string, sizeof(page_string), "page:%2i /%2i", page + 1, numpages);
+	q_snprintf (page_string, sizeof(page_string), "Pg.%2i of%2i", page + 1, numpages);
 	M_Print ((320/2) - 8*(strlen(page_string)/2), y + (8*MAX_MOD_ROWS_VISBLE), page_string);
 	
 	current_mod = COM_SkipPath(com_gamedir);
 	for (i = 0; i < MAX_MOD_ROWS_VISBLE; i++)
 	{
 		if (!Q_strcmp(m_modnames[toprow + i], current_mod))
-			M_PrintWhite (16, y + 8*i, m_modnames[toprow + i]);
+			M_PrintWhite (54 + 8, y + 8*i, m_modnames[toprow + i]);
 		else
-			M_Print (16, y + 8*i, m_modnames[toprow + i]);
+			M_Print (54 + 8, y + 8*i, m_modnames[toprow + i]);
 	}
 	
 	// line cursor
-	M_DrawCharacter (8, y + (m_modnames_cursor - toprow)*8, 12+((int)(realtime*4)&1));
+	M_DrawCharacter (54, y + (m_modnames_cursor - toprow)*8, 12+((int)(realtime*4)&1));
 }
 
 void M_Mods_Key (int k)
@@ -1089,22 +1088,22 @@ void M_Mods_Key (int k)
 			return;
 			
 		case K_UPARROW:
-		case K_LEFTARROW:
 			S_LocalSound ("misc/menu1.wav");
 			m_modnames_cursor = CLAMP(0, m_modnames_cursor - 1, m_modnames_len - 1);
 			break;
 			
 		case K_DOWNARROW:
-		case K_RIGHTARROW:
 			S_LocalSound ("misc/menu1.wav");
 			m_modnames_cursor = CLAMP(0, m_modnames_cursor + 1, m_modnames_len - 1);
 			break;
 
+		case K_LEFTARROW:
 		case K_PGUP:
 			S_LocalSound ("misc/menu1.wav");
 			m_modnames_cursor = CLAMP(0, m_modnames_cursor - MAX_MOD_ROWS_VISBLE, m_modnames_len - 1);
 			break;
 
+		case K_RIGHTARROW:
 		case K_PGDN:
 			S_LocalSound ("misc/menu1.wav");
 			m_modnames_cursor = CLAMP(0, m_modnames_cursor + MAX_MOD_ROWS_VISBLE, m_modnames_len - 1);
