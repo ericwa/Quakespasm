@@ -332,7 +332,7 @@ qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 	if (!buf)
 	{
 		if (crash)
-			Sys_Error ("Mod_LoadModel: %s not found", mod->name); //johnfitz -- was "Mod_NumForName"
+			Host_Error ("Mod_LoadModel: %s not found", mod->name); //johnfitz -- was "Mod_NumForName"
 		else if (mod->name[0] == '*' && (mod->name[1] < '0' || mod->name[1] > '9'))
 			;	//*foo doesn't warn, unless its *NUM. inline models. gah.
 		else
@@ -345,8 +345,6 @@ qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 
 		Mod_SetExtraFlags (mod); //johnfitz. spike -- moved this to be generic, because most of the flags are anyway.
 		return mod;
-
-		return NULL;
 	}
 
 //
@@ -2861,7 +2859,7 @@ void Mod_SetExtraFlags (qmodel_t *mod)
 {
 	extern cvar_t r_nolerp_list, r_noshadow_list;
 
-	if (!mod || !mod->name)
+	if (!mod)
 		return;
 
 	mod->flags &= (0xFF | MF_HOLEY); //only preserve first byte, plus MF_HOLEY

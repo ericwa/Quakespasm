@@ -377,8 +377,9 @@ void Draw_NewGame (void)
 	int			i;
 
 	// empty scrap and reallocate gltextures
-	memset(&scrap_allocated, 0, sizeof(scrap_allocated));
-	memset(&scrap_texels, 255, sizeof(scrap_texels));
+	memset(scrap_allocated, 0, sizeof(scrap_allocated));
+	memset(scrap_texels, 255, sizeof(scrap_texels));
+
 	Scrap_Upload (); //creates 2 empty gltextures
 
 	// reload wad pics
@@ -403,8 +404,9 @@ void Draw_Init (void)
 	Cvar_RegisterVariable (&scr_conalpha);
 
 	// clear scrap and allocate gltextures
-	memset(&scrap_allocated, 0, sizeof(scrap_allocated));
-	memset(&scrap_texels, 255, sizeof(scrap_texels));
+	memset(scrap_allocated, 0, sizeof(scrap_allocated));
+	memset(scrap_texels, 255, sizeof(scrap_texels));
+
 	Scrap_Upload (); //creates 2 empty textures
 
 	// create internal pics
@@ -697,7 +699,7 @@ void GL_SetCanvas (canvastype newcanvas)
 	currentcanvas = newcanvas;
 
 	glMatrixMode(GL_PROJECTION);
-    glLoadIdentity ();
+	glLoadIdentity ();
 
 	switch(newcanvas)
 	{
@@ -759,7 +761,7 @@ void GL_SetCanvas (canvastype newcanvas)
 	}
 
 	glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity ();
+	glLoadIdentity ();
 }
 
 /*

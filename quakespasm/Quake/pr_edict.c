@@ -750,12 +750,13 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s)
+qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s)
 {
 	int		i;
 	char	string[128];
 	ddef_t	*def;
 	char	*v, *w;
+	char	*end;
 	void	*d;
 	dfunction_t	*func;
 
@@ -776,16 +777,27 @@ qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s)
 		break;
 
 	case ev_vector:
-		strcpy (string, s);
+		q_strlcpy(string, s, sizeof(string));
+		end = (char *)string + strlen(string);
 		v = string;
 		w = string;
-		for (i = 0; i < 3; i++)
+
+		for (i = 0; i < 3 && (w <= end); i++) // ericw -- added (w <= end) check
 		{
+		// set `v` to the next space (or 0 byte), and change that char to a 0 byte
 			while (*v && *v != ' ')
 				v++;
 			*v = 0;
 			((float *)d)[i] = atof (w);
 			w = v = v+1;
+		}
+
+		// ericw -- fill remaining elements to 0.0f in case we hit the end of string before reading 3 floats
+		if (i < 3)
+		{
+			Con_DWarning("vanilla will read garbage for \"%s\" \"%s\"\n", PR_GetString(key->s_name), s);
+			for (; i < 3; i++)
+				((float *)d)[i] = 0.0f;
 		}
 		break;
 

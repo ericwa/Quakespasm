@@ -61,6 +61,10 @@ cvar_t	v_idlescale = {"v_idlescale", "0", CVAR_NONE};
 cvar_t	crosshair = {"crosshair", "0", CVAR_ARCHIVE};
 
 cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100", CVAR_NONE};
+cvar_t	gl_cshiftpercent_contents = {"gl_cshiftpercent_contents", "100", CVAR_NONE}; // QuakeSpasm
+cvar_t	gl_cshiftpercent_damage = {"gl_cshiftpercent_damage", "100", CVAR_NONE}; // QuakeSpasm
+cvar_t	gl_cshiftpercent_bonus = {"gl_cshiftpercent_bonus", "100", CVAR_NONE}; // QuakeSpasm
+cvar_t	gl_cshiftpercent_powerup = {"gl_cshiftpercent_powerup", "100", CVAR_NONE}; // QuakeSpasm
 
 cvar_t	r_viewmodel_quake = {"r_viewmodel_quake", "0", CVAR_ARCHIVE};
 
@@ -440,6 +444,12 @@ void V_CalcBlend (void)
 {
 	float	r, g, b, a, a2;
 	int		j;
+	cvar_t	*cshiftpercent_cvars[NUM_CSHIFTS] = {
+		&gl_cshiftpercent_contents,
+		&gl_cshiftpercent_damage,
+		&gl_cshiftpercent_bonus,
+		&gl_cshiftpercent_powerup
+	};
 
 	r = 0;
 	g = 0;
@@ -457,6 +467,9 @@ void V_CalcBlend (void)
 		//johnfitz
 
 		a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
+		// QuakeSpasm -- also scale by the specific gl_cshiftpercent_* cvar
+		a2 *= (cshiftpercent_cvars[j]->value / 100.0);
+		// QuakeSpasm
 		if (!a2)
 			continue;
 		a = a + a2*(1-a);
@@ -932,6 +945,10 @@ void V_Init (void)
 	Cvar_RegisterVariable (&v_idlescale);
 	Cvar_RegisterVariable (&crosshair);
 	Cvar_RegisterVariable (&gl_cshiftpercent);
+	Cvar_RegisterVariable (&gl_cshiftpercent_contents); // QuakeSpasm
+	Cvar_RegisterVariable (&gl_cshiftpercent_damage); // QuakeSpasm
+	Cvar_RegisterVariable (&gl_cshiftpercent_bonus); // QuakeSpasm
+	Cvar_RegisterVariable (&gl_cshiftpercent_powerup); // QuakeSpasm
 
 	Cvar_RegisterVariable (&scr_ofsx);
 	Cvar_RegisterVariable (&scr_ofsy);

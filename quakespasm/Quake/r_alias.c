@@ -96,15 +96,13 @@ model and pose.
 */
 static void *GLARB_GetXYZOffset_MDL (aliashdr_t *hdr, int pose)
 {
-	meshxyz_mdl_t dummy;
-	int xyzoffs = ((char*)&dummy.xyz - (char*)&dummy);
-	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (dummy)) + xyzoffs);
+	const size_t xyzoffs = offsetof (meshxyz_mdl_t, xyz);
+	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_mdl_t)) + xyzoffs);
 }
 static void *GLARB_GetXYZOffset_MD3 (aliashdr_t *hdr, int pose)
 {
-	meshxyz_md3_t dummy;
-	int xyzoffs = ((char*)&dummy.xyz - (char*)&dummy);
-	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (dummy)) + xyzoffs);
+	const size_t xyzoffs = offsetof (meshxyz_md3_t, xyz);
+	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_md3_t)) + xyzoffs);
 }
 
 /*
@@ -117,15 +115,13 @@ given model and pose.
 */
 static void *GLARB_GetNormalOffset_MDL (aliashdr_t *hdr, int pose)
 {
-	meshxyz_mdl_t dummy;
-	int normaloffs = ((char*)&dummy.normal - (char*)&dummy);
-	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (dummy)) + normaloffs);
+	const size_t normaloffs = offsetof (meshxyz_mdl_t, normal);
+	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_mdl_t)) + normaloffs);
 }
 static void *GLARB_GetNormalOffset_MD3 (aliashdr_t *hdr, int pose)
 {
-	meshxyz_md3_t dummy;
-	int normaloffs = ((char*)&dummy.normal - (char*)&dummy);
-	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (dummy)) + normaloffs);
+	const size_t normaloffs = offsetof (meshxyz_md3_t, normal);
+	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_md3_t)) + normaloffs);
 }
 
 /*

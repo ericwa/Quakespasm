@@ -21,26 +21,19 @@
 
 #ifndef SDL_config_os2_h_
 #define SDL_config_os2_h_
+#define SDL_config_h_
 
 #include "SDL_platform.h"
 
-#define HAVE_STDARG_H   1
-#define HAVE_STDDEF_H   1
-
 #define SDL_AUDIO_DRIVER_DUMMY 1
 #define SDL_AUDIO_DRIVER_DISK 1
-/* Enable the OS/2 audio driver (src/audio/os2/\*.c) */
-#define SDL_AUDIO_DRIVER_OS2  1
+#define SDL_AUDIO_DRIVER_OS2 1
 
-/* Enable the stub joystick driver (src/joystick/dummy/\*.c) */
 #define SDL_JOYSTICK_DISABLED 1
-
-/* Enable the stub haptic driver (src/haptic/dummy/\*.c) */
 #define SDL_HAPTIC_DISABLED 1
 
 #define SDL_VIDEO_DRIVER_DUMMY 1
-/* Enable the OS/2 video driver (src/video/os2/\*.c) */
-#define SDL_VIDEO_DRIVER_OS2  1
+#define SDL_VIDEO_DRIVER_OS2 1
 
 /* Enable OpenGL support */
 /* #undef SDL_VIDEO_OPENGL */
@@ -48,20 +41,28 @@
 /* Enable Vulkan support */
 /* #undef SDL_VIDEO_VULKAN */
 
-#define SDL_THREAD_OS2      1
-#define SDL_LOADSO_OS2      1
-#define SDL_TIMER_OS2       1
-#define SDL_FILESYSTEM_OS2  1
-#define SDL_POWER_OS2       1
+#define SDL_THREAD_OS2 1
+#define SDL_LOADSO_OS2 1
+#define SDL_TIMER_OS2 1
+#define SDL_FILESYSTEM_OS2 1
+#define SDL_POWER_OS2 1
+
+/* Enable assembly routines */
+#define SDL_ASSEMBLY_ROUTINES 1
+
+/* #undef HAVE_LIBSAMPLERATE_H */
+
+/* Enable dynamic libsamplerate support */
+/* #undef SDL_LIBSAMPLERATE_DYNAMIC */
 
 #define HAVE_LIBC 1
 
-/* Useful headers */
 #define HAVE_SYS_TYPES_H 1
 #define HAVE_STDIO_H 1
 #define STDC_HEADERS 1
 #define HAVE_STDLIB_H 1
 #define HAVE_STDARG_H 1
+#define HAVE_STDDEF_H 1
 #define HAVE_MALLOC_H 1
 #define HAVE_MEMORY_H 1
 #define HAVE_STRING_H 1
@@ -75,7 +76,6 @@
 #define HAVE_FLOAT_H 1
 #define HAVE_SIGNAL_H 1
 
-/* C library functions */
 #define HAVE_MALLOC 1
 #define HAVE_CALLOC 1
 #define HAVE_REALLOC 1
@@ -102,7 +102,6 @@
 #define HAVE_STRLEN 1
 #define HAVE_STRLCPY 1
 #define HAVE_STRLCAT 1
-#define HAVE_STRDUP 1
 #define HAVE__STRREV 1
 #define HAVE__STRUPR 1
 #define HAVE__STRLWR 1
@@ -132,25 +131,36 @@
 #define HAVE_SNPRINTF 1
 #define HAVE_VSNPRINTF 1
 #define HAVE_SETJMP 1
+#define HAVE_ACOS 1
+/* #undef HAVE_ACOSF */
+#define HAVE_ASIN 1
+/* #undef HAVE_ASINF */
 #define HAVE_ATAN 1
 #define HAVE_ATAN2 1
-#define HAVE_ACOS 1
-#define HAVE_ASIN 1
+/* #undef HAVE_ATAN2F */
 #define HAVE_CEIL 1
+/* #undef HAVE_CEILF */
 /* #undef HAVE_COPYSIGN */
+/* #undef HAVE_COPYSIGNF */
 #define HAVE_COS 1
+/* #undef HAVE_COSF */
 #define HAVE_FABS 1
+/* #undef HAVE_FABSF */
 #define HAVE_FLOOR 1
-#define HAVE_POW 1
-/* #undef HAVE_SCALBN */
-#define HAVE_SIN 1
-#define HAVE_SQRT 1
-#define HAVE_TAN 1
+/* #undef HAVE_FLOORF */
+#define HAVE_FMOD 1
+/* #undef HAVE_FMODF */
 #define HAVE_LOG 1
-
-/* #undef HAVE_LIBSAMPLERATE_H */
-
-/* Enable assembly routines */
-#define SDL_ASSEMBLY_ROUTINES 1
+/* #undef HAVE_LOGF */
+#define HAVE_POW 1
+/* #undef HAVE_POWF */
+#define HAVE_SIN 1
+/* #undef HAVE_SINF */
+/* #undef HAVE_SCALBN */
+/* #undef HAVE_SCALBNF */
+#define HAVE_SQRT 1
+/* #undef HAVE_SQRTF */
+#define HAVE_TAN 1
+/* #undef HAVE_TANF */
 
 #endif /* SDL_config_os2_h_ */
