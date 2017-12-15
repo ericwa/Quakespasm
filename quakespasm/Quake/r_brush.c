@@ -30,12 +30,9 @@ extern cvar_t gl_zfix; // QuakeSpasm z-fighting fix
 int		gl_lightmap_format;
 int		lightmap_bytes;
 
-#define	BLOCK_WIDTH	128
-#define	BLOCK_HEIGHT	128
-
 gltexture_t	*lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
 
-unsigned	blocklights[BLOCK_WIDTH*BLOCK_HEIGHT*3]; //johnfitz -- was 18*18, added lit support (*3) and loosened surface extents maximum (BLOCK_WIDTH*BLOCK_HEIGHT)
+unsigned	blocklights[LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3]; //johnfitz -- was 18*18, added lit support (*3) and loosened surface extents maximum (BLOCK_WIDTH*BLOCK_HEIGHT)
 
 typedef struct glRect_s {
 	unsigned char l,t,w,h;
@@ -45,12 +42,12 @@ glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
 qboolean	lightmap_modified[MAX_LIGHTMAPS];
 glRect_t	lightmap_rectchange[MAX_LIGHTMAPS];
 
-int			allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
+int			allocated[MAX_LIGHTMAPS][LMBLOCK_WIDTH];
 int			last_lightmap_allocated; //ericw -- optimization: remember the index of the last lightmap AllocBlock stored a surf in
 
 // the lightmap texture data needs to be kept in
 // main memory so texsubimage can update properly
-byte		lightmaps[4*MAX_LIGHTMAPS*BLOCK_WIDTH*BLOCK_HEIGHT];
+byte		lightmaps[4*MAX_LIGHTMAPS*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
 
 
 /*
@@ -703,15 +700,15 @@ dynamic:
 					theRect->w += theRect->l - fa->light_s;
 				theRect->l = fa->light_s;
 			}
-			smax = (fa->extents[0]>>4)+1;
-			tmax = (fa->extents[1]>>4)+1;
+			smax = (fa->extents[0]>>fa->lmshift)+1;
+			tmax = (fa->extents[1]>>fa->lmshift)+1;
 			if ((theRect->w + theRect->l) < (fa->light_s + smax))
 				theRect->w = (fa->light_s-theRect->l)+smax;
 			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
 				theRect->h = (fa->light_t-theRect->t)+tmax;
-			base = lightmaps + fa->lightmaptexturenum*lightmap_bytes*BLOCK_WIDTH*BLOCK_HEIGHT;
-			base += fa->light_t * BLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
-			R_BuildLightMap (model, fa, base, BLOCK_WIDTH*lightmap_bytes);
+			base = lightmaps + fa->lightmaptexturenum*lightmap_bytes*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+			base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
+			R_BuildLightMap (model, fa, base, LMBLOCK_WIDTH*lightmap_bytes);
 		}
 	}
 }
@@ -732,11 +729,11 @@ int AllocBlock (int w, int h, int *x, int *y)
 	// This makes AllocBlock much faster on large levels (can shave off 3+ seconds
 	// of load time on a level with 180 lightmaps), at a cost of not quite packing
 	// lightmaps as tightly vs. not doing this (uses ~5% more lightmaps)
-	for (texnum=last_lightmap_allocated ; texnum<MAX_LIGHTMAPS ; texnum++, last_lightmap_allocated++)
+	for (texnum=last_lightmap_allocated ; texnum<MAX_LIGHTMAPS ; texnum++)
 	{
-		best = BLOCK_HEIGHT;
+		best = LMBLOCK_HEIGHT;
 
-		for (i=0 ; i<BLOCK_WIDTH-w ; i++)
+		for (i=0 ; i<LMBLOCK_WIDTH-w ; i++)
 		{
 			best2 = 0;
 
@@ -754,13 +751,13 @@ int AllocBlock (int w, int h, int *x, int *y)
 			}
 		}
 
-		if (best + h > BLOCK_HEIGHT)
+		if (best + h > LMBLOCK_HEIGHT)
 			continue;
 
 		for (i=0 ; i<w ; i++)
 			allocated[texnum][*x + i] = best + h;
 
-		return texnum;
+		return last_lightmap_allocated=texnum;
 	}
 
 	Sys_Error ("AllocBlock: full");
@@ -783,13 +780,13 @@ void GL_CreateSurfaceLightmap (qmodel_t *model, msurface_t *surf)
 	int		smax, tmax;
 	byte	*base;
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 
 	surf->lightmaptexturenum = AllocBlock (smax, tmax, &surf->light_s, &surf->light_t);
-	base = lightmaps + surf->lightmaptexturenum*lightmap_bytes*BLOCK_WIDTH*BLOCK_HEIGHT;
-	base += (surf->light_t * BLOCK_WIDTH + surf->light_s) * lightmap_bytes;
-	R_BuildLightMap (model, surf, base, BLOCK_WIDTH*lightmap_bytes);
+	base = lightmaps + surf->lightmaptexturenum*lightmap_bytes*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+	base += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * lightmap_bytes;
+	R_BuildLightMap (model, surf, base, LMBLOCK_WIDTH*lightmap_bytes);
 }
 
 /*
@@ -804,6 +801,7 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 	float		*vec;
 	float		s, t;
 	glpoly_t	*poly;
+	int			lmscale = (1<<fa->lmshift);
 
 // reconstruct the polygon
 	pedges = currentmodel->edges;
@@ -846,15 +844,15 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 		//
 		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
 		s -= fa->texturemins[0];
-		s += fa->light_s*16;
-		s += 8;
-		s /= BLOCK_WIDTH*16; //fa->texinfo->texture->width;
+		s += fa->light_s*lmscale;
+		s += lmscale/2.0;
+		s /= LMBLOCK_WIDTH*lmscale; //fa->texinfo->texture->width;
 
 		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 		t -= fa->texturemins[1];
-		t += fa->light_t*16;
-		t += 8;
-		t /= BLOCK_HEIGHT*16; //fa->texinfo->texture->height;
+		t += fa->light_t*lmscale;
+		t += lmscale/2.0;
+		t /= LMBLOCK_HEIGHT*lmscale; //fa->texinfo->texture->height;
 
 		poly->verts[i][5] = s;
 		poly->verts[i][6] = t;
@@ -932,15 +930,15 @@ void GL_BuildLightmaps (void)
 		if (!allocated[i][0])
 			break;		// no more used
 		lightmap_modified[i] = false;
-		lightmap_rectchange[i].l = BLOCK_WIDTH;
-		lightmap_rectchange[i].t = BLOCK_HEIGHT;
+		lightmap_rectchange[i].l = LMBLOCK_WIDTH;
+		lightmap_rectchange[i].t = LMBLOCK_HEIGHT;
 		lightmap_rectchange[i].w = 0;
 		lightmap_rectchange[i].h = 0;
 
 		//johnfitz -- use texture manager
 		sprintf(name, "lightmap%03i",i);
-		data = lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes;
-		lightmap_textures[i] = TexMgr_LoadImage (cl.worldmodel, name, BLOCK_WIDTH, BLOCK_HEIGHT,
+		data = lightmaps+i*LMBLOCK_WIDTH*LMBLOCK_HEIGHT*lightmap_bytes;
+		lightmap_textures[i] = TexMgr_LoadImage (cl.worldmodel, name, LMBLOCK_WIDTH, LMBLOCK_HEIGHT,
 			 SRC_LIGHTMAP, data, "", (src_offset_t)data, TEXPREF_LINEAR | TEXPREF_NOPICMIP);
 		//johnfitz
 	}
@@ -1056,10 +1054,12 @@ void R_AddDynamicLights (msurface_t *surf)
 	float		cred, cgreen, cblue, brightness;
 	unsigned	*bl;
 	//johnfitz
+	int			lmscale;
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 	tex = surf->texinfo;
+	lmscale = 1<<surf->lmshift;
 
 	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
 	{
@@ -1095,12 +1095,12 @@ void R_AddDynamicLights (msurface_t *surf)
 		//johnfitz
 		for (t = 0 ; t<tmax ; t++)
 		{
-			td = local[1] - t*16;
+			td = local[1] - t*lmscale;
 			if (td < 0)
 				td = -td;
 			for (s=0 ; s<smax ; s++)
 			{
-				sd = local[0] - s*16;
+				sd = local[0] - s*lmscale;
 				if (sd < 0)
 					sd = -sd;
 				if (sd > td)
@@ -1142,8 +1142,8 @@ void R_BuildLightMap (qmodel_t *model, msurface_t *surf, byte *dest, int stride)
 
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
 
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 	size = smax*tmax;
 	lightmap = surf->samples;
 
@@ -1260,10 +1260,10 @@ static void R_UploadLightmap(int lmap)
 	lightmap_modified[lmap] = false;
 
 	theRect = &lightmap_rectchange[lmap];
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, BLOCK_WIDTH, theRect->h, gl_lightmap_format,
-		  GL_UNSIGNED_BYTE, lightmaps+(lmap* BLOCK_HEIGHT + theRect->t) *BLOCK_WIDTH*lightmap_bytes);
-	theRect->l = BLOCK_WIDTH;
-	theRect->t = BLOCK_HEIGHT;
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, LMBLOCK_WIDTH, theRect->h, gl_lightmap_format,
+		  GL_UNSIGNED_BYTE, lightmaps+(lmap* LMBLOCK_HEIGHT + theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+	theRect->l = LMBLOCK_WIDTH;
+	theRect->t = LMBLOCK_HEIGHT;
 	theRect->h = 0;
 	theRect->w = 0;
 
@@ -1309,9 +1309,9 @@ void R_RebuildAllLightmaps (void)
 		{
 			if (fa->flags & SURF_DRAWTILED)
 				continue;
-			base = lightmaps + fa->lightmaptexturenum*lightmap_bytes*BLOCK_WIDTH*BLOCK_HEIGHT;
-			base += fa->light_t * BLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
-			R_BuildLightMap (mod, fa, base, BLOCK_WIDTH*lightmap_bytes);
+			base = lightmaps + fa->lightmaptexturenum*lightmap_bytes*LMBLOCK_WIDTH*LMBLOCK_HEIGHT;
+			base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
+			R_BuildLightMap (mod, fa, base, LMBLOCK_WIDTH*lightmap_bytes);
 		}
 	}
 
@@ -1321,7 +1321,7 @@ void R_RebuildAllLightmaps (void)
 		if (!allocated[i][0])
 			break;
 		GL_Bind (lightmap_textures[i]);
-		glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, gl_lightmap_format,
-			GL_UNSIGNED_BYTE, lightmaps+i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
+		glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, gl_lightmap_format,
+			GL_UNSIGNED_BYTE, lightmaps+i*LMBLOCK_WIDTH*LMBLOCK_HEIGHT*lightmap_bytes);
 	}
 }

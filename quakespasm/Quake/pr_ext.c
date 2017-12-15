@@ -1851,10 +1851,8 @@ static void PF_getsurfacepointattribute(void)
 			G_FLOAT(OFS_RETURN+2) = 0;
 			break;
 		case 5: //lmst coord, not actually very useful
-#define BLOCK_WIDTH 128
-#define BLOCK_HEIGHT 128
-			G_FLOAT(OFS_RETURN+0) = (DotProduct(v->position, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3] - fa->texturemins[0] + fa->light_s*16+8) / (BLOCK_WIDTH*16);
-			G_FLOAT(OFS_RETURN+1) = (DotProduct(v->position, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3] - fa->texturemins[1] + fa->light_t*16+8) / (BLOCK_HEIGHT*16);
+			G_FLOAT(OFS_RETURN+0) = (DotProduct(v->position, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3] - fa->texturemins[0] + (fa->light_s+.5)*(1<<fa->lmshift)) / (LMBLOCK_WIDTH*(1<<fa->lmshift));
+			G_FLOAT(OFS_RETURN+1) = (DotProduct(v->position, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3] - fa->texturemins[1] + (fa->light_t+.5)*(1<<fa->lmshift)) / (LMBLOCK_HEIGHT*(1<<fa->lmshift));
 			G_FLOAT(OFS_RETURN+2) = 0;
 			break;
 		case 6: //colour

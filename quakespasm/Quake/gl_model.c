@@ -37,6 +37,7 @@ qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash);
 
 cvar_t	external_ents = {"external_ents", "1", CVAR_ARCHIVE};
 cvar_t	gl_load24bit = {"gl_load24bit", "1", CVAR_ARCHIVE};
+cvar_t	mod_ignorelmscale = {"mod_ignorelmscale", "0"};
 
 static byte	*mod_novis;
 static int	mod_novis_capacity;
@@ -61,6 +62,7 @@ void Mod_Init (void)
 	Cvar_RegisterVariable (&gl_subdivide_size);
 	Cvar_RegisterVariable (&external_ents);
 	Cvar_RegisterVariable (&gl_load24bit);
+	Cvar_RegisterVariable (&mod_ignorelmscale);
 
 	//johnfitz -- create notexture miptex
 	r_notexture_mip = (texture_t *) Hunk_AllocName (sizeof(texture_t), "r_notexture_mip");
@@ -463,12 +465,13 @@ static char *bspxbase;
 static bspx_header_t *bspxheader;
 //supported lumps:
 //RGBLIGHTING (.lit)
+//LMSHIFT (.lit2)
+//LMOFFSET (LMSHIFT helper)
+//LMSTYLE (LMSHIFT helper)
+
 //unsupported lumps ('documented' elsewhere):
 //BRUSHLIST (because hulls suck)
 //LIGHTINGDIR (.lux)
-//LMSHIFT (.lit2)
-//LMOFFSET (.lit2)
-//LMSTYLE (.lit2)
 static void *Q1BSPX_FindLump(char *lumpname, int *lumpsize)
 {
 	int i;
@@ -989,6 +992,46 @@ _load_embedded:
 
 /*
 =================
+Mod_ParseWorldspawnKey
+=================
+(Blame Spike)
+This just quickly scans the worldspawn entity for a single key. Returning both _prefixed and non prefixed keys.
+(wantkey argument should not have a _prefix.)
+*/
+const char *Mod_ParseWorldspawnKey(qmodel_t *mod, const char *wantkey, char *buffer, size_t sizeofbuffer)
+{
+	char foundkey[128];
+	const char *data = COM_Parse(mod->entities);
+
+	if (data && com_token[0] == '{')
+	{
+		while (1)
+		{
+			data = COM_Parse(data);
+			if (!data)
+				break; // error
+			if (com_token[0] == '}')
+				break; // end of worldspawn
+			if (com_token[0] == '_')
+				strcpy(foundkey, com_token + 1);
+			else
+				strcpy(foundkey, com_token);
+			data = COM_Parse(data);
+			if (!data)
+				break; // error
+			if (!strcmp(wantkey, foundkey))
+			{
+				q_strlcpy(buffer, com_token, sizeofbuffer);
+				return buffer;
+			}
+		}
+	}
+	return NULL;
+}
+
+
+/*
+=================
 Mod_LoadVertexes
 =================
 */
@@ -1152,6 +1195,7 @@ void CalcSurfaceExtents (msurface_t *s)
 	mvertex_t	*v;
 	mtexinfo_t	*tex;
 	int		bmins[2], bmaxs[2];
+	int maxextent, lmscale;
 
 	mins[0] = mins[1] = 999999;
 	maxs[0] = maxs[1] = -99999;
@@ -1195,15 +1239,18 @@ void CalcSurfaceExtents (msurface_t *s)
 		}
 	}
 
+	lmscale = 1<<s->lmshift;
+	maxextent = q_max(LMBLOCK_WIDTH,LMBLOCK_HEIGHT)*lmscale;
+
 	for (i=0 ; i<2 ; i++)
 	{
-		bmins[i] = floor(mins[i]/16);
-		bmaxs[i] = ceil(maxs[i]/16);
+		bmins[i] = floor(mins[i]/lmscale);
+		bmaxs[i] = ceil(maxs[i]/lmscale);
 
-		s->texturemins[i] = bmins[i] * 16;
-		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
+		s->texturemins[i] = bmins[i] * lmscale;
+		s->extents[i] = (bmaxs[i] - bmins[i]) * lmscale;
 
-		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 2000) //johnfitz -- was 512 in glquake, 256 in winquake
+		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > maxextent) //johnfitz -- was 512 in glquake, 256 in winquake
 			Sys_Error ("Bad surface extents");
 	}
 }
@@ -1302,8 +1349,14 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 	dsface_t	*ins;
 	dlface_t	*inl;
 	msurface_t 	*out;
-	int			i, count, surfnum, lofs;
+	int			i, count, surfnum, lofs, shift;
 	int			planenum, side, texinfon;
+
+	unsigned char *lmshift = NULL, defaultshift = 4;
+	unsigned int *lmoffset = NULL;
+	unsigned char *lmstyle = NULL;
+	int lumpsize;
+	char scalebuf[16];
 
 	if (bsp2)
 	{
@@ -1328,13 +1381,33 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 		Con_DWarning ("%i faces exceeds standard limit of 32767.\n", count);
 	//johnfitz
 
+	if (!mod_ignorelmscale.value)
+	{
+		lmshift = Q1BSPX_FindLump("LMSHIFT", &lumpsize);
+		if (lumpsize != sizeof(*lmshift)*count)
+			lmshift = NULL;
+		lmoffset = Q1BSPX_FindLump("LMOFFSET", &lumpsize);
+		if (lumpsize != sizeof(*lmoffset)*count)
+			lmoffset = NULL;
+		lmstyle = Q1BSPX_FindLump("LMSTYLE", &lumpsize);
+		if (lumpsize != sizeof(*lmstyle)*MAXLIGHTMAPS*count)
+			lmstyle = NULL;
+
+		if (Mod_ParseWorldspawnKey(loadmodel, "lightmap_scale", scalebuf, sizeof(scalebuf)))
+		{
+			i = atoi(scalebuf);
+			for (defaultshift = 0; (1<<defaultshift) < i && defaultshift < 254; defaultshift++)
+				break;
+		}
+	}
+
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
 
 	for (surfnum=0 ; surfnum<count ; surfnum++, out++)
 	{
 		if (bsp2)
-		{
+		{	//32bit datatypes
 			out->firstedge = LittleLong(inl->firstedge);
 			out->numedges = LittleLong(inl->numedges);
 			planenum = LittleLong(inl->planenum);
@@ -1346,7 +1419,7 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 			inl++;
 		}
 		else
-		{
+		{	//16bit datatypes
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			planenum = LittleShort(ins->planenum);
@@ -1357,6 +1430,15 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 			lofs = LittleLong(ins->lightofs);
 			ins++;
 		}
+		shift = defaultshift;
+		//bspx overrides (for lmscale)
+		if (lmstyle)
+			shift = lmshift[surfnum];
+		if (lmoffset)
+			lofs = LittleLong(lmoffset[surfnum]);
+		if (lmstyle)
+			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+				out->styles[i] = lmstyle[surfnum*MAXLIGHTMAPS+i];
 
 		out->flags = 0;
 
@@ -1364,8 +1446,8 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 			out->flags |= SURF_PLANEBACK;
 
 		out->plane = loadmodel->planes + planenum;
-
 		out->texinfo = loadmodel->texinfo + texinfon;
+		out->lmshift = shift;
 
 		CalcSurfaceExtents (out);
 
@@ -2345,13 +2427,13 @@ void Mod_LoadBrushModel (qmodel_t *mod, void *buffer)
 	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);
 	Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 	Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
+	Mod_LoadEntities (&header->lumps[LUMP_ENTITIES]);	//Spike: moved this earlier, so that we can parse worldspawn keys earlier.
 	Mod_LoadFaces (&header->lumps[LUMP_FACES], bsp2);
 	Mod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], bsp2);
 	Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	Mod_LoadLeafs (&header->lumps[LUMP_LEAFS], bsp2);
 	Mod_LoadNodes (&header->lumps[LUMP_NODES], bsp2);
 	Mod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES], bsp2);
-	Mod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
 	Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 
 	Mod_MakeHull0 ();

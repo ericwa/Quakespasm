@@ -244,6 +244,8 @@ typedef struct
 } dledge_t;
 
 #define	MAXLIGHTMAPS	4
+#define LMBLOCK_WIDTH	256
+#define LMBLOCK_HEIGHT	256
 typedef struct
 {
 	short		planenum;

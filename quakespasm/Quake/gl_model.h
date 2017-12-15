@@ -147,6 +147,7 @@ typedef struct msurface_s
 	short		extents[2];
 
 	int			light_s, light_t;	// gl lightmap coordinates
+	unsigned char lmshift;
 
 	glpoly_t	*polys;				// multiple if warped
 	struct	msurface_s	*texturechain;
