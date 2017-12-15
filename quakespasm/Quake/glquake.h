@@ -321,7 +321,7 @@ extern overflowtimes_t dev_overflows; //this stores the last time overflow messa
 //johnfitz -- moved here from r_brush.c
 extern int gl_lightmap_format, lightmap_bytes;
 typedef struct glRect_s {
-	unsigned char l,t,w,h;
+	unsigned short l,t,w,h;
 } glRect_t;
 struct lightmap_s
 {
