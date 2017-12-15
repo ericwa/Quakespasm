@@ -1487,10 +1487,10 @@ static qboolean S_Opus_Init(int encdec)
 #ifndef OPUS_STATIC
 #ifdef _WIN32
 	char *modulename = "libopus-0.dll";
-	char *altmodulename = "libopusenc-0.dll";
+//	char *altmodulename = "libopus.dll";
 #else
 	char *modulename = "libopus.so.0";
-	char *altmodulename = "libopusenc.so.0";
+//	char *altmodulename = "libopus.so";
 #endif
 
 	if (s_voip.opus.inited[encdec])
@@ -1498,8 +1498,8 @@ static qboolean S_Opus_Init(int encdec)
 	s_voip.opus.inited[encdec] = true;
 
 	s_voip.opus.opuslib[encdec] = Sys_LoadLibrary(modulename, encdec?qopusencodefuncs:qopusdecodefuncs);
-	if (!s_voip.opus.opuslib[encdec] && encdec)
-		s_voip.opus.opuslib[encdec] = Sys_LoadLibrary(altmodulename, encdec?qopusencodefuncs:qopusdecodefuncs);
+//	if (!s_voip.opus.opuslib[encdec] && encdec)
+//		s_voip.opus.opuslib[encdec] = Sys_LoadLibrary(altmodulename, encdec?qopusencodefuncs:qopusdecodefuncs);
 	if (!s_voip.opus.opuslib[encdec])
 	{
 		Con_Printf("%s or its exports not found. Opus voip %s is not available.\n", modulename, encdec?"transmission":"reception");
@@ -2192,7 +2192,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 //			opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(complexity));
 //			opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(use_inbandfec));
 //			opus_encoder_ctl(enc, OPUS_SET_FORCE_CHANNELS(forcechannels));
-//			opus_encoder_ctl(enc, OPUS_SET_DTX(use_dtx));
+//			opus_encoder_ctl(enc, OPUS_SET_DTX(use_dtx));	//FIXME: we should probably use this one, as we're sending network packets regardless.
 //			opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(packet_loss_perc));
 
 //			opus_encoder_ctl(enc, OPUS_GET_LOOKAHEAD(&skip));
@@ -2408,13 +2408,19 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 					s_voip.curbitrate = nrate;
 					if (nrate == 0)
 						nrate = -1000;
+					else
+					{	//"Rates from 500 to 512000 bits per second are meaningful"
+						nrate = q_max(512, nrate);
+						nrate = q_min(nrate, 512000);
+					}
 					qopus_encoder_ctl(s_voip.encoder, OPUS_SET_BITRATE_REQUEST, (int)nrate);
 				}
+				//fixme: might want to add an option for complexity too. maybe others.
 
 				level += S_Voip_Preprocess(start, frames, micamp);
 				len = qopus_encode(s_voip.encoder, start, frames, outbuf+outpos, sizeof(outbuf) - outpos);
 				if (len >= 0)
-				{
+				{	//FIXME: "If the return value is 2 bytes or less, then the packet does not need to be transmitted (DTX)."
 					s_voip.encsequence += frames / s_voip.encframesize;
 					outpos += len;
 					samps+=frames;
