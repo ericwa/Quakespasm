@@ -6,6 +6,7 @@ QuakeSpasm-Spiked
   QuakeSpasm-Spiked <http://fte.triptohell.info/moodles/qss/> is an
   even more modern Quake 1 engine based on everyone else's hard work
   that I stole, as well as some of my own stuff from FTE.
+  (It's still GPLed guys!)
 
   It includes networking fixes and improvements, which means you can
   actually stand a chance of being able to use this thing as a server.
@@ -179,3 +180,29 @@ QuakeSpasm-Spiked
   o  maybe menuqc. otherwise known as cvar hell, so mods can avoid quake's clunky nightmare.
 
   o  maybe basic csqc. primarily for huds.
+
+  -----------
+  5.  Copyright
+
+  o  Quake and Quakespasm are released under the GNU GENERAL PUBLIC
+     LICENSE Version 2: http://www.gnu.org/licenses/gpl-2.0.html
+
+  o  stb_image component is labeled as public domain.
+
+  o  Additional code and binaries are released under the same license.
+
+  -------------------
+  6.  Links / Contact
+
+  Homepage: http://fte.triptohell.info/moodles/qss/
+
+  Source + Issue tracker: https://github.com/Shpoike/Quakespasm
+
+  Forum: http://www.celephais.net/board/view_thread.php?id=61351
+
+  ------------
+  7.  Footnote
+
+  Wow, you actually read this far? dude, you must be bored.
+  Go play a computer game or something. Go now!
+
