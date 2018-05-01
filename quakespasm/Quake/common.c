@@ -928,6 +928,20 @@ float MSG_ReadAngle16 (unsigned int flags)
 }
 //johnfitz
 
+int MSG_ReadEntity(unsigned int pext2)
+{
+	int e = (unsigned short)MSG_ReadShort();
+	if (pext2 & PEXT2_REPLACEMENTDELTAS)
+	{
+		if (e & 0x8000)
+		{
+			e = (e & 0x7fff) << 8;
+			e |= MSG_ReadByte();
+		}
+	}
+	return e;
+}
+
 //spike -- for downloads
 byte *MSG_ReadData (unsigned int length)
 {
@@ -1708,6 +1722,7 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 	char		netpath[MAX_OSPATH];
 	pack_t		*pak;
 	int		i, findtime;
+	const char *ext;
 
 	if (file && handle)
 		Sys_Error ("COM_FindFile: both handle and file set");
@@ -1809,10 +1824,14 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 		}
 	}
 
-	if (strcmp(COM_FileGetExtension(filename), "pcx") != 0
-		&& strcmp(COM_FileGetExtension(filename), "tga") != 0
-		&& strcmp(COM_FileGetExtension(filename), "lit") != 0
-		&& strcmp(COM_FileGetExtension(filename), "ent") != 0)
+	ext = COM_FileGetExtension(filename);
+	if (strcmp(ext, "pcx") != 0
+		&& strcmp(ext, "tga") != 0
+		&& strcmp(ext, "png") != 0
+		&& strcmp(ext, "jpg") != 0
+		&& strcmp(ext, "jpeg") != 0
+		&& strcmp(ext, "lit") != 0
+		&& strcmp(ext, "ent") != 0)
 		Con_DPrintf ("FindFile: can't find %s\n", filename);
 	else	Con_DPrintf2("FindFile: can't find %s\n", filename);
 		// Log pcx, tga, lit, ent misses only if (developer.value >= 2)
@@ -2138,8 +2157,17 @@ static pack_t *COM_LoadPackFile (const char *packfile)
 	return pack;
 }
 
+#ifdef _WIN32
+static time_t Sys_FileTimeToTime(FILETIME ft)
+{
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	return ull.QuadPart / 10000000u - 11644473600u;
+}
+#endif
 
-static void COM_ListSystemFiles(void *ctx, const char *gamedir, const char *ext, qboolean (*cb)(void *ctx, const char *fname))
+void COM_ListSystemFiles(void *ctx, const char *gamedir, const char *ext, qboolean (*cb)(void *ctx, const char *fname))
 {
 #ifdef _WIN32
 	WIN32_FIND_DATA	fdat;
@@ -2170,6 +2198,61 @@ static void COM_ListSystemFiles(void *ctx, const char *gamedir, const char *ext,
 #endif
 }
 
+void COM_ListFiles(void *ctx, const char *gamedir, const char *pattern, qboolean (*cb)(void *ctx, const char *fname, time_t mtime, size_t fsize))
+{
+	char prefixdir[MAX_OSPATH];
+	char *sl;
+	sl = strrchr(pattern, '/');
+	if (sl)
+	{
+		sl++;
+		if (sl-pattern >= MAX_OSPATH)
+			return;
+		memcpy(prefixdir, pattern, sl-pattern);
+		prefixdir[sl-pattern] = 0;
+		pattern = sl;
+	}
+	else
+		*prefixdir = 0;
+
+#ifdef _WIN32
+	{
+		char filestring[MAX_OSPATH];
+		WIN32_FIND_DATA	fdat;
+		HANDLE		fhnd;
+		q_snprintf (filestring, sizeof(filestring), "%s/%s%s", gamedir, prefixdir, pattern);
+		fhnd = FindFirstFile(filestring, &fdat);
+		if (fhnd == INVALID_HANDLE_VALUE)
+			return;
+		do
+		{
+			q_snprintf (filestring, sizeof(filestring), "%s%s", prefixdir, fdat.cFileName);
+			cb (ctx, filestring, Sys_FileTimeToTime(fdat.ftLastWriteTime), fdat.nFileSizeLow);
+		} while (FindNextFile(fhnd, &fdat));
+		FindClose(fhnd);
+	}
+#else
+	{
+		char filestring[MAX_OSPATH];
+		DIR		*dir_p;
+		struct dirent	*dir_t;
+
+		q_snprintf (filestring, sizeof(filestring), "%s/%s%s", gamedir, prefixdir, pattern);
+		dir_p = opendir(filestring);
+		if (dir_p == NULL)
+			return;
+		while ((dir_t = readdir(dir_p)) != NULL)
+		{
+			if (!fnmatch(pattern, dir_t->d_name, FNM_NOESCAPE|FNM_PATHNAME|FNM_CASEFOLD))
+			{
+				q_snprintf (filestring, sizeof(filestring), "%s%s", prefixdir, dir_t->d_name);
+				cb (ctx, filestring, 0, 0);
+			}
+		}
+		closedir(dir_p);
+	}
+#endif
+}
 
 static qboolean COM_AddPackage(searchpath_t *basepath, const char *pakfile)
 {

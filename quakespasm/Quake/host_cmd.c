@@ -464,10 +464,10 @@ void Host_Status_f (void)
 			j++;
 	if (j)
 		print_fn (    "effects: %i/%i\n", j, MAX_PARTICLETYPES-1);
-	for (i = 1,j=1; i < sv.num_edicts; i++)
-		if (!sv.edicts[i].free)
+	for (i = 1,j=1; i < sv.qcvm.num_edicts; i++)
+		if (!sv.qcvm.edicts[i].free)
 			j++;
-	print_fn (    "entities:%i/%i\n", j, sv.max_edicts);
+	print_fn (    "entities:%i/%i\n", j, sv.qcvm.max_edicts);
 
 	print_fn (    "players: %i active (%i max)\n\n", net_activeconnections, svs.maxclients);
 	for (j = 0, client = svs.clients; j < svs.maxclients; j++, client++)
@@ -840,9 +840,9 @@ void Host_Map_f (void)
 	CL_Disconnect ();
 	Host_ShutdownServer(false);
 
-	if (cls.state != ca_dedicated)
-		IN_Activate();
 	key_dest = key_game;			// remove console or menu
+	if (cls.state != ca_dedicated)
+		IN_UpdateGrabs();
 	SCR_BeginLoadingPlaque ();
 
 	svs.serverflags = 0;			// haven't completed an episode yet
@@ -851,7 +851,9 @@ void Host_Map_f (void)
 	p = strstr(name, ".bsp");
 	if (p && p[4] == '\0')
 		*p = '\0';
+	PR_SwitchQCVM(&sv.qcvm);
 	SV_SpawnServer (name);
+	PR_SwitchQCVM(NULL);
 	if (!sv.active)
 		return;
 
@@ -933,12 +935,15 @@ void Host_Changelevel_f (void)
 		Host_Error ("cannot find map %s", level);
 	//johnfitz
 
-	if (cls.state != ca_dedicated)
-		IN_Activate();	// -- S.A.
 	key_dest = key_game;	// remove console or menu
+	if (cls.state != ca_dedicated)
+		IN_UpdateGrabs();	// -- S.A.
+
+	PR_SwitchQCVM(&sv.qcvm);
 	SV_SaveSpawnparms ();
 	q_strlcpy (level, Cmd_Argv(1), sizeof(level));
 	SV_SpawnServer (level);
+	PR_SwitchQCVM(NULL);
 	// also issue an error if spawn failed -- O.S.
 	if (!sv.active)
 		Host_Error ("cannot run map %s", level);
@@ -966,7 +971,9 @@ void Host_Restart_f (void)
 		return;
 	}
 	q_strlcpy (mapname, sv.name, sizeof(mapname));	// mapname gets cleared in spawnserver
+	PR_SwitchQCVM(&sv.qcvm);
 	SV_SpawnServer (mapname);
+	PR_SwitchQCVM(NULL);
 	if (!sv.active)
 		Host_Error ("cannot restart map %s", mapname);
 }
@@ -1134,7 +1141,7 @@ void Host_Savegame_f (void)
 		fprintf (f, "%f\n", svs.clients->spawn_parms[i]);
 	fprintf (f, "%d\n", current_skill);
 	fprintf (f, "%s\n", sv.name);
-	fprintf (f, "%f\n",sv.time);
+	fprintf (f, "%f\n", qcvm->time);
 
 // write the light styles
 
@@ -1148,7 +1155,7 @@ void Host_Savegame_f (void)
 
 
 	ED_WriteGlobals (f);
-	for (i = 0; i < sv.num_edicts; i++)
+	for (i = 0; i < qcvm->num_edicts; i++)
 	{
 		ED_Write (f, EDICT_NUM(i));
 		fflush (f);
@@ -1268,10 +1275,12 @@ void Host_Loadgame_f (void)
 
 	CL_Disconnect_f ();
 
+	PR_SwitchQCVM(&sv.qcvm);
 	SV_SpawnServer (mapname);
 
 	if (!sv.active)
 	{
+		PR_SwitchQCVM(NULL);
 		free (start);
 		start = NULL;
 		Con_Printf ("Couldn't load map\n");
@@ -1369,12 +1378,12 @@ void Host_Loadgame_f (void)
 		else
 		{	// parse an edict
 			ent = EDICT_NUM(entnum);
-			if (entnum < sv.num_edicts) {
+			if (entnum < qcvm->num_edicts) {
 				ent->free = false;
-				memset (&ent->v, 0, progs->entityfields * 4);
+				memset (&ent->v, 0, qcvm->progs->entityfields * 4);
 			}
 			else {
-				memset (ent, 0, pr_edict_size);
+				memset (ent, 0, qcvm->edict_size);
 			}
 			data = ED_ParseEdict (data, ent);
 
@@ -1386,14 +1395,16 @@ void Host_Loadgame_f (void)
 		entnum++;
 	}
 
-	sv.num_edicts = entnum;
-	sv.time = time;
+	qcvm->num_edicts = entnum;
+	qcvm->time = time;
 
 	free (start);
 	start = NULL;
 
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
 		svs.clients->spawn_parms[i] = spawn_parms[i];
+
+	PR_SwitchQCVM(NULL);
 
 	if (cls.state != ca_dedicated)
 	{
@@ -1674,7 +1685,7 @@ void Host_Kill_f (void)
 		return;
 	}
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = qcvm->time;
 	pr_global_struct->self = EDICT_TO_PROG(sv_player);
 	PR_ExecuteProgram (pr_global_struct->ClientKill);
 }
@@ -1783,7 +1794,7 @@ void Host_Spawn_f (void)
 		// set up the edict
 		ent = host_client->edict;
 
-		memset (&ent->v, 0, progs->entityfields * 4);
+		memset (&ent->v, 0, qcvm->progs->entityfields * 4);
 		ent->v.colormap = NUM_FOR_EDICT(ent);
 		ent->v.team = (host_client->colors & 15) + 1;
 		ent->v.netname = PR_SetEngineString(host_client->name);
@@ -1792,11 +1803,11 @@ void Host_Spawn_f (void)
 		for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 			(&pr_global_struct->parm1)[i] = host_client->spawn_parms[i];
 		// call the spawn function
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = qcvm->time;
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);
 		PR_ExecuteProgram (pr_global_struct->ClientConnect);
 
-		if ((Sys_DoubleTime() - NET_QSocketGetTime(host_client->netconnection)) <= sv.time)
+		if ((Sys_DoubleTime() - NET_QSocketGetTime(host_client->netconnection)) <= qcvm->time)
 			Sys_Printf ("%s entered the game\n", host_client->name);
 
 		PR_ExecuteProgram (pr_global_struct->PutClientInServer);
@@ -1808,7 +1819,7 @@ void Host_Spawn_f (void)
 
 // send time of update
 	MSG_WriteByte (&host_client->message, svc_time);
-	MSG_WriteFloat (&host_client->message, sv.time);
+	MSG_WriteFloat (&host_client->message, qcvm->time);
 	if (host_client->protocol_pext2 & PEXT2_PREDINFO)
 		MSG_WriteShort(&host_client->message, (host_client->lastmovemessage&0xffff));
 
@@ -2226,7 +2237,7 @@ edict_t	*FindViewthing (void)
 	int		i;
 	edict_t	*e;
 
-	for (i=0 ; i<sv.num_edicts ; i++)
+	for (i=0 ; i<qcvm->num_edicts ; i++)
 	{
 		e = EDICT_NUM(i);
 		if ( !strcmp (PR_GetString(e->v.classname), "viewthing") )

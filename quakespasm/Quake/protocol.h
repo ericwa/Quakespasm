@@ -51,6 +51,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // PROTOCOL_FTE_PEXT(1) flags
 //mostly uninteresting, mostly superseeded by PEXT2_REPLACEMENTDELTAS...
+#define PEXT_CSQC				0x40000000	//csqc additions
 
 // PROTOCOL_FTE_PEXT2 flags
 #define PEXT2_PRYDONCURSOR		0x00000001	//a mouse cursor exposed to ssqc
@@ -313,6 +314,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_spawnbaseline2		66
 #define svcfte_updatestatstring		78
 #define svcfte_updatestatfloat		79
+#define svcfte_cgamepacket			83
 #define svcfte_voicechat			84
 #define svcfte_setangledelta		85
 #define svcfte_updateentities		86
@@ -328,6 +330,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	clc_stringcmd	4		// [string] message
 #define clcdp_ackframe	50		// [long] frame sequence. reused by fte replacement deltas
 #define clcdp_ackdownloaddata	51
+#define clcfte_qcrequest		81
 #define clcfte_voicechat		83	/*spike*/
 
 //

@@ -696,7 +696,7 @@ void	Cmd_AddCommand2 (const char *cmd_name, xcommand_t function, cmd_source_t sr
 	cmd_function_t	*cmd;
 	cmd_function_t	*cursor,*prev; //johnfitz -- sorted list insert
 
-	if (host_initialized)	// because hunk allocation would get stomped
+	if (host_initialized && function)	// because hunk allocation would get stomped
 		Sys_Error ("Cmd_AddCommand after host_initialized");
 
 // fail if the command is a variable name
@@ -711,12 +711,16 @@ void	Cmd_AddCommand2 (const char *cmd_name, xcommand_t function, cmd_source_t sr
 	{
 		if (!Q_strcmp (cmd_name, cmd->name) && cmd->srctype == srctype)
 		{
-			Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
+			if (cmd->function != function && function)
+				Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
 			return;
 		}
 	}
 
-	cmd = (cmd_function_t *) Hunk_Alloc (sizeof(cmd_function_t));
+	if (host_initialized)
+		cmd = malloc(sizeof(cmd_function_t));
+	else
+		cmd = (cmd_function_t *) Hunk_Alloc (sizeof(cmd_function_t));
 	cmd->name = cmd_name;
 	cmd->function = function;
 	cmd->srctype = srctype;
@@ -816,8 +820,25 @@ qboolean	Cmd_ExecuteString (const char *text, cmd_source_t src)
 				continue;	//src_command can execute anything but server commands (which it ignores, allowing for alternative behaviour)
 			else if (src == src_server && cmd->srctype != src_server)
 				continue;	//src_server may only execute server commands (such commands must be safe to parse within the context of a network message, so no disconnect/connect/playdemo/etc)
-			else
+			else if (cmd->function)
 				cmd->function ();
+			else
+			{
+				if (cl.qcvm.extfuncs.CSQC_ConsoleCommand)
+				{
+					qboolean ret;
+					PR_SwitchQCVM(&cl.qcvm);
+					G_INT(OFS_PARM0) = PR_MakeTempString(text);
+					PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_ConsoleCommand);
+					ret = G_FLOAT(OFS_RETURN);
+					if (!ret)
+						Con_Printf ("gamecode cannot \"%s\"\n", Cmd_Argv(0));
+					PR_SwitchQCVM(NULL);
+					return ret;
+				}
+				else
+					Con_Printf ("gamecode not running, cannot \"%s\"\n", Cmd_Argv(0));
+			}
 			return true;
 		}
 	}

@@ -185,6 +185,9 @@ qboolean Key_TextEntry (void);
 
 void Key_SetBinding (int keynum, const char *binding);
 const char *Key_KeynumToString (int keynum);
+int Key_StringToKeynum (const char *str);
+int Key_NativeToQC(int code);
+int Key_QCToNative(int code);	//warning: will return negative values for unknown qc keys.
 void Key_WriteBindings (FILE *f);
 
 void Key_EndChat (void);

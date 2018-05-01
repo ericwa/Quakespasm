@@ -100,6 +100,8 @@ void CL_ClearState (void)
 
 	CL_ClearTrailStates();
 
+	PR_ClearProgs(&cl.qcvm);
+
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
@@ -115,6 +117,9 @@ void CL_ClearState (void)
 	cl.max_edicts = CLAMP (MIN_EDICTS,(int)max_edicts.value,MAX_EDICTS);
 	cl.entities = (entity_t *) Hunk_AllocName (cl.max_edicts*sizeof(entity_t), "cl_entities");
 	//johnfitz
+
+	//Spike -- this stuff needs to get reset to defaults.
+	cl.csqc_sensitivity = 1;
 
 	cl.viewent.netstate = nullentitystate;
 #ifdef PSET_SCRIPT

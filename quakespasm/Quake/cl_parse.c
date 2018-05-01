@@ -205,24 +205,6 @@ entity_t	*CL_EntityNum (int num)
 	return &cl.entities[num];
 }
 
-
-
-
-
-static int MSG_ReadEntity(void)
-{
-	int e = (unsigned short)MSG_ReadShort();
-	if (cl.protocol_pext2 & PEXT2_REPLACEMENTDELTAS)
-	{
-		if (e & 0x8000)
-		{
-			e = (e & 0x7fff) << 8;
-			e |= MSG_ReadByte();
-		}
-	}
-	return e;
-}
-
 static unsigned int CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, const entity_state_t *olds, const entity_state_t *baseline)
 {
 	unsigned int predbits = 0;
@@ -478,7 +460,7 @@ static unsigned int CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, c
 	}
 	if (bits & UF_TAGINFO)
 	{
-		news->tagentity = MSG_ReadEntity();
+		news->tagentity = MSG_ReadEntity(cl.protocol_pext2);
 		news->tagindex = MSG_ReadByte();
 	}
 	if (bits & UF_LIGHT)
@@ -751,6 +733,68 @@ static void CLFTE_ParseEntitiesUpdate(void)
 	}
 }
 
+//csqc entities protocol, payload is identical in both fte+dp. just the svcs differ.
+void CLFTE_ParseCSQCEntitiesUpdate(void)
+{
+	/*if (cl.qcvm.extfuncs.CSQC_Ent_Update)
+	{
+		edict_t *ed;
+		for(;;)
+		{
+			//replacement deltas now also includes 22bit entity num indicies.
+			if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			{
+				entnum = (unsigned short)MSG_ReadShort();
+				removeflag = !!(entnum & 0x8000);
+				if (entnum & 0x4000)
+					entnum = (entnum & 0x3fff) | (MSG_ReadByte()<<14);
+				else
+					entnum &= ~0x8000;
+			}
+			else
+			{	//otherwise just a 16bit value, with the high bit used as a 'remove' flag
+				entnum = (unsigned short)MSG_ReadShort();
+				removeflag = !!(entnum & 0x8000);
+				entnum &= ~0x8000;
+			}
+			if ((!entnum && !removeflag) || msg_badread)
+				break;	//end of svc
+
+			if (removeflag)
+			{
+				ed = cl.ssqc_to_csqc[entnum];
+				if (ed)
+				{
+					pr_global_struct->self = EDICT_TO_PROG(ed);
+					if (cl.qcvm.extfuncs.CSQC_Ent_Remove)
+						PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_Ent_Remove);
+					else
+						ED_Free(ed);
+				}
+			}
+			else
+			{
+//				if (cl.csqcdebug)
+//					packetsize = MSG_ReadShort();
+
+				ed = cl.ssqc_to_csqc[entnum];
+				if (!ed)
+				{
+					cl.ssqc_to_csqc[entnum] = ed = ED_Alloc();
+					ed->v.entnum = entnum;
+					G_FLOAT(OFS_PARM0) = true;
+				}
+				else
+					G_FLOAT(OFS_PARM0) = false;
+				pr_global_struct->self = EDICT_TO_PROG(ed);
+				PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_Ent_Update);
+			}
+		}
+	}
+	else*/
+		Host_Error ("Received svcdp_csqcentities but unable to parse");
+}
+
 
 //darkplaces protocols 5 to 7 use these
 #define E5_FULLUPDATE (1<<0)
@@ -898,7 +942,7 @@ static void CLDP_ReadDelta(unsigned int entnum, entity_state_t *s, const entity_
 		s->colormap = MSG_ReadByte();
 	if (bits & E5_ATTACHMENT)
 	{
-		s->tagentity = MSG_ReadEntity();
+		s->tagentity = MSG_ReadEntity(cl.protocol_pext2);
 		s->tagindex = MSG_ReadByte();
 	}
 	if (bits & E5_LIGHT)
@@ -2259,6 +2303,8 @@ void CL_ParseServerMessage (void)
 
 			if (cl.protocol == PROTOCOL_VERSION_DP7)
 				CL_EntitiesDeltaed();
+			if (*cl.stuffcmdbuf && net_message.cursize < 512)
+				CL_ParseStuffText("\n");	//there's a few mods that forget to write \ns, that then fuck up other things too. So make sure it gets flushed to the cbuf. the cursize check is to reduce backbuffer overflows that would give a false positive.
 			return;		// end of message
 		}
 
@@ -2454,10 +2500,12 @@ void CL_ParseServerMessage (void)
 
 		case svc_killedmonster:
 			cl.stats[STAT_MONSTERS]++;
+			cl.statsf[STAT_MONSTERS] = cl.stats[STAT_MONSTERS];
 			break;
 
 		case svc_foundsecret:
 			cl.stats[STAT_SECRETS]++;
+			cl.statsf[STAT_SECRETS] = cl.stats[STAT_SECRETS];
 			break;
 
 		case svc_updatestat:
@@ -2562,28 +2610,28 @@ void CL_ParseServerMessage (void)
 
 
 		case svcdp_effect:
-		case svcdp_effect2:
+		case svcdp_effect2:	//these are kinda pointless when the particle system can do it
 			if (cl.protocol != PROTOCOL_VERSION_DP7)
 				Host_Error ("Received svcdp_effect[1|2] but extension not active");
 			CL_ParseEffect(cmd==svcdp_effect2);
 			break;
-		case svcdp_csqcentities:
-			if (cl.protocol != PROTOCOL_VERSION_DP7)
+		case svcdp_csqcentities:	//FTE uses DP's svc number for nq, because compat (despite fte's svc being first). same payload either way.
+			if (!(cl.protocol_pext2 & PEXT2_REPLACEMENTDELTAS) && cl.protocol != PROTOCOL_VERSION_DP7)
 				Host_Error ("Received svcdp_csqcentities but extension not active");
-			Host_Error ("csqc is not supported");
+			CLFTE_ParseCSQCEntitiesUpdate();
 			break;
-		case svcdp_spawnbaseline2:
+		case svcdp_spawnbaseline2:	//limited to a handful of extra properties.
 			if (cl.protocol != PROTOCOL_VERSION_DP7)
 				Host_Error ("Received svcdp_spawnbaseline2 but extension not active");
 			i = MSG_ReadShort ();
 			CL_ParseBaseline (CL_EntityNum(i), 7);
 			break;
-		case svcdp_spawnstaticsound2:
+		case svcdp_spawnstaticsound2:	//many different ways to use 16bit sounds... no other advantage
 			if (cl.protocol != PROTOCOL_VERSION_DP7)
 				Host_Error ("Received svcdp_spawnstaticsound2 but extension not active");
 			CL_ParseStaticSound (2);
 			break;
-		case svcdp_spawnstatic2:
+		case svcdp_spawnstatic2:	//16bit model and frame. no alpha or anything fun.
 			if (cl.protocol != PROTOCOL_VERSION_DP7)
 				Host_Error ("Received svcdp_spawnstatic2 but extension not active");
 			CL_ParseStatic (7);
@@ -2633,7 +2681,7 @@ void CL_ParseServerMessage (void)
 		case svcfte_spawnbaseline2:
 			if (!(cl.protocol_pext2 & PEXT2_REPLACEMENTDELTAS))
 				Host_Error ("Received svcfte_spawnbaseline2 but extension not active");
-			i = MSG_ReadEntity ();
+			i = MSG_ReadEntity (cl.protocol_pext2);
 			// must use CL_EntityNum() to force cl.num_entities up
 			CL_ParseBaseline (CL_EntityNum(i), 6);
 			break;
@@ -2642,6 +2690,17 @@ void CL_ParseServerMessage (void)
 			if (!(cl.protocol_pext2 & PEXT2_REPLACEMENTDELTAS))
 				Host_Error ("Received svcfte_updateentities but extension not active");
 			CLFTE_ParseEntitiesUpdate();
+			break;
+
+		case svcfte_cgamepacket:
+			if (cl.qcvm.extfuncs.CSQC_Parse_Event)
+			{
+				PR_SwitchQCVM(&cl.qcvm);
+				PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_Parse_Event);
+				PR_SwitchQCVM(NULL);
+			}
+			else
+				Host_Error ("CSQC_Parse_Event: Missing or incompatible CSQC\n");
 			break;
 
 		//voicechat, because we can. why reduce packet sizes if you're not going to use that extra space?!?

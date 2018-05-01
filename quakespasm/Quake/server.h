@@ -45,23 +45,17 @@ typedef struct
 	qboolean	paused;
 	qboolean	loadgame;			// handle connections specially
 
-	double		time;
-
 	int			lastcheck;			// used by PF_checkclient
 	double		lastchecktime;
 
+	qcvm_t		qcvm;				// Spike: entire qcvm state
+
 	char		name[64];			// map name
 	char		modelname[64];		// maps/<name>.bsp, for model_precache[0]
-	struct qmodel_s	*worldmodel;
 	const char	*model_precache[MAX_MODELS];	// NULL terminated
 	struct qmodel_s	*models[MAX_MODELS];
 	const char	*sound_precache[MAX_SOUNDS];	// NULL terminated
 	const char	*lightstyles[MAX_LIGHTSTYLES];
-	int			num_edicts;
-	int			max_edicts;
-	edict_t		*edicts;			// can NOT be array indexed, because
-									// edict_t is variable sized, but can
-									// be used to reference the world ent
 	server_state_t	state;			// some actions are only valid during load
 
 	sizebuf_t	datagram;
@@ -94,6 +88,15 @@ typedef struct
 	}			*ambientsounds;
 	int			num_ambients;
 	int			max_ambients;
+
+	struct svcustomstat_s
+	{
+		int idx;
+		int type;
+		int fld;
+		eval_t *ptr;
+	} customstats[MAX_CL_STATS*2];	//strings or numeric...
+	size_t numcustomstats;
 } server_t;
 
 

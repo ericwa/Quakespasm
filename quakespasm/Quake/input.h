@@ -32,7 +32,7 @@ void IN_Commands (void);
 // oportunity for devices to stick commands on the script buffer
 
 // mouse moved by dx and dy pixels
-void IN_MouseMotion(int dx, int dy);
+void IN_MouseMotion(int dx, int dy, int wx, int wy);
 
 
 void IN_SendKeyEvents (void);
@@ -47,11 +47,9 @@ void IN_Move (usercmd_t *cmd);
 void IN_ClearStates (void);
 // restores all button and position states to defaults
 
-// called when the app becomes active
-void IN_Activate ();
-
-// called when the app becomes inactive
-void IN_Deactivate (qboolean free_cursor);
+// spike - called whenever mouse focus etc has changed (including console toggled). this is optional, but there's still a number of blocking commands, like connect
+// doing all the mode, state, etc checks in one place ensures that they're consistent, regardless of what else is happening.
+void IN_UpdateGrabs(void);
 
 #endif	/* _QUAKE_INPUT_H */
 

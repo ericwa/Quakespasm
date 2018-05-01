@@ -19,8 +19,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+//provides a few convienience extensions, primarily builtins, but also autocvars.
+//Also note the set+seta features.
+
+
 #include "quakedef.h"
 #include "q_ctype.h"
+
+#define countof(x) (sizeof(x)/sizeof((x)[0]))
 
 //there's a few different aproaches to tempstrings...
 //the lame way is to just have a single one (vanilla).
@@ -29,9 +35,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //alternatively, just allocate them persistently and purge them only when there appear to be no more references to it (fte). makes strzone redundant.
 
 cvar_t pr_checkextension = {"pr_checkextension", "1", CVAR_NONE};	//spike - enables qc extensions. if 0 then they're ALL BLOCKED! MWAHAHAHA! *cough* *splutter*
-struct pr_extfuncs_s pr_extfuncs;
 int pr_ext_warned_particleeffectnum;	//so these only spam once per map
 
+static void *PR_FindExtGlobal(int type, const char *name);
 void SV_CheckVelocity (edict_t *ent);
 
 typedef enum multicast_e
@@ -50,10 +56,185 @@ typedef enum multicast_e
 static void SV_Multicast(multicast_t to, float *org, int msg_entity, unsigned int requireext2);
 
 #define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
-#define	RETURN_EDICT(e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(e))
+#define	RETURN_EDICT(e) (((int *)qcvm->globals)[OFS_RETURN] = EDICT_TO_PROG(e))
 
-//provides a few convienience extensions, primarily builtins, but also autocvars.
-//Also note the set+seta features.
+int PR_MakeTempString (const char *val)
+{
+	char *tmp = PR_GetTempString();
+	q_strlcpy(tmp, val, STRINGTEMP_LENGTH);
+	return PR_SetEngineString(tmp);
+}
+
+#define ishex(c) ((c>='0' && c<= '9') || (c>='a' && c<='f') || (c>='A' && c<='F'))
+static int dehex(char c)
+{
+	if (c >= '0' && c <= '9')
+		return c-'0';
+	if (c >= 'A' && c <= 'F')
+		return c-('A'-10);
+	if (c >= 'a' && c <= 'f')
+		return c-('a'-10);
+	return 0;
+}
+//returns the next char...
+struct markup_s
+{
+	const unsigned char *txt;
+	vec4_t tint;	//predefined colour that applies to the entire string
+	vec4_t colour;	//colour for the specific glyph in question
+	unsigned char mask;
+};
+void PR_Markup_Begin(struct markup_s *mu, const char *text, float *rgb, float alpha)
+{
+	if (*text == '\1' || *text == '\2')
+	{
+		mu->mask = 128;
+		text++;
+	}
+	else
+		mu->mask = 0;
+	mu->txt = text;
+	VectorCopy(rgb, mu->tint);
+	mu->tint[3] = alpha;
+	VectorCopy(rgb, mu->colour);
+	mu->colour[3] = alpha;
+}
+int PR_Markup_Parse(struct markup_s *mu)
+{
+	static const vec4_t q3rgb[10] = {
+		{0.00,0.00,0.00, 1.0},
+		{1.00,0.33,0.33, 1.0},
+		{0.00,1.00,0.33, 1.0},
+		{1.00,1.00,0.33, 1.0},
+		{0.33,0.33,1.00, 1.0},
+		{0.33,1.00,1.00, 1.0},
+		{1.00,0.33,1.00, 1.0},
+		{1.00,1.00,1.00, 1.0},
+		{1.00,1.00,1.00, 0.5},
+		{0.50,0.50,0.50, 1.0}
+	};
+	unsigned int c;
+	const float *f;
+	while ((c = *mu->txt))
+	{
+		if (c == '^' && pr_checkextension.value)
+		{	//parse markup like FTE/DP might.
+			switch(mu->txt[1])
+			{
+			case '^':	//doubled up char for escaping.
+				mu->txt++;
+				break;
+			case '0':	//black
+			case '1':	//red
+			case '2':	//green
+			case '3':	//yellow
+			case '4':	//blue
+			case '5':	//cyan
+			case '6':	//magenta
+			case '7':	//white
+			case '8':	//white+half-alpha
+			case '9':	//grey
+				f = q3rgb[mu->txt[1]-'0'];
+				mu->colour[0] = mu->tint[0] * f[0];
+				mu->colour[1] = mu->tint[1] * f[1];
+				mu->colour[2] = mu->tint[2] * f[2];
+				mu->colour[3] = mu->tint[3] * f[3];
+				mu->txt+=2;
+				continue;
+			case 'h':	//toggle half-alpha
+				if (mu->colour[3] != mu->tint[3] * 0.5)
+					mu->colour[3] = mu->tint[3] * 0.5;
+				else
+					mu->colour[3] = mu->tint[3];
+				mu->txt+=2;
+				continue;
+			case 'd':	//reset to defaults (fixme: should reset ^m without resetting \1)
+				mu->colour[0] = mu->tint[0];
+				mu->colour[1] = mu->tint[1];
+				mu->colour[2] = mu->tint[2];
+				mu->colour[3] = mu->tint[3];
+				mu->mask = 0;
+				mu->txt+=2;
+				break;
+			case 'b':	//blink
+			case 's':	//modstack push
+			case 'r':	//modstack restore
+				mu->txt+=2;
+				continue;
+			case 'x':	//RGB 12-bit colour
+				if (ishex(mu->txt[2]) && ishex(mu->txt[3]) && ishex(mu->txt[4]))
+				{
+					mu->colour[0] = mu->tint[0] * dehex(mu->txt[2])/15.0;
+					mu->colour[1] = mu->tint[1] * dehex(mu->txt[3])/15.0;
+					mu->colour[2] = mu->tint[2] * dehex(mu->txt[4])/15.0;
+					mu->txt+=5;
+					continue;
+				}
+				break;	//malformed
+			case '[':	//start fte's ^[text\key\value\key\value^] links
+			case ']':	//end link
+				break;	//fixme... skip the keys, recolour properly, etc
+		//				txt+=2;
+		//				continue;
+			case '&':
+				if ((ishex(mu->txt[2])||mu->txt[2]=='-') && (ishex(mu->txt[3])||mu->txt[3]=='-'))
+				{	//ignore fte's fore/back ansi colours
+					mu->txt += 4;
+					continue;
+				}
+				break;	//malformed
+			case 'm':	//toggle masking.
+				mu->txt+=2;
+				mu->mask ^= 128;
+				continue;
+			case 'U':	//ucs-2 unicode codepoint
+				if (ishex(mu->txt[2]) && ishex(mu->txt[3]) && ishex(mu->txt[4]) && ishex(mu->txt[5]))
+				{
+					c = (dehex(mu->txt[2])<<12) | (dehex(mu->txt[3])<<8) | (dehex(mu->txt[4])<<4) | dehex(mu->txt[5]);
+					mu->txt += 6;
+
+					if (c >= 0xe000 && c <= 0xe0ff)
+						c &= 0xff;	//private-use 0xE0XX maps to quake's chars
+					else if (c >= 0x20 && c <= 0x7f)
+						c &= 0x7f;	//ascii is okay too.
+					else
+						c = '?'; //otherwise its some unicode char that we don't know how to handle.
+					return c;
+				}
+				break; //malformed
+			case '{':	//full unicode codepoint, for chars up to 0x10ffff
+				mu->txt += 2;
+				c = 0;	//no idea
+				while(*mu->txt)
+				{
+					if (*mu->txt == '}')
+					{
+						mu->txt++;
+						break;
+					}
+					if (!ishex(*mu->txt))
+						break;
+					c<<=4;
+					c |= dehex(*mu->txt++);
+				}
+
+				if (c >= 0xe000 && c <= 0xe0ff)
+					c &= 0xff;	//private-use 0xE0XX maps to quake's chars
+				else if (c >= 0x20 && c <= 0x7f)
+					c &= 0x7f;	//ascii is okay too.
+				//it would be nice to include a table to de-accent latin scripts, as well as translate cyrilic somehow, but not really necessary.
+				else
+					c = '?'; //otherwise its some unicode char that we don't know how to handle.
+				return c;
+			}
+		}
+
+		//regular char
+		mu->txt++;
+		return c|mu->mask;
+	}
+	return 0;
+}
 
 #define D(typestr,desc) typestr,desc
 
@@ -101,7 +282,7 @@ static void PF_Logarithm(void)
 	//log2(v) = ln(v)/ln(2)
 	double r;
 	r = log(G_FLOAT(OFS_PARM0));
-	if (pr_argc > 1)
+	if (qcvm->argc > 1)
 		r /= log(G_FLOAT(OFS_PARM1));
 	G_FLOAT(OFS_RETURN) = r;
 }
@@ -125,7 +306,7 @@ static void PF_min(void)
 {
 	float r = G_FLOAT(OFS_PARM0);
 	int i;
-	for (i = 1; i < pr_argc; i++)
+	for (i = 1; i < qcvm->argc; i++)
 	{
 		if (r > G_FLOAT(OFS_PARM0 + i*3))
 			r = G_FLOAT(OFS_PARM0 + i*3);
@@ -136,7 +317,7 @@ static void PF_max(void)
 {
 	float r = G_FLOAT(OFS_PARM0);
 	int i;
-	for (i = 1; i < pr_argc; i++)
+	for (i = 1; i < qcvm->argc; i++)
 	{
 		if (r < G_FLOAT(OFS_PARM0 + i*3))
 			r = G_FLOAT(OFS_PARM0 + i*3);
@@ -205,7 +386,7 @@ static void PF_ext_vectoangles(void)
 	float	*value1, *up;
 
 	value1 = G_VECTOR(OFS_PARM0);
-	if (pr_argc >= 2)
+	if (qcvm->argc >= 2)
 		up = G_VECTOR(OFS_PARM1);
 	else
 		up = NULL;
@@ -228,7 +409,7 @@ static void PF_strcat(void)
 
 	out[0] = 0;
 	s = 0;
-	for (i = 0; i < pr_argc; i++)
+	for (i = 0; i < qcvm->argc; i++)
 	{
 		s = q_strlcat(out, G_STRING((OFS_PARM0+i*3)), STRINGTEMP_LENGTH);
 		if (s >= STRINGTEMP_LENGTH)
@@ -286,8 +467,6 @@ static void PF_substring(void)
 	G_INT(OFS_RETURN) = PR_SetEngineString(string);
 }
 /*our zoned strings implementation is somewhat specific to quakespasm, so good luck porting*/
-unsigned char *knownzone;
-size_t knownzonesize;
 static void PF_strzone(void)
 {
 	char *buf;
@@ -296,7 +475,7 @@ static void PF_strzone(void)
 	size_t l[8];
 	int i;
 	size_t id;
-	for (i = 0; i < pr_argc; i++)
+	for (i = 0; i < qcvm->argc; i++)
 	{
 		s[i] = G_STRING(OFS_PARM0+i*3);
 		l[i] = strlen(s[i]);
@@ -307,15 +486,15 @@ static void PF_strzone(void)
 	buf = Z_Malloc(len);
 	G_INT(OFS_RETURN) = PR_SetEngineString(buf);
 	id = -1-G_INT(OFS_RETURN);
-	if (id >= knownzonesize)
+	if (id >= qcvm->knownzonesize)
 	{
-		knownzonesize = (id+32)&~7;
-		knownzone = Z_Realloc(knownzone, knownzonesize>>3);
+		qcvm->knownzonesize = (id+32)&~7;
+		qcvm->knownzone = Z_Realloc(qcvm->knownzone, qcvm->knownzonesize>>3);
 	}
-	knownzone[id>>3] |= 1u<<(id&7);
+	qcvm->knownzone[id>>3] |= 1u<<(id&7);
 
 	len = 0;
-	for (i = 0; i < pr_argc; i++)
+	for (i = 0; i < qcvm->argc; i++)
 	{
 		memcpy(buf, s[i], l[i]);
 		buf += l[i];
@@ -329,9 +508,9 @@ static void PF_strunzone(void)
 	if (!G_INT(OFS_PARM0))
 		return;	//don't bug out if they gave a null string
 	id = -1-G_INT(OFS_PARM0);
-	if (id < knownzonesize && (knownzone[id>>3] & (1u<<(id&7))))
+	if (id < qcvm->knownzonesize && (qcvm->knownzone[id>>3] & (1u<<(id&7))))
 	{
-		knownzone[id>>3] &= ~(1u<<(id&7));
+		qcvm->knownzone[id>>3] &= ~(1u<<(id&7));
 		PR_ClearEngineString(G_INT(OFS_PARM0));
 		Z_Free((void*)foo);
 	}
@@ -340,26 +519,32 @@ static void PF_strunzone(void)
 }
 static void PR_UnzoneAll(void)
 {	//called to clean up all zoned strings.
-	while (knownzonesize --> 0)
+	while (qcvm->knownzonesize --> 0)
 	{
-		size_t id = knownzonesize;
-		if (knownzone[id>>3] & (1u<<(id&7)))
+		size_t id = qcvm->knownzonesize;
+		if (qcvm->knownzone[id>>3] & (1u<<(id&7)))
 		{
 			string_t s = -1-(int)id;
 			char *ptr = (char*)PR_GetString(s);
 			PR_ClearEngineString(s);
 			Z_Free(ptr);
 		}
-	}
-	if (knownzone)
-		Z_Free(knownzone);
-	knownzonesize = 0;
-	knownzone = NULL;
+	}	
+	if (qcvm->knownzone)
+		Z_Free(qcvm->knownzone);
+	qcvm->knownzonesize = 0;
+	qcvm->knownzone = NULL;
+}
+static qboolean qc_isascii(unsigned int u)
+{	
+	if (u < 256)	//should be just \n and 32-127, but we don't actually support any actual unicode and we don't really want to make things worse.
+		return true;
+	return false;
 }
 static void PF_str2chr(void)
 {
 	const char *instr = G_STRING(OFS_PARM0);
-	int ofs = (pr_argc>1)?G_FLOAT(OFS_PARM1):0;
+	int ofs = (qcvm->argc>1)?G_FLOAT(OFS_PARM1):0;
 
 	if (ofs < 0)
 		ofs = strlen(instr)+ofs;
@@ -373,8 +558,16 @@ static void PF_chr2str(void)
 {
 	char *ret = PR_GetTempString(), *out;
 	int i;
-	for (i = 0, out=ret; i < pr_argc; i++)
-		*out++ = G_FLOAT(OFS_PARM0 + i*3);
+	for (i = 0, out=ret; out-ret < STRINGTEMP_LENGTH-6 && i < qcvm->argc; i++)
+	{
+		unsigned int u = G_FLOAT(OFS_PARM0 + i*3);
+		if (u >= 0xe000 && u < 0xe100)
+			*out++ = (unsigned char)u;	//quake chars.
+		else if (qc_isascii(u))
+			*out++ = u;
+		else
+			*out++ = '?';	//no unicode support
+	}
 	*out = 0;
 	G_INT(OFS_RETURN) = PR_SetEngineString(ret);
 }
@@ -669,11 +862,11 @@ static void PF_strncmp(void)
 	const char *a = G_STRING(OFS_PARM0);
 	const char *b = G_STRING(OFS_PARM1);
 
-	if (pr_argc > 2)
+	if (qcvm->argc > 2)
 	{
 		int len = G_FLOAT(OFS_PARM2);
-		int aofs = pr_argc>3?G_FLOAT(OFS_PARM3):0;
-		int bofs = pr_argc>4?G_FLOAT(OFS_PARM4):0;
+		int aofs = qcvm->argc>3?G_FLOAT(OFS_PARM3):0;
+		int bofs = qcvm->argc>4?G_FLOAT(OFS_PARM4):0;
 		if (aofs < 0 || (aofs && aofs > (int)strlen(a)))
 			aofs = strlen(a);
 		if (bofs < 0 || (bofs && bofs > (int)strlen(b)))
@@ -688,11 +881,11 @@ static void PF_strncasecmp(void)
 	const char *a = G_STRING(OFS_PARM0);
 	const char *b = G_STRING(OFS_PARM1);
 
-	if (pr_argc > 2)
+	if (qcvm->argc > 2)
 	{
 		int len = G_FLOAT(OFS_PARM2);
-		int aofs = pr_argc>3?G_FLOAT(OFS_PARM3):0;
-		int bofs = pr_argc>4?G_FLOAT(OFS_PARM4):0;
+		int aofs = qcvm->argc>3?G_FLOAT(OFS_PARM3):0;
+		int bofs = qcvm->argc>4?G_FLOAT(OFS_PARM4):0;
 		if (aofs < 0 || (aofs && aofs > (int)strlen(a)))
 			aofs = strlen(a);
 		if (bofs < 0 || (bofs && bofs > (int)strlen(b)))
@@ -706,7 +899,7 @@ static void PF_strstrofs(void)
 {
 	const char *instr = G_STRING(OFS_PARM0);
 	const char *match = G_STRING(OFS_PARM1);
-	int firstofs = (pr_argc>2)?G_FLOAT(OFS_PARM2):0;
+	int firstofs = (qcvm->argc>2)?G_FLOAT(OFS_PARM2):0;
 
 	if (firstofs && (firstofs < 0 || firstofs > (int)strlen(instr)))
 	{
@@ -828,11 +1021,11 @@ static void PF_sprintf_internal (const char *s, int firstarg, char *outbuf, int 
 
 	formatbuf[0] = '%';
 
-#define GETARG_FLOAT(a) (((a)>=firstarg && (a)<pr_argc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
-#define GETARG_VECTOR(a) (((a)>=firstarg && (a)<pr_argc) ? (G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyvec)
-#define GETARG_INT(a) (((a)>=firstarg && (a)<pr_argc) ? (G_INT(OFS_PARM0 + 3 * (a))) : 0)
-#define GETARG_INTVECTOR(a) (((a)>=firstarg && (a)<pr_argc) ? ((int*) G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyivec)
-#define GETARG_STRING(a) (((a)>=firstarg && (a)<pr_argc) ? (G_STRING(OFS_PARM0 + 3 * (a))) : "")
+#define GETARG_FLOAT(a) (((a)>=firstarg && (a)<qcvm->argc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_VECTOR(a) (((a)>=firstarg && (a)<qcvm->argc) ? (G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyvec)
+#define GETARG_INT(a) (((a)>=firstarg && (a)<qcvm->argc) ? (G_INT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_INTVECTOR(a) (((a)>=firstarg && (a)<qcvm->argc) ? ((int*) G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyivec)
+#define GETARG_STRING(a) (((a)>=firstarg && (a)<qcvm->argc) ? (G_STRING(OFS_PARM0 + 3 * (a))) : "")
 
 	for(;;)
 	{
@@ -1190,7 +1383,10 @@ static int tokenizeqc(const char *str, qboolean dpfuckage)
 			break;
 
 		qctoken[qctoken_count].start = str - start;
-		str = COM_Parse(str);
+//		if (dpfuckage)
+//			str = COM_ParseDPFuckage(str);
+//		else
+			str = COM_Parse(str);
 		if (!str)
 			break;
 
@@ -1223,7 +1419,7 @@ static void PF_tokenizebyseparator(void)
 	int tlen;
 	qboolean found = true;
 
-	while (seps < pr_argc - 1 && seps < 7)
+	while (seps < qcvm->argc - 1 && seps < 7)
 	{
 		sep[seps] = G_STRING(OFS_PARM1 + seps*3);
 		seplen[seps] = strlen(sep[seps]);
@@ -1371,7 +1567,7 @@ static void PF_strftime(void)
 }
 static void PF_stof(void)
 {
-	G_FLOAT(OFS_RETURN) = atoi(G_STRING(OFS_PARM0));
+	G_FLOAT(OFS_RETURN) = atof(G_STRING(OFS_PARM0));
 }
 static void PF_stov(void)
 {
@@ -1460,7 +1656,7 @@ static void PF_tracebox(void)
 	if (trace.ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(trace.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(qcvm->edicts);
 }
 static void PF_TraceToss(void)
 {
@@ -1475,11 +1671,11 @@ static void PF_TraceToss(void)
 
 	edict_t *tossent, *ignore;
 	tossent = G_EDICT(OFS_PARM0);
-	if (tossent == sv.edicts)
+	if (tossent == qcvm->edicts)
 		Con_Warning("tracetoss: can not use world entity\n");
 	ignore = G_EDICT(OFS_PARM1);
 
-	val = GetEdictFieldValue(tossent, pr_extfields.gravity);
+	val = GetEdictFieldValue(tossent, qcvm->extfields.gravity);
 	if (val && val->_float)
 		gravity = val->_float;
 	else
@@ -1523,15 +1719,57 @@ static void PF_TraceToss(void)
 	if (trace.ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(trace.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(qcvm->edicts);
 }
 
 //model stuff
+void SetMinMaxSize (edict_t *e, float *minvec, float *maxvec, qboolean rotate);
+static void PF_sv_setmodelindex(void)
+{
+	edict_t	*e			= G_EDICT(OFS_PARM0);
+	unsigned int newidx	= G_FLOAT(OFS_PARM1);
+	qmodel_t *mod = qcvm->GetModel(newidx);
+	e->v.model = (newidx<MAX_MODELS)?PR_SetEngineString(sv.model_precache[newidx]):0;
+	e->v.modelindex = newidx;
+
+	if (mod)
+	//johnfitz -- correct physics cullboxes for bmodels
+	{
+		if (mod->type == mod_brush)
+			SetMinMaxSize (e, mod->clipmins, mod->clipmaxs, true);
+		else
+			SetMinMaxSize (e, mod->mins, mod->maxs, true);
+	}
+	//johnfitz
+	else
+		SetMinMaxSize (e, vec3_origin, vec3_origin, true);
+}
+static void PF_cl_setmodelindex(void)
+{
+	edict_t	*e		= G_EDICT(OFS_PARM0);
+	int newidx		= G_FLOAT(OFS_PARM1);
+	qmodel_t *mod = qcvm->GetModel(newidx);
+	e->v.model = mod?PR_SetEngineString(mod->name):0;	//FIXME: is this going to cause issues with vid_restart?
+	e->v.modelindex = newidx;
+
+	if (mod)
+	//johnfitz -- correct physics cullboxes for bmodels
+	{
+		if (mod->type == mod_brush)
+			SetMinMaxSize (e, mod->clipmins, mod->clipmaxs, true);
+		else
+			SetMinMaxSize (e, mod->mins, mod->maxs, true);
+	}
+	//johnfitz
+	else
+		SetMinMaxSize (e, vec3_origin, vec3_origin, true);
+}
+
 static void PF_frameforname(void)
 {
 	unsigned int modelindex	= G_FLOAT(OFS_PARM0);
 	const char *framename	= G_STRING(OFS_PARM1);
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(modelindex);
 	aliashdr_t *alias;
 
 	G_FLOAT(OFS_RETURN) = -1;
@@ -1552,7 +1790,7 @@ static void PF_frametoname(void)
 {
 	unsigned int modelindex	= G_FLOAT(OFS_PARM0);
 	unsigned int framenum	= G_FLOAT(OFS_PARM1);
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(modelindex);
 	aliashdr_t *alias;
 
 	if (mod && mod->type == mod_alias && (alias = Mod_Extradata(mod)) && framenum < (unsigned int)alias->numframes)
@@ -1564,7 +1802,7 @@ static void PF_frameduration(void)
 {
 	unsigned int modelindex	= G_FLOAT(OFS_PARM0);
 	unsigned int framenum	= G_FLOAT(OFS_PARM1);
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(modelindex);
 	aliashdr_t *alias;
 
 	if (mod && mod->type == mod_alias && (alias = Mod_Extradata(mod)) && framenum < (unsigned int)alias->numframes)
@@ -1575,7 +1813,7 @@ static void PF_getsurfacenumpoints(void)
 	edict_t	*ed				= G_EDICT(OFS_PARM0);
 	unsigned int surfidx	= G_FLOAT(OFS_PARM1);
 	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces)
 	{
@@ -1598,8 +1836,7 @@ static void PF_getsurfacepoint(void)
 	edict_t	*ed				= G_EDICT(OFS_PARM0);
 	unsigned int surfidx	= G_FLOAT(OFS_PARM1);
 	unsigned int point		= G_FLOAT(OFS_PARM2);
-	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(ed->v.modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces && point < (unsigned int)mod->surfaces[surfidx].numedges)
 	{
@@ -1617,8 +1854,7 @@ static void PF_getsurfacenumtriangles(void)
 {	//for q3bsp compat (which this engine doesn't support, so its fairly simple)
 	edict_t	*ed				= G_EDICT(OFS_PARM0);
 	unsigned int surfidx	= G_FLOAT(OFS_PARM1);
-	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(ed->v.modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces)
 		G_FLOAT(OFS_RETURN) = (mod->surfaces[surfidx+mod->firstmodelsurface].numedges-2);	//q1bsp is only triangle fans
@@ -1630,8 +1866,7 @@ static void PF_getsurfacetriangle(void)
 	edict_t	*ed				= G_EDICT(OFS_PARM0);
 	unsigned int surfidx	= G_FLOAT(OFS_PARM1);
 	unsigned int triangleidx= G_FLOAT(OFS_PARM2);
-	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(ed->v.modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces && triangleidx < (unsigned int)mod->surfaces[surfidx].numedges-2)
 	{
@@ -1650,8 +1885,7 @@ static void PF_getsurfacenormal(void)
 {
 	edict_t	*ed				= G_EDICT(OFS_PARM0);
 	unsigned int surfidx	= G_FLOAT(OFS_PARM1);
-	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(ed->v.modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces)
 	{
@@ -1667,8 +1901,7 @@ static void PF_getsurfacetexture(void)
 {
 	edict_t	*ed				= G_EDICT(OFS_PARM0);
 	unsigned int surfidx	= G_FLOAT(OFS_PARM1);
-	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(ed->v.modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces)
 	{
@@ -1742,7 +1975,6 @@ static void PF_getsurfacenearpoint(void)
 	msurface_t *surf;
 	int i;
 	float *point;
-	unsigned int u;
 
 	vec3_t cpoint = {0,0,0};
 	float bestdist = 0x7fffffff, dist;
@@ -1753,8 +1985,7 @@ static void PF_getsurfacenearpoint(void)
 
 	G_FLOAT(OFS_RETURN) = -1;
 
-	u = ent->v.modelindex;
-	model = (u>=MAX_MODELS)?NULL:sv.models[u];
+	model = qcvm->GetModel(ent->v.modelindex);
 
 	if (!model || model->type != mod_brush || model->needload)
 		return;
@@ -1783,7 +2014,6 @@ static void PF_getsurfaceclippedpoint(void)
 	msurface_t *surf;
 	float *point;
 	int surfnum;
-	unsigned int u;
 
 	float *result = G_VECTOR(OFS_RETURN);
 
@@ -1793,8 +2023,7 @@ static void PF_getsurfaceclippedpoint(void)
 
 	VectorCopy(point, result);
 
-	u = ent->v.modelindex;
-	model = (u>=MAX_MODELS)?NULL:sv.models[u];
+	model = qcvm->GetModel(ent->v.modelindex);
 
 	if (!model || model->type != mod_brush || model->needload)
 		return;
@@ -1813,8 +2042,7 @@ static void PF_getsurfacepointattribute(void)
 	unsigned int point		= G_FLOAT(OFS_PARM2);
 	unsigned int attribute	= G_FLOAT(OFS_PARM3);
 
-	unsigned int modelindex = ed->v.modelindex;
-	qmodel_t *mod = (modelindex < MAX_MODELS)?sv.models[modelindex]:NULL;
+	qmodel_t *mod = qcvm->GetModel(ed->v.modelindex);
 
 	if (mod && mod->type == mod_brush && !mod->needload && surfidx < (unsigned int)mod->nummodelsurfaces && point < (unsigned int)mod->surfaces[mod->firstmodelsurface+surfidx].numedges)
 	{
@@ -1957,7 +2185,7 @@ static void PF_spawnclient(void)
 			SV_ConnectClient(i);
 			svs.clients[i].spawned = true;
 			ent = svs.clients[i].edict;
-			memset (&ent->v, 0, progs->entityfields * 4);
+			memset (&ent->v, 0, qcvm->progs->entityfields * 4);
 			ent->v.colormap = NUM_FOR_EDICT(ent);
 			ent->v.team = (svs.clients[i].colors & 15) + 1;
 			ent->v.netname = PR_SetEngineString(svs.clients[i].name);
@@ -1965,7 +2193,7 @@ static void PF_spawnclient(void)
 			return;
 		}
 	}
-	RETURN_EDICT(sv.edicts);
+	RETURN_EDICT(qcvm->edicts);
 }
 static void PF_dropclient(void)
 {
@@ -1984,7 +2212,7 @@ static void PF_dropclient(void)
 static void PF_print(void)
 {
 	int i; 
-	for (i = 0; i < pr_argc; i++)
+	for (i = 0; i < qcvm->argc; i++)
 		Con_Printf("%s", G_STRING(OFS_PARM0 + i*3));
 }
 static void PF_cvar_string(void)
@@ -2040,7 +2268,7 @@ static void PF_cvar_description(void)
 static void PF_registercvar(void)
 {
 	const char *name = G_STRING(OFS_PARM0);
-	const char *value = (pr_argc>1)?G_STRING(OFS_PARM0):"";
+	const char *value = (qcvm->argc>1)?G_STRING(OFS_PARM0):"";
 	Cvar_Create(name, value);
 }
 
@@ -2329,7 +2557,7 @@ static void PF_sv_pointsound(void)
 	const char *sample = G_STRING(OFS_PARM1);
 	float volume = G_FLOAT(OFS_PARM2);
 	float attenuation = G_FLOAT(OFS_PARM3);
-	SV_StartSound (sv.edicts, origin, 0, sample, volume, attenuation);
+	SV_StartSound (qcvm->edicts, origin, 0, sample, volume, attenuation);
 }
 
 //file stuff
@@ -2365,6 +2593,7 @@ static qboolean QC_FixFileName(const char *name, const char **result, const char
 //even libc mandates a seek between reading+writing, so no great loss there.
 static struct qcfile_s
 {
+	qcvm_t *owningvm;
 	char cache[1024];
 	int cacheoffset, cachesize;
 	FILE *file;
@@ -2430,6 +2659,7 @@ static void PF_fopen(void)
 			break;
 	}
 	qcfiles[i].filebase = ftell(file);
+	qcfiles[i].owningvm = qcvm;
 	qcfiles[i].file = file;
 	qcfiles[i].mode = fmode;
 	//reading needs size info
@@ -2457,7 +2687,7 @@ static void PF_fgets(void)
 		char *end = ret+STRINGTEMP_LENGTH;
 		for (;;)
 		{
-			if (!f->cachesize)
+			if (f->cacheoffset == f->cachesize)
 			{
 				//figure out how much we can try to cache.
 				int sz = f->filesize - f->fileoffset;
@@ -2471,6 +2701,11 @@ static void PF_fgets(void)
 				f->fileoffset += f->cachesize;
 				if (!f->cachesize)
 				{
+					if (s == ret)
+					{	//absolutely nothing to spew
+						G_INT(OFS_RETURN) = 0;
+						return;
+					}
 					//classic eof...
 					break;
 				}
@@ -2512,6 +2747,20 @@ static void PF_fclose(void)
 	{
 		fclose(qcfiles[fileid].file);
 		qcfiles[fileid].file = NULL;
+		qcfiles[fileid].owningvm = NULL;
+	}
+}
+static void PF_frikfile_shutdown(void)
+{
+	size_t i;
+	for (i = 0; i < qcfiles_max; i++)
+	{
+		if (qcfiles[i].owningvm == qcvm)
+		{
+			fclose(qcfiles[i].file);
+			qcfiles[i].file = NULL;
+			qcfiles[i].owningvm = NULL;
+		}
 	}
 }
 static void PF_fseek(void)
@@ -2528,7 +2777,7 @@ static void PF_fseek(void)
 			G_INT(OFS_RETURN) = qcfiles[fileid].fileoffset;	//when we're reading, use the cached read offset
 		else
 			G_INT(OFS_RETURN) = ftell(qcfiles[fileid].file)-qcfiles[fileid].filebase;
-		if (pr_argc>1)
+		if (qcvm->argc>1)
 		{
 			qcfiles[fileid].fileoffset = G_INT(OFS_PARM1);
 			fseek(qcfiles[fileid].file, qcfiles[fileid].filebase+qcfiles[fileid].fileoffset, SEEK_SET);
@@ -2609,41 +2858,126 @@ static void PF_fsize(void)
 }
 #endif
 
+struct filesearch_s
+{
+	qcvm_t *owner;
+	size_t numfiles;
+	size_t maxfiles;
+	struct
+	{
+		char name[MAX_QPATH];
+		time_t mtime;
+		size_t fsize;
+	} *file;
+} searches[16];
+static qboolean PR_Search_AddFile(void *ctx, const char *fname, time_t mtime, size_t fsize)
+{
+	struct filesearch_s *c = ctx;
+	if (c->numfiles == c->maxfiles)
+	{
+		c->maxfiles = c->maxfiles*2+2;
+		c->file = realloc(c->file, c->maxfiles*sizeof(*c->file));
+	}
+	q_strlcpy(c->file[c->numfiles].name, fname, sizeof(c->file[c->numfiles].name));
+	c->file[c->numfiles].mtime = mtime;
+	c->file[c->numfiles].fsize = fsize;
+	c->numfiles++;
+	return true;
+}
+void COM_ListFiles(void *ctx, const char *gamedir, const char *pattern, qboolean (*cb)(void *ctx, const char *fname, time_t mtime, size_t fsize));
+static void PF_search_shutdown(void)
+{
+	size_t i;
+	for (i = 0; i < countof(searches); i++)
+	{
+		if (searches[i].owner == qcvm)
+		{
+			searches[i].owner = NULL;
+			searches[i].numfiles = 0;
+			searches[i].maxfiles = 0;
+			free(searches[i].file);
+			searches[i].file = NULL;
+		}
+	}
+}
 
 static void PF_search_begin(void)
 {
-//	const char *pattern = G_STRING(OFS_PARM0);
+	size_t i;
+	const char *pattern = G_STRING(OFS_PARM0);
 //	qboolean caseinsensitive = !!G_FLOAT(OFS_PARM0);
 //	qboolaen quiet = !!G_FLOAT(OFS_PARM0);
 
+	for (i = 0; i < countof(searches); i++)
+	{
+		if (!searches[i].owner)
+		{
+			COM_ListFiles(&searches[i], com_gamedir, pattern, PR_Search_AddFile);
+			if (!searches[i].numfiles)
+				break;
+			searches[i].owner = qcvm;
+			G_FLOAT(OFS_RETURN) = i;
+			return;
+		}
+	}
 	G_FLOAT(OFS_RETURN) = -1;
 }
 static void PF_search_end(void)
 {
-//	int handle = G_FLOAT(OFS_PARM0);
+	int handle = G_FLOAT(OFS_PARM0);
+	if (handle < 0 || handle >= countof(searches))
+		return; //erk
+	searches[handle].owner = NULL;
+	searches[handle].numfiles = 0;
+	searches[handle].maxfiles = 0;
+	free(searches[handle].file);
+	searches[handle].file = NULL;
 }
 static void PF_search_getsize(void)
 {
-//	int handle = G_FLOAT(OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = 0;
+	size_t handle = G_FLOAT(OFS_PARM0);
+	if (handle < 0 || handle >= countof(searches))
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+		return; //erk
+	}
+	G_FLOAT(OFS_RETURN) = searches[handle].numfiles;
 }
 static void PF_search_getfilename(void)
 {
-//	int handle = G_FLOAT(OFS_PARM0);
-//	int index = G_FLOAT(OFS_PARM1);
-	G_INT(OFS_RETURN) = PR_SetEngineString("");
+	size_t handle = G_FLOAT(OFS_PARM0);
+	size_t index = G_FLOAT(OFS_PARM1);
+	G_INT(OFS_RETURN) = 0;
+	if (handle < 0 || handle >= countof(searches))
+		return; //erk
+	if (index < 0 || index >= searches[handle].numfiles)
+		return; //erk
+	G_INT(OFS_RETURN) = PR_MakeTempString(searches[handle].file[index].name);
 }
 static void PF_search_getfilesize(void)
 {
-//	int handle = G_FLOAT(OFS_PARM0);
-//	int index = G_FLOAT(OFS_PARM1);
+	size_t handle = G_FLOAT(OFS_PARM0);
+	size_t index = G_FLOAT(OFS_PARM1);
 	G_FLOAT(OFS_RETURN) = 0;
+	if (handle < 0 || handle >= countof(searches))
+		return; //erk
+	if (index < 0 || index >= searches[handle].numfiles)
+		return; //erk
+	G_FLOAT(OFS_RETURN) = searches[handle].file[index].fsize;
 }
 static void PF_search_getfilemtime(void)
 {
-//	int handle = G_FLOAT(OFS_PARM0);
-//	int index = G_FLOAT(OFS_PARM1);
-	G_INT(OFS_RETURN) = PR_SetEngineString("");
+	char *ret = PR_GetTempString();
+	size_t handle = G_FLOAT(OFS_PARM0);
+	size_t index = G_FLOAT(OFS_PARM1);
+	G_INT(OFS_RETURN) = 0;
+	if (handle < 0 || handle >= countof(searches))
+		return; //erk
+	if (index < 0 || index >= searches[handle].numfiles)
+		return; //erk
+
+	strftime(ret, STRINGTEMP_LENGTH, "%Y-%m-%d %H:%M:%S", localtime(&searches[handle].file[index].mtime));
+	G_INT(OFS_RETURN) = PR_SetEngineString(ret);
 }
 
 static void PF_whichpack(void)
@@ -2677,7 +3011,7 @@ static void PF_whichpack(void)
 //string buffers
 
 struct strbuf {
-	qboolean isactive;
+	qcvm_t  *owningvm;
 	char **strings;
 	unsigned int used;
 	unsigned int allocated;
@@ -2693,7 +3027,7 @@ static void PF_buf_shutdown(void)
 
 	for (bufno = 0; bufno < NUMSTRINGBUFS; bufno++)
 	{
-		if (!strbuflist[bufno].isactive)
+		if (strbuflist[bufno].owningvm != qcvm)
 			continue;
 
 		for (i = 0; i < strbuflist[bufno].used; i++)
@@ -2711,7 +3045,7 @@ static void PF_buf_create(void)
 {
 	unsigned int i;
 
-	const char *type = ((pr_argc>0)?G_STRING(OFS_PARM0):"string");
+	const char *type = ((qcvm->argc>0)?G_STRING(OFS_PARM0):"string");
 //	unsigned int flags = ((pr_argc>1)?G_FLOAT(OFS_PARM1):1);
 
 	if (!q_strcasecmp(type, "string"))
@@ -2726,9 +3060,9 @@ static void PF_buf_create(void)
 
 	for (i = 0; i < NUMSTRINGBUFS; i++)
 	{
-		if (!strbuflist[i].isactive)
+		if (!strbuflist[i].owningvm)
 		{
-			strbuflist[i].isactive = true;
+			strbuflist[i].owningvm = qcvm;
 			strbuflist[i].used = 0;
 			strbuflist[i].allocated = 0;
 			strbuflist[i].strings = NULL;
@@ -2746,7 +3080,7 @@ static void PF_buf_del(void)
 
 	if (bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	for (i = 0; i < strbuflist[bufno].used; i++)
@@ -2757,7 +3091,7 @@ static void PF_buf_del(void)
 	strbuflist[bufno].used = 0;
 	strbuflist[bufno].allocated = 0;
 
-	strbuflist[bufno].isactive = false;
+	strbuflist[bufno].owningvm = NULL;
 }
 // #442 float(float bufhandle) buf_getsize (DP_QC_STRINGBUFFERS)
 static void PF_buf_getsize(void)
@@ -2766,7 +3100,7 @@ static void PF_buf_getsize(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	G_FLOAT(OFS_RETURN) = strbuflist[bufno].used;
@@ -2782,11 +3116,11 @@ static void PF_buf_copy(void)
 		return;
 	if (buffrom >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[buffrom].isactive)
+	if (!strbuflist[buffrom].owningvm)
 		return;
 	if (bufto >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufto].isactive)
+	if (!strbuflist[bufto].owningvm)
 		return;
 
 	//obliterate any and all existing data.
@@ -2820,7 +3154,7 @@ static void PF_buf_sort(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	if (sortprefixlen <= 0)
@@ -2857,7 +3191,7 @@ static void PF_buf_implode(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	//count neededlength
@@ -2917,7 +3251,7 @@ static void PF_bufstr_get(void)
 		G_INT(OFS_RETURN) = 0;
 		return;
 	}
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 	{
 		G_INT(OFS_RETURN) = 0;
 		return;
@@ -2943,7 +3277,7 @@ static void PF_bufstr_set(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	if (index >= strbuflist[bufno].allocated)
@@ -3009,7 +3343,7 @@ static void PF_bufstr_add(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	G_FLOAT(OFS_RETURN) = PF_bufstr_add_internal(bufno, string, ordered);
@@ -3022,7 +3356,7 @@ static void PF_bufstr_free(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	if (index >= strbuflist[bufno].used)
@@ -3076,7 +3410,7 @@ static void PF_buf_loadfile(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	if (!QC_FixFileName(fname, &fname, &fallback))
@@ -3113,7 +3447,7 @@ static void PF_buf_writefile(void)
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
-	if (!strbuflist[bufno].isactive)
+	if (!strbuflist[bufno].owningvm)
 		return;
 
 	if (fnum >= qcfiles_max)
@@ -3121,7 +3455,7 @@ static void PF_buf_writefile(void)
 	if (!qcfiles[fnum].file)
 		return;
 
-	if (pr_argc >= 3)
+	if (qcvm->argc >= 3)
 	{
 		if (G_FLOAT(OFS_PARM2) <= 0)
 			idx = 0;
@@ -3130,7 +3464,7 @@ static void PF_buf_writefile(void)
 	}
 	else
 		idx = 0;
-	if (pr_argc >= 4)
+	if (qcvm->argc >= 4)
 		midx = idx + G_FLOAT(OFS_PARM3);
 	else
 		midx = strbuflist[bufno].used - idx;
@@ -3158,7 +3492,7 @@ static void PF_copyentity(void)
 	edict_t *dst = G_EDICT(OFS_PARM1);
 	if (src->free || dst->free)
 		Con_Printf("PF_copyentity: entity is free\n");
-	memcpy(&dst->v, &src->v, pr_edict_size - sizeof(edict_t));
+	memcpy(&dst->v, &src->v, qcvm->edict_size - sizeof(edict_t));
 	dst->alpha = src->alpha;
 	dst->sendinterval = src->sendinterval;
 	SV_LinkEdict(dst, false);
@@ -3171,19 +3505,19 @@ static void PF_num_for_edict(void)
 {
 	G_FLOAT(OFS_RETURN) = G_EDICTNUM(OFS_PARM0);
 }
-static void PF_sv_findchain(void)
+static void PF_findchain(void)
 {
 	edict_t	*ent, *chain;
 	int	i, f;
 	const char *s, *t;
 
-	chain = (edict_t *)sv.edicts;
+	chain = (edict_t *)qcvm->edicts;
 
 	f = G_INT(OFS_PARM0);
 	s = G_STRING(OFS_PARM1);
 
-	ent = NEXT_EDICT(sv.edicts);
-	for (i = 1; i < sv.num_edicts; i++, ent = NEXT_EDICT(ent))
+	ent = NEXT_EDICT(qcvm->edicts);
+	for (i = 1; i < qcvm->num_edicts; i++, ent = NEXT_EDICT(ent))
 	{
 		if (ent->free)
 			continue;
@@ -3196,7 +3530,7 @@ static void PF_sv_findchain(void)
 
 	RETURN_EDICT(chain);
 }
-static void PF_sv_findfloat(void)
+static void PF_findfloat(void)
 {
 	int		e;
 	int		f;
@@ -3207,7 +3541,7 @@ static void PF_sv_findfloat(void)
 	f = G_INT(OFS_PARM1);
 	s = G_FLOAT(OFS_PARM2);
 
-	for (e++ ; e < sv.num_edicts ; e++)
+	for (e++ ; e < qcvm->num_edicts ; e++)
 	{
 		ed = EDICT_NUM(e);
 		if (ed->free)
@@ -3220,21 +3554,21 @@ static void PF_sv_findfloat(void)
 		}
 	}
 
-	RETURN_EDICT(sv.edicts);
+	RETURN_EDICT(qcvm->edicts);
 }
-static void PF_sv_findchainfloat(void)
+static void PF_findchainfloat(void)
 {
 	edict_t	*ent, *chain;
 	int	i, f;
 	float s, t;
 
-	chain = (edict_t *)sv.edicts;
+	chain = (edict_t *)qcvm->edicts;
 
 	f = G_INT(OFS_PARM0);
 	s = G_FLOAT(OFS_PARM1);
 
-	ent = NEXT_EDICT(sv.edicts);
-	for (i = 1; i < sv.num_edicts; i++, ent = NEXT_EDICT(ent))
+	ent = NEXT_EDICT(qcvm->edicts);
+	for (i = 1; i < qcvm->num_edicts; i++, ent = NEXT_EDICT(ent))
 	{
 		if (ent->free)
 			continue;
@@ -3247,7 +3581,7 @@ static void PF_sv_findchainfloat(void)
 
 	RETURN_EDICT(chain);
 }
-static void PF_sv_findflags(void)
+static void PF_findflags(void)
 {
 	int		e;
 	int		f;
@@ -3258,7 +3592,7 @@ static void PF_sv_findflags(void)
 	f = G_INT(OFS_PARM1);
 	s = G_FLOAT(OFS_PARM2);
 
-	for (e++ ; e < sv.num_edicts ; e++)
+	for (e++ ; e < qcvm->num_edicts ; e++)
 	{
 		ed = EDICT_NUM(e);
 		if (ed->free)
@@ -3271,21 +3605,21 @@ static void PF_sv_findflags(void)
 		}
 	}
 
-	RETURN_EDICT(sv.edicts);
+	RETURN_EDICT(qcvm->edicts);
 }
-static void PF_sv_findchainflags(void)
+static void PF_findchainflags(void)
 {
 	edict_t	*ent, *chain;
 	int	i, f;
 	int s, t;
 
-	chain = (edict_t *)sv.edicts;
+	chain = (edict_t *)qcvm->edicts;
 
 	f = G_INT(OFS_PARM0);
 	s = G_FLOAT(OFS_PARM1);
 
-	ent = NEXT_EDICT(sv.edicts);
-	for (i = 1; i < sv.num_edicts; i++, ent = NEXT_EDICT(ent))
+	ent = NEXT_EDICT(qcvm->edicts);
+	for (i = 1; i < qcvm->num_edicts; i++, ent = NEXT_EDICT(ent))
 	{
 		if (ent->free)
 			continue;
@@ -3300,61 +3634,61 @@ static void PF_sv_findchainflags(void)
 }
 static void PF_numentityfields(void)
 {
-	G_FLOAT(OFS_RETURN) = progs->numfielddefs;
+	G_FLOAT(OFS_RETURN) = qcvm->progs->numfielddefs;
 }
 static void PF_findentityfield(void)
 {
 	ddef_t *fld = ED_FindField(G_STRING(OFS_PARM0));
 	if (fld)
-		G_FLOAT(OFS_RETURN) = fld - pr_fielddefs;
+		G_FLOAT(OFS_RETURN) = fld - qcvm->fielddefs;
 	else
 		G_FLOAT(OFS_RETURN) = 0;	//the first field is meant to be some dummy placeholder. or it could be modelindex...
 }
 static void PF_entityfieldref(void)
 {
 	unsigned int fldidx = G_FLOAT(OFS_PARM0);
-	if (fldidx >= (unsigned int)progs->numfielddefs)
+	if (fldidx >= (unsigned int)qcvm->progs->numfielddefs)
 		G_INT(OFS_RETURN) = 0;
 	else
-		G_INT(OFS_RETURN) = pr_fielddefs[fldidx].ofs;
+		G_INT(OFS_RETURN) = qcvm->fielddefs[fldidx].ofs;
 }
 static void PF_entityfieldname(void)
 {
 	unsigned int fldidx = G_FLOAT(OFS_PARM0);
-	if (fldidx < (unsigned int)progs->numfielddefs)
-		G_INT(OFS_RETURN) = pr_fielddefs[fldidx].s_name;
+	if (fldidx < (unsigned int)qcvm->progs->numfielddefs)
+		G_INT(OFS_RETURN) = qcvm->fielddefs[fldidx].s_name;
 	else
 		G_INT(OFS_RETURN) = 0;
 }
 static void PF_entityfieldtype(void)
 {
 	unsigned int fldidx = G_FLOAT(OFS_PARM0);
-	if (fldidx >= (unsigned int)progs->numfielddefs)
+	if (fldidx >= (unsigned int)qcvm->progs->numfielddefs)
 		G_INT(OFS_RETURN) = ev_void;
 	else
-		G_INT(OFS_RETURN) = pr_fielddefs[fldidx].type;
+		G_INT(OFS_RETURN) = qcvm->fielddefs[fldidx].type;
 }
-static void PF_getentityfieldstring(void)
+static void PF_getentfldstr(void)
 {
 	unsigned int fldidx = G_FLOAT(OFS_PARM0);
 	edict_t *ent = G_EDICT(OFS_PARM1);
-	if (fldidx < (unsigned int)progs->numfielddefs)
+	if (fldidx < (unsigned int)qcvm->progs->numfielddefs)
 	{
 		char *ret = PR_GetTempString();
-		const char *val = PR_UglyValueString (pr_fielddefs[fldidx].type, (eval_t*)((float*)&ent->v + pr_fielddefs[fldidx].ofs));
+		const char *val = PR_UglyValueString (qcvm->fielddefs[fldidx].type, (eval_t*)((float*)&ent->v + qcvm->fielddefs[fldidx].ofs));
 		q_strlcpy(ret, val, STRINGTEMP_LENGTH);
 		G_INT(OFS_RETURN) = PR_SetEngineString(ret);
 	}
 	else
 		G_INT(OFS_RETURN) = 0;
 }
-static void PF_putentityfieldstring(void)
+static void PF_putentfldstr(void)
 {
 	unsigned int fldidx = G_FLOAT(OFS_PARM0);
 	edict_t *ent = G_EDICT(OFS_PARM1);
 	const char *value = G_STRING(OFS_PARM2);
-	if (fldidx < (unsigned int)progs->numfielddefs)
-		G_FLOAT(OFS_RETURN) = ED_ParseEpair ((void *)&ent->v, pr_fielddefs+fldidx, value);
+	if (fldidx < (unsigned int)qcvm->progs->numfielddefs)
+		G_FLOAT(OFS_RETURN) = ED_ParseEpair ((void *)&ent->v, qcvm->fielddefs+fldidx, value);
 	else
 		G_FLOAT(OFS_RETURN) = false;
 }
@@ -3371,7 +3705,7 @@ static void PF_parseentitydata(void)
 {
 	edict_t *ed = G_EDICT(OFS_PARM0);
 	const char *data = G_STRING(OFS_PARM1), *end;
-	unsigned int offset = (pr_argc>2)?G_FLOAT(OFS_PARM2):0;
+	unsigned int offset = (qcvm->argc>2)?G_FLOAT(OFS_PARM2):0;
 	if (offset)
 	{
 		unsigned int len = strlen(data);
@@ -3390,14 +3724,14 @@ static void PF_callfunction(void)
 {
 	dfunction_t *fnc;
 	const char *fname;
-	if (!pr_argc)
+	if (!qcvm->argc)
 		return;
-	pr_argc--;
-	fname = G_STRING(OFS_PARM0 + pr_argc*3);
+	qcvm->argc--;
+	fname = G_STRING(OFS_PARM0 + qcvm->argc*3);
 	fnc = ED_FindFunction(fname);
 	if (fnc && fnc->first_statement > 0)
 	{
-		PR_ExecuteProgram(fnc - pr_functions);
+		PR_ExecuteProgram(fnc - qcvm->functions);
 	}
 }
 static void PF_isfunction(void)
@@ -3409,7 +3743,7 @@ static void PF_isfunction(void)
 //other stuff
 static void PF_gettime (void)
 {
-	int timer = (pr_argc > 0)?G_FLOAT(OFS_PARM0):0;
+	int timer = (qcvm->argc > 0)?G_FLOAT(OFS_PARM0):0;
 	switch(timer)
 	{
 	default:
@@ -3566,8 +3900,8 @@ static void PF_multicast_internal(qboolean reliable, byte *pvs, unsigned int req
 				continue;
 
 			//figure out which cluster (read: pvs index) to use.
-			playerleaf = Mod_PointInLeaf(svs.clients[i].edict->v.origin, sv.worldmodel);
-			cluster = playerleaf - sv.worldmodel->leafs;
+			playerleaf = Mod_PointInLeaf(svs.clients[i].edict->v.origin, qcvm->worldmodel);
+			cluster = playerleaf - qcvm->worldmodel->leafs;
 			cluster--;	//pvs is 1-based, leaf 0 is discarded.
 			if (cluster < 0 || (pvs[cluster>>3] & (1<<(cluster&7))))
 			{
@@ -3602,11 +3936,11 @@ static void SV_Multicast(multicast_t to, float *org, int msg_entity, unsigned in
 		break;
 	case MULTICAST_PHS_R:
 	case MULTICAST_PHS_U:
-		PF_multicast_internal(to==MULTICAST_PHS_R, NULL/*Mod_LeafPHS(Mod_PointInLeaf(org, sv.worldmodel), sv.worldmodel)*/, requireext2);	//we don't support phs, that would require lots of pvs decompression+merging stuff, and many q1bsps have a LOT of leafs.
+		PF_multicast_internal(to==MULTICAST_PHS_R, NULL/*Mod_LeafPHS(Mod_PointInLeaf(org, qcvm->worldmodel), qcvm->worldmodel)*/, requireext2);	//we don't support phs, that would require lots of pvs decompression+merging stuff, and many q1bsps have a LOT of leafs.
 		break;
 	case MULTICAST_PVS_R:
 	case MULTICAST_PVS_U:
-		PF_multicast_internal(to==MULTICAST_PVS_R, Mod_LeafPVS(Mod_PointInLeaf(org, sv.worldmodel), sv.worldmodel), requireext2);
+		PF_multicast_internal(to==MULTICAST_PVS_R, Mod_LeafPVS(Mod_PointInLeaf(org, qcvm->worldmodel), qcvm->worldmodel), requireext2);
 		break;
 	case MULTICAST_ONE_R:
 	case MULTICAST_ONE_U:
@@ -3629,7 +3963,7 @@ static void PF_multicast(void)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	multicast_t to = G_FLOAT(OFS_PARM1);
-	SV_Multicast(to, org, 0, 0);
+	SV_Multicast(to, org, NUM_FOR_EDICT(PROG_TO_EDICT(pr_global_struct->msg_entity)), 0);
 }
 static void PF_randomvector(void)
 {
@@ -3734,15 +4068,31 @@ static void PF_crc16(void)
 
 static void PF_strlennocol(void)
 {
-	//quakespasm doesn't support colour codes. that makes this a bit of a no-op.
-	//there's no single set either, so this stuff is a bit awkward in ssqc. at least nothing will crash.
-	G_FLOAT(OFS_RETURN) = strlen(G_STRING(OFS_PARM0));
+	int r = 0;
+	struct markup_s mu;
+
+	PR_Markup_Begin(&mu, G_STRING(OFS_PARM0), vec3_origin, 1);
+	while (PR_Markup_Parse(&mu))
+		r++;
+	G_FLOAT(OFS_RETURN) = r;
 }
 static void PF_strdecolorize(void)
 {
-	//quakespasm doesn't support colour codes. that makes this a bit of a no-op.
-	//there's no single set either, so this stuff is a bit awkward in ssqc. at least nothing will crash.
-	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+	int l, c;
+	char *r = PR_GetTempString();
+	struct markup_s mu;
+
+	PR_Markup_Begin(&mu, G_STRING(OFS_PARM0), vec3_origin, 1);
+	for (l = 0; l < STRINGTEMP_LENGTH-1; l++)
+	{
+		c = PR_Markup_Parse(&mu);
+		if (!c)
+			break;
+		r[l] = c;
+	}
+	r[l] = 0;
+
+	G_INT(OFS_RETURN) = PR_SetEngineString(r);
 }
 static void PF_setattachment(void)
 {
@@ -3757,14 +4107,95 @@ static void PF_setattachment(void)
 		Con_DWarning("PF_setattachment: tag %s not found\n", tagname);
 	}
 
-	if ((val = GetEdictFieldValue(ent, pr_extfields.tag_entity)))
+	if ((val = GetEdictFieldValue(ent, qcvm->extfields.tag_entity)))
 		val->edict = EDICT_TO_PROG(tagent);
-	if ((val = GetEdictFieldValue(ent, pr_extfields.tag_index)))
+	if ((val = GetEdictFieldValue(ent, qcvm->extfields.tag_index)))
 		val->_float = 0;
 }
 static void PF_void_stub(void)
 {
 	G_FLOAT(OFS_RETURN) = 0;
+}
+
+static struct svcustomstat_s *PR_CustomStat(int idx, int type)
+{
+	size_t i;
+	if (idx < 0 || idx >= MAX_CL_STATS)
+		return NULL;
+	switch(type)
+	{
+	case ev_ext_integer:
+	case ev_float:
+	case ev_vector:
+	case ev_entity:
+		break;
+	default:
+		return NULL;
+	}
+
+	for (i = 0; i < sv.numcustomstats; i++)
+	{
+		if (sv.customstats[i].idx == idx && (sv.customstats[i].type==ev_string) == (type==ev_string))
+			break;
+	}
+	if (i == sv.numcustomstats)
+		sv.numcustomstats++;
+	sv.customstats[i].idx = idx;
+	sv.customstats[i].type = type;
+	sv.customstats[i].fld = 0;
+	sv.customstats[i].ptr = NULL;
+	return &sv.customstats[i];
+}
+static void PF_clientstat(void)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+	int type = G_FLOAT(OFS_PARM1);
+	int fldofs = G_INT(OFS_PARM2);
+	struct svcustomstat_s *stat = PR_CustomStat(idx, type);
+	if (!stat)
+		return;
+	stat->fld = fldofs;
+}
+static void PF_globalstat(void)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+	int type = G_FLOAT(OFS_PARM1);
+	const char *globname = G_STRING(OFS_PARM2);
+	eval_t *ptr = PR_FindExtGlobal(type, globname);
+	struct svcustomstat_s *stat;
+	if (ptr)
+	{
+		stat = PR_CustomStat(idx, type);
+		if (!stat)
+			return;
+		stat->ptr = ptr;
+	}
+}
+static void PF_pointerstat(void)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+	int type = G_FLOAT(OFS_PARM1);
+	int qcptr = G_INT(OFS_PARM2);
+	struct svcustomstat_s *stat;
+	if (qcptr < 0 || qcptr >= qcvm->max_edicts*qcvm->edict_size || (qcptr%qcvm->edict_size)<sizeof(edict_t)-sizeof(entvars_t))
+		return;	//invalid pointer. this is a more strict check than the qcvm...
+	stat = PR_CustomStat(idx, type);
+	if (!stat)
+		return;
+	stat->ptr = (eval_t *)((byte *)qcvm->edicts + qcptr);
+}
+
+static void PF_isbackbuffered(void)
+{
+	unsigned int plnum = G_EDICTNUM(OFS_PARM0)-1;
+	G_FLOAT(OFS_RETURN) = true;	//assume the connection is clogged.
+	if (plnum > (unsigned int)svs.maxclients)
+		return;	//make error?
+	if (!svs.clients[plnum].active)
+		return; //empty slot
+	if (svs.clients[plnum].message.cursize > DATAGRAM_MTU)
+		return;
+	G_FLOAT(OFS_RETURN) = false;	//okay to spam with more reliables.
 }
 
 #ifdef PSET_SCRIPT
@@ -3795,9 +4226,7 @@ static void PF_sv_particleeffectnum(void)
 {
 	const char	*s;
 	unsigned int i;
-#ifdef PSET_SCRIPT
 	extern cvar_t r_particledesc;
-#endif
 
 	s = G_STRING(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = 0;
@@ -3806,10 +4235,8 @@ static void PF_sv_particleeffectnum(void)
 	if (!*s)
 		return;
 
-#ifdef PSET_SCRIPT
 	if (!sv.particle_precache[1] && (!strncmp(s, "effectinfo.", 11) || strstr(r_particledesc.string, "effectinfo")))
 		COM_Effectinfo_Enumerate(PF_SV_ForceParticlePrecache);
-#endif
 
 	for (i = 1; i < MAX_PARTICLETYPES; i++)
 	{
@@ -3851,7 +4278,7 @@ static void PF_sv_trailparticles(void)
 	float *end = G_VECTOR(OFS_PARM3);
 
 	/*DP gets this wrong, lets try to be compatible*/
-	if (G_INT(OFS_PARM1) >= MAX_EDICTS)
+	if ((unsigned int)G_INT(OFS_PARM1) >= MAX_EDICTS*(unsigned int)qcvm->edict_size)
 	{
 		ednum = G_EDICTNUM(OFS_PARM0);
 		efnum = G_FLOAT(OFS_PARM1);
@@ -3881,8 +4308,8 @@ static void PF_sv_pointparticles(void)
 {
 	int efnum = G_FLOAT(OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
-	float *vel = (pr_argc < 3)?vec3_origin:G_VECTOR(OFS_PARM2);
-	int count = (pr_argc < 4)?1:G_FLOAT(OFS_PARM3);
+	float *vel = (qcvm->argc < 3)?vec3_origin:G_VECTOR(OFS_PARM2);
+	int count = (qcvm->argc < 4)?1:G_FLOAT(OFS_PARM3);
 
 	if (efnum <= 0)
 		return;
@@ -3912,13 +4339,705 @@ static void PF_sv_pointparticles(void)
 		MSG_WriteShort(&sv.multicast, count);
 	}
 
-	SV_Multicast(MULTICAST_PHS_U, org, 0, PEXT2_REPLACEMENTDELTAS);
+	SV_Multicast(MULTICAST_PVS_U, org, 0, PEXT2_REPLACEMENTDELTAS);
+}
+
+int PF_CL_ForceParticlePrecache(const char *s)
+{
+	int i;
+
+	//check if an ssqc one already exists with that name
+	for (i = 1; i < MAX_PARTICLETYPES; i++)
+	{
+		if (!cl.particle_precache[i].name)
+			break;	//nope, no more known
+		if (!strcmp(cl.particle_precache[i].name, s))
+			return i;
+	}
+
+	//nope, check for a csqc one, and allocate if needed
+	for (i = 1; i < MAX_PARTICLETYPES; i++)
+	{
+		if (!cl.local_particle_precache[i].name)
+		{
+			cl.local_particle_precache[i].name = strcpy(Hunk_Alloc(strlen(s)+1), s);	//weirdness to avoid issues with tempstrings
+			cl.local_particle_precache[i].index = PScript_FindParticleType(cl.local_particle_precache[i].name);
+			return -i;
+		}
+		if (!strcmp(cl.local_particle_precache[i].name, s))
+			return -i;
+	}
+
+	//err... too many. bum.
+	return 0;
+}
+int PF_CL_GetParticle(int idx)
+{	//negatives are csqc-originated particles, positives are ssqc-originated, for consistency allowing networking of particles as identifiers
+	if (!idx)
+		return P_INVALID;
+	if (idx < 0)
+	{
+		idx = -idx;
+		if (idx >= MAX_PARTICLETYPES)
+			return P_INVALID;
+		return cl.local_particle_precache[idx].index;
+	}
+	else
+	{
+		if (idx >= MAX_PARTICLETYPES)
+			return P_INVALID;
+		return cl.particle_precache[idx].index;
+	}
+}
+
+static void PF_cl_particleeffectnum(void)
+{
+	const char	*s;
+
+	s = G_STRING(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = 0;
+//	PR_CheckEmptyString (s);
+
+	if (!*s)
+		return;
+
+	G_FLOAT(OFS_RETURN) = PF_CL_ForceParticlePrecache(s);
+	if (!G_FLOAT(OFS_RETURN))
+		PR_RunError ("PF_cl_particleeffectnum: overflow");
+}
+static void PF_cl_trailparticles(void)
+{
+	int efnum;
+	edict_t *ent;
+	float *start = G_VECTOR(OFS_PARM2);
+	float *end = G_VECTOR(OFS_PARM3);
+
+	if ((unsigned int)G_INT(OFS_PARM1) >= MAX_EDICTS*(unsigned int)qcvm->edict_size)
+	{	/*DP gets this wrong, lets try to be compatible*/
+		ent = G_EDICT(OFS_PARM0);
+		efnum = G_FLOAT(OFS_PARM1);
+	}
+	else
+	{
+		efnum = G_FLOAT(OFS_PARM0);
+		ent = G_EDICT(OFS_PARM1);
+	}
+
+	if (efnum <= 0)
+		return;
+	efnum = PF_CL_GetParticle(efnum);
+	PScript_ParticleTrail(start, end, efnum, -NUM_FOR_EDICT(ent), NULL, NULL/*&ent->trailstate*/);
+}
+static void PF_cl_pointparticles(void)
+{
+	int efnum = G_FLOAT(OFS_PARM0);
+	float *org = G_VECTOR(OFS_PARM1);
+	float *vel = (qcvm->argc < 3)?vec3_origin:G_VECTOR(OFS_PARM2);
+	int count = (qcvm->argc < 4)?1:G_FLOAT(OFS_PARM3);
+
+	if (efnum <= 0)
+		return;
+	if (count < 1)
+		return;
+	efnum = PF_CL_GetParticle(efnum);
+	PScript_RunParticleEffectState (org, vel, count, efnum, NULL);
 }
 #else
 #define PF_sv_particleeffectnum PF_void_stub
 #define PF_sv_trailparticles PF_void_stub
 #define PF_sv_pointparticles PF_void_stub
+#define PF_cl_particleeffectnum PF_void_stub
+#define PF_cl_trailparticles PF_void_stub
+#define PF_cl_pointparticles PF_void_stub
 #endif
+
+
+static void PF_cl_getstat_int(void)
+{
+	int stnum = G_FLOAT(OFS_PARM0);
+	if (stnum < 0 || stnum > countof(cl.stats))
+		G_INT(OFS_RETURN) = 0;
+	else
+		G_INT(OFS_RETURN) = cl.stats[stnum];
+}
+static void PF_cl_getstat_float(void)
+{
+	int stnum = G_FLOAT(OFS_PARM0);
+	if (stnum < 0 || stnum > countof(cl.stats))
+		G_FLOAT(OFS_RETURN) = 0;
+	else if (qcvm->argc > 1)
+	{
+		int firstbit = G_FLOAT(OFS_PARM1);
+		int bitcount = G_FLOAT(OFS_PARM2);
+		G_FLOAT(OFS_RETURN) = (cl.stats[stnum]>>firstbit) & ((1<<bitcount)-1);
+	}
+	else
+		G_FLOAT(OFS_RETURN) = cl.statsf[stnum];
+}
+
+struct
+{
+	char name[MAX_QPATH];
+	int type;
+	qpic_t *pic;
+} *qcpics;
+size_t numqcpics;
+size_t maxqcpics;
+static qpic_t *DrawQC_CachePic(const char *picname, int cachetype)
+{	//okay, so this is silly. we've ended up with 3 different cache levels. qcpics, pics, and images.
+	size_t i;
+	for (i = 0; i < numqcpics; i++)
+	{	//binary search? something more sane?
+		if (!strcmp(picname, qcpics[i].name))
+			return qcpics[i].pic;
+	}
+
+	if (strlen(picname) >= MAX_QPATH)
+		return NULL;	//too long. get lost.
+
+	if (cachetype < 0)
+		return NULL;	//its a query, not actually needed.
+
+	if (numqcpics+1 > maxqcpics)
+	{
+		maxqcpics = numqcpics + 32;
+		qcpics = realloc(qcpics, maxqcpics * sizeof(*qcpics));
+	}
+
+	strcpy(qcpics[numqcpics].name, picname);
+	qcpics[numqcpics].type = cachetype;
+	qcpics[numqcpics].pic = NULL;
+
+	//try to load it from a wad if applicable.
+	//the extra gfx/ crap is because DP insists on it for wad images. and its a nightmare to get things working in all engines if we don't accept that quirk too.
+	if (cachetype == 1)
+		qcpics[numqcpics].pic = Draw_PicFromWad(picname + (strncmp(picname, "gfx/", 4)?0:4));
+	else if (!strncmp(picname, "gfx/", 4) && !strchr(picname+4, '.'))
+		qcpics[numqcpics].pic = Draw_PicFromWad(picname+4);
+
+	//okay, not a wad pic, try and load a lmp/tga/etc
+	if (!qcpics[numqcpics].pic)
+		qcpics[numqcpics].pic = Draw_TryCachePic(picname);
+
+	return qcpics[numqcpics++].pic;
+}
+static void DrawQC_CharacterQuad (float x, float y, int num, float w, float h)
+{
+	float size = 0.0625;
+	float frow = (num>>4)*size;
+	float fcol = (num&15)*size;
+	size = 0.0624;	//avoid rounding errors...
+
+	glTexCoord2f (fcol, frow);
+	glVertex2f (x, y);
+	glTexCoord2f (fcol + size, frow);
+	glVertex2f (x+w, y);
+	glTexCoord2f (fcol + size, frow + size);
+	glVertex2f (x+w, y+h);
+	glTexCoord2f (fcol, frow + size);
+	glVertex2f (x, y+h);
+}
+static void PF_cl_drawcharacter(void)
+{
+	extern gltexture_t *char_texture;
+
+	float *pos	= G_VECTOR(OFS_PARM0);
+	int charcode= (int)G_FLOAT (OFS_PARM1) & 0xff;
+	float *size	= G_VECTOR(OFS_PARM2);
+	float *rgb	= G_VECTOR(OFS_PARM3);
+	float alpha	= G_FLOAT (OFS_PARM4);
+//	int flags	= G_FLOAT (OFS_PARM5);
+
+	if (charcode == 32)
+		return; //don't waste time on spaces
+
+	GL_Bind (char_texture);
+	glColor4f (rgb[0], rgb[1], rgb[2], alpha);
+	glBegin (GL_QUADS);
+	DrawQC_CharacterQuad (pos[0], pos[1], charcode, size[0], size[1]);
+	glEnd ();
+}
+
+static void PF_cl_drawstring(void)
+{
+	extern gltexture_t *char_texture;
+
+	float *pos	= G_VECTOR(OFS_PARM0);
+	const unsigned char *text = G_STRING (OFS_PARM1);
+	float *size	= G_VECTOR(OFS_PARM2);
+	float *rgb	= G_VECTOR(OFS_PARM3);
+	float alpha	= G_FLOAT (OFS_PARM4);
+//	int flags	= G_FLOAT (OFS_PARM5);
+
+	float x = pos[0];
+	struct markup_s mu;
+	int c;
+
+	if (!*text)
+		return; //don't waste time on spaces
+
+	PR_Markup_Begin(&mu, text, rgb, alpha);
+
+	GL_Bind (char_texture);
+	glBegin (GL_QUADS);
+	while ((c = PR_Markup_Parse(&mu)))
+	{
+		glColor4fv (mu.colour);
+		DrawQC_CharacterQuad (x, pos[1], c, size[0], size[1]);
+		x += size[0];
+	}
+	glEnd ();
+}
+static void PF_cl_stringwidth(void)
+{
+	static const float defaultfontsize[] = {8,8};
+	const unsigned char *text = G_STRING (OFS_PARM0);
+	qboolean uscolours = G_FLOAT(OFS_PARM1);
+	const float *fontsize = (qcvm->argc>2)?G_VECTOR (OFS_PARM2):defaultfontsize;
+	struct markup_s mu;
+	int r = 0;
+
+	PR_Markup_Begin(&mu, text, vec3_origin, 1);
+	while (PR_Markup_Parse(&mu))
+	{
+		r += 1;
+	}
+
+	//primitive and lame, but hey.
+	G_FLOAT(OFS_RETURN) = fontsize[0] * r;
+}
+
+
+static void PF_cl_drawsetclip(void)
+{
+	float s = CLAMP (1.0, scr_sbarscale.value, (float)glwidth / 320.0);
+
+	float x = G_FLOAT(OFS_PARM0)*s;
+	float y = G_FLOAT(OFS_PARM1)*s;
+	float w = G_FLOAT(OFS_PARM2)*s;
+	float h = G_FLOAT(OFS_PARM3)*s;
+
+	glScissor(x, glheight-(y+h), w, h);
+	glEnable(GL_SCISSOR_TEST);
+}
+static void PF_cl_drawresetclip(void)
+{
+	glDisable(GL_SCISSOR_TEST);
+}
+
+static void PF_cl_precachepic(void)
+{
+	const char *name	= G_STRING(OFS_PARM0);
+	int trywad			= (qcvm->argc>1)?!!G_FLOAT(OFS_PARM1):false;
+
+	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);	//return input string, for convienience
+
+	DrawQC_CachePic(name, trywad);
+}
+static void PF_cl_iscachedpic(void)
+{
+	const char *name	= G_STRING(OFS_PARM0);
+	if (DrawQC_CachePic(name, -1))
+		G_FLOAT(OFS_RETURN) = true;
+	else
+		G_FLOAT(OFS_RETURN) = false;
+}
+
+static void PF_cl_drawpic(void)
+{
+	float *pos	= G_VECTOR(OFS_PARM0);
+	qpic_t *pic	= DrawQC_CachePic(G_STRING(OFS_PARM1), false);
+	float *size	= G_VECTOR(OFS_PARM2);
+	float *rgb	= G_VECTOR(OFS_PARM3);
+	float alpha	= G_FLOAT (OFS_PARM4);
+//	int flags	= G_FLOAT (OFS_PARM5);
+
+	if (pic)
+	{
+		glColor4f (rgb[0], rgb[1], rgb[2], alpha);
+		Draw_SubPic (pos[0], pos[1], size[0], size[1], pic, 0, 0, 1, 1);
+	}
+}
+
+static void PF_cl_getimagesize(void)
+{
+	qpic_t *pic	= DrawQC_CachePic(G_STRING(OFS_PARM0), false);
+	if (pic)
+		G_VECTORSET(OFS_RETURN, pic->width, pic->height, 0);
+	else
+		G_VECTORSET(OFS_RETURN, 0, 0, 0);
+}
+
+static void PF_cl_drawsubpic(void)
+{
+	float *pos	= G_VECTOR(OFS_PARM0);
+	float *size	= G_VECTOR(OFS_PARM1);
+	qpic_t *pic	= DrawQC_CachePic(G_STRING(OFS_PARM2), false);
+	float *srcpos	= G_VECTOR(OFS_PARM3);
+	float *srcsize	= G_VECTOR(OFS_PARM4);
+	float *rgb	= G_VECTOR(OFS_PARM5);
+	float alpha	= G_FLOAT (OFS_PARM6); 
+//	int flags	= G_FLOAT (OFS_PARM7);
+
+	if (pic)
+	{
+		glColor4f (rgb[0], rgb[1], rgb[2], alpha);
+		Draw_SubPic (pos[0], pos[1], size[0], size[1], pic, srcpos[0], srcpos[1], srcsize[0], srcsize[1]);
+	}
+}
+
+static void PF_cl_drawfill(void)
+{
+	float *pos	= G_VECTOR(OFS_PARM0);
+	float *size	= G_VECTOR(OFS_PARM1);
+	float *rgb	= G_VECTOR(OFS_PARM2);
+	float alpha	= G_FLOAT (OFS_PARM3);
+//	int flags	= G_FLOAT (OFS_PARM4);
+
+	glDisable (GL_TEXTURE_2D);
+
+	glColor4f (rgb[0], rgb[1], rgb[2], alpha);
+
+	glBegin (GL_QUADS);
+	glVertex2f (pos[0],			pos[1]);
+	glVertex2f (pos[0]+size[0],	pos[1]);
+	glVertex2f (pos[0]+size[0],	pos[1]+size[1]);
+	glVertex2f (pos[0],			pos[1]+size[1]);
+	glEnd ();
+
+	glEnable (GL_TEXTURE_2D);
+}
+
+static void PF_cl_cprint(void)
+{
+	const char *str = PF_VarString(0);
+	SCR_CenterPrint (str);
+}
+static void PF_cl_keynumtostring(void)
+{
+	int keynum = Key_QCToNative(G_FLOAT(OFS_PARM0));
+	char *s = PR_GetTempString();
+	if (keynum < 0)
+		keynum = -1;
+	Q_strncpy(s, Key_KeynumToString(keynum), STRINGTEMP_LENGTH);
+	G_INT(OFS_RETURN) = PR_SetEngineString(s);
+}
+static void PF_cl_stringtokeynum(void)
+{
+	const char *keyname = G_STRING(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = Key_NativeToQC(Key_StringToKeynum(keyname));
+}
+static void PF_cl_getkeybind(void)
+{
+	int keynum = Key_QCToNative(G_FLOAT(OFS_PARM0));
+
+	char *s = PR_GetTempString();
+	if (keynum >= 0 && keynum < MAX_KEYS)
+		Q_strncpy(s, keybindings[keynum], STRINGTEMP_LENGTH);
+	else
+		Q_strncpy(s, "", STRINGTEMP_LENGTH);
+	G_INT(OFS_RETURN) = PR_SetEngineString(s);
+}
+static void PF_cl_findkeysforcommand(void)
+{
+	const char *command = G_STRING(OFS_PARM0);
+//	float bindmap = G_FLOAT(OFS_PARM1);
+	int keys[5];
+	char gah[64];
+	char *s = PR_GetTempString();
+	int		count = 0;
+	int		j;
+	int		l = strlen(command);
+	const char	*b;
+
+	for (j = 0; j < MAX_KEYS; j++)
+	{
+		b = keybindings[j];
+		if (!b)
+			continue;
+		if (!strncmp (b, command, l) && (!b[l] || (!strchr(command, ' ') && (b[l] == ' ' || b[l] == '\t'))))
+		{
+			keys[count++] = Key_NativeToQC(j);
+			if (count == countof(keys))
+				break;
+		}
+	}
+
+	while (count < 2)
+		keys[count++] = -1;	//always return at least two keys. DP behaviour.
+
+	*s = 0;
+	for (j = 0; j < count; j++)
+	{
+		if (*s)
+			q_strlcat(s, " ", STRINGTEMP_LENGTH);
+
+		//FIXME: This should be "'%i'", but our tokenize builtin doesn't support DP's fuckage, so this tends to break everything. So I'm just going to keep things sane by being less compatible-but-cleaner here.
+		q_snprintf(gah, sizeof(gah), "%i", keys[j]);
+		q_strlcat(s, gah, STRINGTEMP_LENGTH);
+	}
+
+	G_INT(OFS_RETURN) = PR_SetEngineString(s);
+}
+//this extended version returns actual key names. which modifiers can be returned.
+static void PF_cl_findkeysforcommandex(void)
+{
+	const char *command = G_STRING(OFS_PARM0);
+//	float bindmap = G_FLOAT(OFS_PARM1);
+	int keys[16];
+	char *s = PR_GetTempString();
+	int		count = 0;
+	int		j;
+	int		l = strlen(command);
+	const char	*b;
+
+	for (j = 0; j < MAX_KEYS; j++)
+	{
+		b = keybindings[j];
+		if (!b)
+			continue;
+		if (!strncmp (b, command, l) && (!b[l] || (!strchr(command, ' ') && (b[l] == ' ' || b[l] == '\t'))))
+		{
+			keys[count++] = j;
+			if (count == countof(keys))
+				break;
+		}
+	}
+
+	*s = 0;
+	for (j = 0; j < count; j++)
+	{
+		if (*s)
+			q_strlcat(s, " ", STRINGTEMP_LENGTH);
+
+		q_strlcat(s, Key_KeynumToString(keys[j]), STRINGTEMP_LENGTH);
+	}
+
+	G_INT(OFS_RETURN) = PR_SetEngineString(s);
+}
+
+static void PF_cl_setcursormode(void)
+{
+	qboolean absmode = G_FLOAT(OFS_PARM0);
+//	const char *cursorname = (qcvm->argc<=1)?"":G_STRING(OFS_PARM1);
+//	float *hotspot = (qcvm->argc<=2)?NULL:G_VECTOR(OFS_PARM2);
+//	float cursorscale = (qcvm->argc<=3)?1:G_FLOAT(OFS_PARM3);
+
+	cl.csqc_cursorforced = absmode;
+}
+static void PF_cl_getcursormode(void)
+{
+//	qboolean effectivemode = (qcvm->argc==0)?false:G_FLOAT(OFS_PARM0);
+
+	G_FLOAT(OFS_RETURN) = cl.csqc_cursorforced;
+}
+static void PF_cl_setsensitivity(void)
+{
+	float sens = G_FLOAT(OFS_PARM0);
+
+	cl.csqc_sensitivity = sens;
+}
+void PF_cl_playerkey_internal(int player, const char *key, qboolean retfloat)
+{
+	char buf[64];
+	char *ret = buf;
+	extern int	fragsort[MAX_SCOREBOARD];
+	extern int	scoreboardlines;
+	extern int	Sbar_ColorForMap (int m);
+	if (player < 0 && player >= -scoreboardlines)
+		player = fragsort[-1-player];
+	if (player < 0 || player > MAX_SCOREBOARD)
+		ret = NULL;
+	else if (!strcmp(key, "viewentity"))
+		q_snprintf(buf, sizeof(buf), "%i", player+1);	//hack for DP compat. always returned even when the slot is empty (so long as its valid).
+	else if (!*cl.scores[player].name)
+		ret = NULL;
+	else if (!strcmp(key, "name"))
+		ret = cl.scores[player].name;
+	else if (!strcmp(key, "frags"))
+		q_snprintf(buf, sizeof(buf), "%i", cl.scores[player].frags);
+	else if (!strcmp(key, "ping"))
+		q_snprintf(buf, sizeof(buf), "%i", cl.scores[player].ping);
+	else if (!strcmp(key, "pl"))
+		ret = NULL;	//unknown
+	else if (!strcmp(key, "entertime"))
+		q_snprintf(buf, sizeof(buf), "%g", cl.scores[player].entertime);
+	else if (!strcmp(key, "topcolor_rgb"))
+	{
+		byte *pal = (byte *)d_8to24table + 4*Sbar_ColorForMap((cl.scores[player].colors)&0xf0); //johnfitz -- use d_8to24table instead of host_basepal
+		q_snprintf(buf, sizeof(buf), "%g %g %g", pal[0]/255.0, pal[1]/255.0, pal[2]/255.0);
+	}
+	else if (!strcmp(key, "bottomcolor_rgb"))
+	{
+		byte *pal = (byte *)d_8to24table + 4*Sbar_ColorForMap((cl.scores[player].colors<<4)&0xf0); //johnfitz -- use d_8to24table instead of host_basepal
+		q_snprintf(buf, sizeof(buf), "%g %g %g", pal[0]/255.0, pal[1]/255.0, pal[2]/255.0);
+	}
+	else if (!strcmp(key, "topcolor"))
+		q_snprintf(buf, sizeof(buf), "%i", (cl.scores[player].colors>>4)&0xf);
+	else if (!strcmp(key, "bottomcolor"))
+		q_snprintf(buf, sizeof(buf), "%i", cl.scores[player].colors&0xf);
+	else if (!strcmp(key, "team"))	//quakeworld uses team infokeys to decide teams (instead of colours). but NQ never did, so that's fun. Lets allow mods to use either so that they can favour QW and let the engine hide differences .
+		q_snprintf(buf, sizeof(buf), "%i", cl.scores[player].colors&0xf);
+	else if (!strcmp(key, "userid"))
+		ret = NULL;	//unknown
+//	else if (!strcmp(key, "vignored"))	//checks to see this player's voicechat is ignored.
+//		q_snprintf(buf, sizeof(buf), "%i", (int)cl.scores[player].vignored);
+	else if (!strcmp(key, "voipspeaking"))
+		q_snprintf(buf, sizeof(buf), "%i", S_Voip_Speaking(player));
+	else if (!strcmp(key, "voiploudness"))
+	{
+		if (player == cl.viewentity-1)
+			q_snprintf(buf, sizeof(buf), "%i", S_Voip_Loudness(false));
+		else
+			ret = NULL;
+	}
+
+	else
+		ret = NULL;	//no idea.
+
+	if (retfloat)
+		G_FLOAT(OFS_RETURN) = ret?atof(ret):0;
+	else
+		G_INT(OFS_RETURN) = ret?PR_MakeTempString(ret):0;
+}
+static void PF_cl_playerkey_s(void)
+{
+	int playernum = G_FLOAT(OFS_PARM0);
+	const char *keyname = G_STRING(OFS_PARM1);
+	PF_cl_playerkey_internal(playernum, keyname, false);
+}
+static void PF_cl_playerkey_f(void)
+{
+	int playernum = G_FLOAT(OFS_PARM0);
+	const char *keyname = G_STRING(OFS_PARM1);
+	PF_cl_playerkey_internal(playernum, keyname, true);
+}
+static void PF_cl_isdemo(void)
+{
+	G_FLOAT(OFS_RETURN) = !!cls.demoplayback;
+}
+static void PF_cl_isserver(void)
+{
+	G_FLOAT(OFS_RETURN) = !!sv.active;
+}
+static void PF_cl_registercommand(void)
+{
+	const char *cmdname = G_STRING(OFS_PARM0);
+	Cmd_AddCommand(cmdname, NULL);
+}
+void PF_cl_serverkey_internal(const char *key, qboolean retfloat)
+{
+	const char *ret;
+	if (!strcmp(key, "constate"))
+	{
+		if (cls.state != ca_connected)
+			ret = "disconnected";
+		else if (cls.signon == SIGNONS)
+			ret = "active";
+		else
+			ret = "connecting";
+	}
+	else
+	{
+		//FIXME
+		ret = "";
+	}
+
+	if (retfloat)
+		G_FLOAT(OFS_RETURN) = atof(ret);
+	else
+		G_INT(OFS_RETURN) = PR_SetEngineString(ret);
+}
+static void PF_cl_serverkey_s(void)
+{
+	const char *keyname = G_STRING(OFS_PARM0);
+	PF_cl_serverkey_internal(keyname, false);
+}
+static void PF_cl_serverkey_f(void)
+{
+	const char *keyname = G_STRING(OFS_PARM0);
+	PF_cl_serverkey_internal(keyname, true);
+}
+
+static void PF_cl_readbyte(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadByte();
+}
+static void PF_cl_readchar(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadChar();
+}
+static void PF_cl_readshort(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadShort();
+}
+static void PF_cl_readlong(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadLong();
+}
+static void PF_cl_readcoord(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadCoord(cl.protocolflags);
+}
+static void PF_cl_readangle(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadAngle(cl.protocolflags);
+}
+static void PF_cl_readstring(void)
+{
+	G_INT(OFS_RETURN) = PR_MakeTempString(MSG_ReadString());
+}
+static void PF_cl_readfloat(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadFloat();
+}
+static void PF_cl_readentitynum(void)
+{
+	G_FLOAT(OFS_RETURN) = MSG_ReadEntity(cl.protocol_pext2);
+}
+static void PF_cl_sendevent(void)
+{
+	const char *eventname = G_STRING(OFS_PARM0);
+	const char *eventargs = G_STRING(OFS_PARM1);
+	int a;
+
+	MSG_WriteByte(&cls.message, clcfte_qcrequest);
+	for (a = 2; a < 8 && *eventargs; a++, eventargs++)
+	{
+		switch(*eventargs)
+		{
+		case 's':
+			MSG_WriteByte(&cls.message, ev_string);
+			MSG_WriteString(&cls.message, G_STRING(OFS_PARM0+a*3));
+			break;
+		case 'f':
+			MSG_WriteByte(&cls.message, ev_float);
+			MSG_WriteFloat(&cls.message, G_FLOAT(OFS_PARM0+a*3));
+			break;
+		case 'i':
+			MSG_WriteByte(&cls.message, ev_ext_integer);
+			MSG_WriteLong(&cls.message, G_INT(OFS_PARM0+a*3));
+			break;
+		case 'v':
+			MSG_WriteByte(&cls.message, ev_vector);
+			MSG_WriteFloat(&cls.message, G_FLOAT(OFS_PARM0+a*3+0));
+			MSG_WriteFloat(&cls.message, G_FLOAT(OFS_PARM0+a*3+1));
+			MSG_WriteFloat(&cls.message, G_FLOAT(OFS_PARM0+a*3+2));
+			break;
+//		case 'e':
+//			MSG_WriteByte(&cls.message, ev_entity);
+//			MSG_WriteEntity(&cls.message, ent->v.entnum);
+//			break;
+		}
+	}
+	MSG_WriteByte(&cls.message, 0);
+	MSG_WriteString(&cls.message, eventname);
+}
+
+static void PF_cl_setwindowcaption(void)
+{
+	VID_SetWindowCaption(G_STRING(OFS_PARM0));
+}
 
 //A quick note on number ranges.
 //0: automatically assigned. more complicated, but no conflicts over numbers, just names...
@@ -3932,215 +5051,379 @@ static void PF_sv_pointparticles(void)
 static struct
 {
 	const char *name;
-	builtin_t func;
+	builtin_t ssqcfunc;
+	builtin_t csqcfunc;
 	int documentednumber;
 	const char *typestr;
 	const char *desc;
 	int number;
 } extensionbuiltins[] = 
+#define PF_NoSSQC NULL
+#define PF_NoCSQC NULL
+#define PF_FullCSQCOnly NULL
 {
-	{"vectoangles2",	PF_ext_vectoangles,	51,	D("vector(vector fwd, optional vector up)", "Returns the angles (+x=UP) required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning.")},
+	{"vectoangles2",	PF_ext_vectoangles,	PF_ext_vectoangles,	51,	D("vector(vector fwd, optional vector up)", "Returns the angles (+x=UP) required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning.")},
 
-	{"sin",				PF_Sin,				60,	"float(float angle)"},	//60
-	{"cos",				PF_Cos,				61,	"float(float angle)"},	//61
-	{"sqrt",			PF_Sqrt,			62,	"float(float value)"},	//62
-	{"tracetoss",		PF_TraceToss,		64,	"void(entity ent, entity ignore)"},
-	{"etos",			PF_etos,			65,	"string(entity ent)"},
+	{"sin",				PF_Sin,				PF_Sin,				60,	"float(float angle)"},	//60
+	{"cos",				PF_Cos,				PF_Cos,				61,	"float(float angle)"},	//61
+	{"sqrt",			PF_Sqrt,			PF_Sqrt,			62,	"float(float value)"},	//62
+	{"tracetoss",		PF_TraceToss,		PF_TraceToss,		64,	"void(entity ent, entity ignore)"},
+	{"etos",			PF_etos,			PF_etos,			65,	"string(entity ent)"},
 
 
 
-	{"infokey",			PF_infokey_s,		80,	D("string(entity e, string key)", "If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo.")},	//80
-	{"infokeyf",		PF_infokey_f,		0,	D("float(entity e, string key)", "Identical to regular infokey, but returns it as a float instead of creating new tempstrings.")},	//80
-	{"stof",			PF_stof,			81,	"float(string)"},	//81
-	{"multicast",		PF_multicast,		82,	D("#define unicast(pl,reli) do{msg_entity = pl; multicast('0 0 0', reli?MULITCAST_ONE_R:MULTICAST_ONE);}while(0)\n"
+	{"infokey",			PF_infokey_s,		PF_NoCSQC,			80,	D("string(entity e, string key)", "If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo.")},	//80
+	{"infokeyf",		PF_infokey_f,		PF_NoCSQC,			0,	D("float(entity e, string key)", "Identical to regular infokey, but returns it as a float instead of creating new tempstrings.")},	//80
+	{"stof",			PF_stof,			PF_stof,			81,	"float(string)"},	//81
+	{"multicast",		PF_multicast,		PF_NoCSQC,			82,	D("#define unicast(pl,reli) do{msg_entity = pl; multicast('0 0 0', reli?MULITCAST_ONE_R:MULTICAST_ONE);}while(0)\n"
 																		"void(vector where, float set)", "Once the MSG_MULTICAST network message buffer has been filled with data, this builtin is used to dispatch it to the given target, filtering by pvs for reduced network bandwidth.")},	//82
-	{"tracebox",		PF_tracebox,		90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},
-	{"randomvec",		PF_randomvector,	91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
-	{"getlight",		PF_sv_getlight,		92, "vector(vector org)"},// (DP_QC_GETLIGHT),
-	{"registercvar",	PF_registercvar,	93,	D("float(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
-	{"min",				PF_min,				94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)
-	{"max",				PF_max,				95,	D("float(float a, float b, ...)", "Returns the highest value of its arguments.")},// (DP_QC_MINMAXBOUND)
-	{"bound",			PF_bound,			96,	D("float(float minimum, float val, float maximum)", "Returns val, unless minimum is higher, or maximum is less.")},// (DP_QC_MINMAXBOUND)
-	{"pow",				PF_pow,				97,	"float(float value, float exp)"},
-	{"findfloat",		PF_sv_findfloat,	98, D("#define findentity findfloat\nentity(entity start, .__variant fld, __variant match)", "Equivelent to the find builtin, but instead of comparing strings contents, this builtin compares the raw values. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
-	{"checkextension",	PF_checkextension,	99,	D("float(string extname)", "Checks for an extension by its name (eg: checkextension(\"FRIK_FILE\") says that its okay to go ahead and use strcat).\nUse cvar(\"pr_checkextension\") to see if this builtin exists.")},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
-	{"checkbuiltin",	PF_checkbuiltin,	0,	D("float(__variant funcref)", "Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions.")},
-	{"builtin_find",	PF_builtinsupported,100,D("float(string builtinname)", "Looks to see if the named builtin is valid, and returns the builtin number it exists at.")},	// #100	//per builtin system.
-	{"anglemod",		PF_anglemod,		102,"float(float value)"},
+	{"tracebox",		PF_tracebox,		NULL,				90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},
+	{"randomvec",		PF_randomvector,	PF_randomvector,	91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
+	{"getlight",		PF_sv_getlight,		NULL,				92, "vector(vector org)"},// (DP_QC_GETLIGHT),
+	{"registercvar",	PF_registercvar,	PF_registercvar,	93,	D("float(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
+	{"min",				PF_min,				PF_min,				94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)
+	{"max",				PF_max,				PF_max,				95,	D("float(float a, float b, ...)", "Returns the highest value of its arguments.")},// (DP_QC_MINMAXBOUND)
+	{"bound",			PF_bound,			PF_bound,			96,	D("float(float minimum, float val, float maximum)", "Returns val, unless minimum is higher, or maximum is less.")},// (DP_QC_MINMAXBOUND)
+	{"pow",				PF_pow,				PF_pow,				97,	"float(float value, float exp)"},
+	{"findfloat",		PF_findfloat,		PF_findfloat,		98, D("#define findentity findfloat\nentity(entity start, .__variant fld, __variant match)", "Equivelent to the find builtin, but instead of comparing strings contents, this builtin compares the raw values. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
+	{"checkextension",	PF_checkextension,	PF_checkextension,	99,	D("float(string extname)", "Checks for an extension by its name (eg: checkextension(\"FRIK_FILE\") says that its okay to go ahead and use strcat).\nUse cvar(\"pr_checkextension\") to see if this builtin exists.")},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
+	{"checkbuiltin",	PF_checkbuiltin,	PF_checkbuiltin,	0,	D("float(__variant funcref)", "Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions.")},
+	{"builtin_find",	PF_builtinsupported,PF_builtinsupported,100,D("float(string builtinname)", "Looks to see if the named builtin is valid, and returns the builtin number it exists at.")},	// #100	//per builtin system.
+	{"anglemod",		PF_anglemod,		PF_anglemod,		102,"float(float value)"},
 
-	{"fopen",			PF_fopen,			110, D("filestream(string filename, float mode, optional float mmapminsize)", "Opens a file, typically prefixed with \"data/\", for either read or write access.")},	// (FRIK_FILE)
-	{"fclose",			PF_fclose,			111, "void(filestream fhandle)"},	// (FRIK_FILE)
-	{"fgets",			PF_fgets,			112, D("string(filestream fhandle)", "Reads a single line out of the file. The new line character is not returned as part of the string. Returns the null string on EOF (use if not(string) to easily test for this, which distinguishes it from the empty string which is returned if the line being read is blank")},	// (FRIK_FILE)
-	{"fputs",			PF_fputs,			113, D("void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \\n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written.")},	// (FRIK_FILE)
-//		{"fread",			PF_fread,			0,	 D("int(filestream fhandle, void *ptr, int size)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
-//		{"fwrite",			PF_fwrite,			0,	 D("int(filestream fhandle, void *ptr, int size)", "Writes binary data out of the file.")},
-		{"fseek",			PF_fseek,			0,	 D("#define ftell fseek //c-compat\nint(filestream fhandle, optional int newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
-//		{"fsize",			PF_fsize,			0,	 D("int(filestream fhandle, optional int newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
-	{"strlen",			PF_strlen,			114, "float(string s)"},	// (FRIK_FILE)
-	{"strcat",			PF_strcat,			115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},	// (FRIK_FILE)
-	{"substring",		PF_substring,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
-	{"stov",			PF_stov,			117, "vector(string s)"},	// (FRIK_FILE)
-	{"strzone",			PF_strzone,			118, D("string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope).")},	// (FRIK_FILE)
-	{"strunzone",		PF_strunzone,		119, D("void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game.")},	// (FRIK_FILE)
+	{"fopen",			PF_fopen,			PF_fopen,				110, D("filestream(string filename, float mode, optional float mmapminsize)", "Opens a file, typically prefixed with \"data/\", for either read or write access.")},	// (FRIK_FILE)
+	{"fclose",			PF_fclose,			PF_fclose,				111, "void(filestream fhandle)"},	// (FRIK_FILE)
+	{"fgets",			PF_fgets,			PF_fgets,				112, D("string(filestream fhandle)", "Reads a single line out of the file. The new line character is not returned as part of the string. Returns the null string on EOF (use if not(string) to easily test for this, which distinguishes it from the empty string which is returned if the line being read is blank")},	// (FRIK_FILE)
+	{"fputs",			PF_fputs,			PF_fputs,				113, D("void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \\n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written.")},	// (FRIK_FILE)
+//		{"fread",			PF_fread,			PF_fread,				0,	 D("int(filestream fhandle, void *ptr, int size)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
+//		{"fwrite",			PF_fwrite,			PF_fwrite,				0,	 D("int(filestream fhandle, void *ptr, int size)", "Writes binary data out of the file.")},
+		{"fseek",			PF_fseek,			PF_fseek,				0,	 D("#define ftell fseek //c-compat\nint(filestream fhandle, optional int newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
+//		{"fsize",			PF_fsize,			PF_fsize,				0,	 D("int(filestream fhandle, optional int newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
+	{"strlen",			PF_strlen,			PF_strlen,			114, "float(string s)"},	// (FRIK_FILE)
+	{"strcat",			PF_strcat,			PF_strcat,			115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},	// (FRIK_FILE)
+	{"substring",		PF_substring,		PF_substring,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
+	{"stov",			PF_stov,			PF_stov,			117, "vector(string s)"},	// (FRIK_FILE)
+	{"strzone",			PF_strzone,			PF_strzone,			118, D("string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope).")},	// (FRIK_FILE)
+	{"strunzone",		PF_strunzone,		PF_strunzone,		119, D("void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game.")},	// (FRIK_FILE)
 
-	{"bitshift",		PF_bitshift,		218,	"float(float number, float quantity)"},
-	{"te_lightningblood",PF_sv_te_lightningblood,219,"void(vector org)"},
-	{"strstrofs",		PF_strstrofs,		221,	D("float(string s1, string sub, optional float startidx)", "Returns the 0-based offset of sub within the s1 string, or -1 if sub is not in s1.\nIf startidx is set, this builtin will ignore matches before that 0-based offset.")},
-	{"str2chr",			PF_str2chr,			222,	D("float(string str, float index)", "Retrieves the character value at offset 'index'.")},
-	{"chr2str",			PF_chr2str,			223,	D("string(float chr, ...)", "The input floats are considered character values, and are concatenated.")},
-	{"strconv",			PF_strconv,			224,	D("string(float ccase, float redalpha, float redchars, string str, ...)", "Converts quake chars in the input string amongst different representations.\nccase specifies the new case for letters.\n 0: not changed.\n 1: forced to lower case.\n 2: forced to upper case.\nredalpha and redchars switch between colour ranges.\n 0: no change.\n 1: Forced white.\n 2: Forced red.\n 3: Forced gold(low) (numbers only).\n 4: Forced gold (high) (numbers only).\n 5+6: Forced to white and red alternately.\nYou should not use this builtin in combination with UTF-8.")},
-	{"strpad",			PF_strpad,			225,	D("string(float pad, string str1, ...)", "Pads the string with spaces, to ensure its a specific length (so long as a fixed-width font is used, anyway). If pad is negative, the spaces are added on the left. If positive the padding is on the right.")},	//will be moved
-	{"infoadd",			PF_infoadd,			226,	D("string(infostring old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
-	{"infoget",			PF_infoget,			227,	D("string(infostring info, string key)", "Reads a named value from an infostring. The returned value is a tempstring")},
-//	{"strcmp",			PF_strncmp,			228,	D("float(string s1, string s2)", "Compares the two strings exactly. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
-	{"strncmp",			PF_strncmp,			228,	D("#define strcmp strncmp\nfloat(string s1, string s2, optional float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
-	{"strcasecmp",		PF_strncasecmp,		229,	D("float(string s1, string s2)",  "Compares the two strings without case sensitivity.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
-	{"strncasecmp",		PF_strncasecmp,		230,	D("float(string s1, string s2, float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings without case sensitivity. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
-	{"strtrim",			PF_strtrim,			0,		D("string(string s)", "Trims the whitespace from the start+end of the string.")},
-	{"te_bloodqw",		PF_sv_te_bloodqw,	239,	"void(vector org, float count)"},
-	{"mod",				PF_mod,				245,	"float(float a, float n)"},
-	{"stoi",			PF_stoi,			259,	D("int(string)", "Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
-	{"itos",			PF_itos,			260,	D("string(int)", "Converts the passed true integer into a base10 string.")},
-	{"stoh",			PF_stoh,			261,	D("int(string)", "Reads a base-16 string (with or without 0x prefix) as an integer. Bugs out if given a base 8 or base 10 string. :P")},
-	{"htos",			PF_htos,			262,	D("string(int)", "Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters.")},
-	{"ftoi",			PF_ftoi,			0,		D("int(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
-	{"itof",			PF_itof,			0,		D("float(int)", "Converts the given true integer into a float without depending on extended qcvm instructions.")},
-	{"crossproduct",	PF_crossproduct,	0,		D("#define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))\nvector(vector v1, vector v2)", "Small helper function to calculate the crossproduct of two vectors.")},
-	{"frameforname",	PF_frameforname,	276,	D("float(float modidx, string framename)", "Looks up a framegroup from a model by name, avoiding the need for hardcoding. Returns -1 on error.")},// (FTE_CSQC_SKELETONOBJECTS)
-	{"frameduration",	PF_frameduration,	277,	D("float(float modidx, float framenum)", "Retrieves the duration (in seconds) of the specified framegroup.")},// (FTE_CSQC_SKELETONOBJECTS)
-	{"WriteFloat",		PF_WriteFloat,		280,	"void(float buf, float fl)"},
-	{"frametoname",		PF_frametoname,		284,	"string(float modidx, float framenum)"},
-	{"checkcommand",	PF_checkcommand,	294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
-	{"particleeffectnum",PF_sv_particleeffectnum,335,D("float(string effectname)", "Precaches the named particle effect. If your effect name is of the form 'foo.bar' then particles/foo.cfg will be loaded by the client if foo.bar was not already defined.\nDifferent engines will have different particle systems, this specifies the QC API only.")},// (EXT_CSQC)
-	{"trailparticles",	PF_sv_trailparticles,336,	D("void(float effectnum, entity ent, vector start, vector end)", "Draws the given effect between the two named points. If ent is not world, distances will be cached in the entity in order to avoid framerate dependancies. The entity is not otherwise used.")},// (EXT_CSQC),
-	{"pointparticles",	PF_sv_pointparticles,337,	D("void(float effectnum, vector origin, optional vector dir, optional float count)", "Spawn a load of particles from the given effect at the given point traveling or aiming along the direction specified. The number of particles are scaled by the count argument.")},// (EXT_CSQC)
-	{"print",			PF_print,			339,	D("void(string s, ...)", "Unconditionally print on the local system's console, even in ssqc (doesn't care about the value of the developer cvar).")},//(EXT_CSQC)
-	{"wasfreed",		PF_WasFreed,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
+//	{"getmodelindex",	PF_getmodelindex,	PF_getmodelindex,	200,	D("float(string modelname, optional float queryonly)", "Acts as an alternative to precache_model(foo);setmodel(bar, foo); return bar.modelindex;\nIf queryonly is set and the model was not previously precached, the builtin will return 0 without needlessly precaching the model.")},
+//	{"externcall",		PF_externcall,		PF_externcall,		201,	D("__variant(float prnum, string funcname, ...)", "Directly call a function in a different/same progs by its name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
+//	{"addprogs",		PF_addprogs,		PF_addprogs,		202,	D("float(string progsname)", "Loads an additional .dat file into the current qcvm. The returned handle can be used with any of the externcall/externset/externvalue builtins.\nThere are cvars that allow progs to be loaded automatically.")},
+//	{"externvalue",		PF_externvalue,		PF_externvalue,		203,	D("__variant(float prnum, string varname)", "Reads a global in the named progs by the name of that global.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
+//	{"externset",		PF_externset,		PF_externset,		204,	D("void(float prnum, __variant newval, string varname)", "Sets a global in the named progs by name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
+//	{"externrefcall",	PF_externrefcall,	PF_externrefcall,	205,	D("__variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
+//	{"instr",			PF_instr,			PF_instr,			206,	D("float(string input, string token)", "Returns substring(input, strstrpos(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos."), true},
+//	{"openportal",		PF_OpenPortal,		PF_OpenPortal,		207,	D("void(entity portal, float state)", "Opens or closes the portals associated with a door or some such on q2 or q3 maps. On Q2BSPs, the entity should be the 'func_areaportal' entity - its style field will say which portal to open. On Q3BSPs, the entity is the door itself, the portal will be determined by the two areas found from a preceding setorigin call.")},
+//	{"RegisterTempEnt", PF_RegisterTEnt,	PF_NoCSQC,			208,	"float(float attributes, string effectname, ...)"},
+//	{"CustomTempEnt",	PF_CustomTEnt,		PF_NoCSQC,			209,	"void(float type, vector pos, ...)"},
+//	{"fork",			PF_Fork,			PF_Fork,			210,	D("float(optional float sleeptime)", "When called, this builtin simply returns. Twice.\nThe current 'thread' will return instantly with a return value of 0. The new 'thread' will return after sleeptime seconds with a return value of 1. See documentation for the 'sleep' builtin for limitations/requirements concerning the new thread. Note that QC should probably call abort in the new thread, as otherwise the function will return to the calling qc function twice also.")},
+//	{"abort",			PF_Abort,			PF_Abort,			211,	D("void(optional __variant ret)", "QC execution is aborted. Parent QC functions on the stack will be skipped, effectively this forces all QC functions to 'return ret' until execution returns to the engine. If ret is ommited, it is assumed to be 0.")},
+//	{"sleep",			PF_Sleep,			PF_Sleep,			212,	D("void(float sleeptime)", "Suspends the current QC execution thread for 'sleeptime' seconds.\nOther QC functions can and will be executed in the interim, including changing globals and field state (but not simultaneously).\nThe self and other globals will be restored when the thread wakes up (or set to world if they were removed since the thread started sleeping). Locals will be preserved, but will not be protected from remove calls.\nIf the engine is expecting the QC to return a value (even in the parent/root function), the value 0 shall be used instead of waiting for the qc to resume.")},
+//	{"forceinfokey",	PF_ForceInfoKey,	PF_NoCSQC,			213,	D("void(entity player, string key, string value)", "Directly changes a user's info without pinging off the client. Also allows explicitly setting * keys, including *spectator. Does not affect the user's config or other servers.")},
+//	{"chat",			PF_chat,			PF_NoCSQC,			214,	"void(string filename, float starttag, entity edict)"}, //(FTE_NPCCHAT)
+//	{"particle2",		PF_sv_particle2,	PF_cl_particle2,	215,	"void(vector org, vector dmin, vector dmax, float colour, float effect, float count)"},
+//	{"particle3",		PF_sv_particle3,	PF_cl_particle3,	216,	"void(vector org, vector box, float colour, float effect, float count)"},
+//	{"particle4",		PF_sv_particle4,	PF_cl_particle4,	217,	"void(vector org, float radius, float colour, float effect, float count)"},
+	{"bitshift",		PF_bitshift,		PF_bitshift,		218,	"float(float number, float quantity)"},
+	{"te_lightningblood",PF_sv_te_lightningblood,NULL,			219,	"void(vector org)"},
+//	{"map_builtin",		PF_builtinsupported,PF_builtinsupported,220,	D("float(string builtinname, float builtinnum)","Attempts to map the named builtin at a non-standard builtin number. Returns 0 on failure."), true},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
+	{"strstrofs",		PF_strstrofs,		PF_strstrofs,		221,	D("float(string s1, string sub, optional float startidx)", "Returns the 0-based offset of sub within the s1 string, or -1 if sub is not in s1.\nIf startidx is set, this builtin will ignore matches before that 0-based offset.")},
+	{"str2chr",			PF_str2chr,			PF_str2chr,			222,	D("float(string str, float index)", "Retrieves the character value at offset 'index'.")},
+	{"chr2str",			PF_chr2str,			PF_chr2str,			223,	D("string(float chr, ...)", "The input floats are considered character values, and are concatenated.")},
+	{"strconv",			PF_strconv,			PF_strconv,			224,	D("string(float ccase, float redalpha, float redchars, string str, ...)", "Converts quake chars in the input string amongst different representations.\nccase specifies the new case for letters.\n 0: not changed.\n 1: forced to lower case.\n 2: forced to upper case.\nredalpha and redchars switch between colour ranges.\n 0: no change.\n 1: Forced white.\n 2: Forced red.\n 3: Forced gold(low) (numbers only).\n 4: Forced gold (high) (numbers only).\n 5+6: Forced to white and red alternately.\nYou should not use this builtin in combination with UTF-8.")},
+	{"strpad",			PF_strpad,			PF_strpad,			225,	D("string(float pad, string str1, ...)", "Pads the string with spaces, to ensure its a specific length (so long as a fixed-width font is used, anyway). If pad is negative, the spaces are added on the left. If positive the padding is on the right.")},	//will be moved
+	{"infoadd",			PF_infoadd,			PF_infoadd,			226,	D("string(infostring old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
+	{"infoget",			PF_infoget,			PF_infoget,			227,	D("string(infostring info, string key)", "Reads a named value from an infostring. The returned value is a tempstring")},
+//	{"strcmp",			PF_strncmp,			PF_strncmp,			228,	D("float(string s1, string s2)", "Compares the two strings exactly. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
+	{"strncmp",			PF_strncmp,			PF_strncmp,			228,	D("#define strcmp strncmp\nfloat(string s1, string s2, optional float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
+	{"strcasecmp",		PF_strncasecmp,		PF_strncasecmp,		229,	D("float(string s1, string s2)",  "Compares the two strings without case sensitivity.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
+	{"strncasecmp",		PF_strncasecmp,		PF_strncasecmp,		230,	D("float(string s1, string s2, float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings without case sensitivity. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
+	{"strtrim",			PF_strtrim,			PF_strtrim,			0,		D("string(string s)", "Trims the whitespace from the start+end of the string.")},
+//	{"calltimeofday",	PF_calltimeofday,	PF_calltimeofday,	231,	D("void()", "Asks the engine to instantly call the qc's 'timeofday' function, before returning. For compatibility with mvdsv.\ntimeofday should have the prototype: void(float secs, float mins, float hour, float day, float mon, float year, string strvalue)\nThe strftime builtin is more versatile and less weird.")},
+	{"clientstat",		PF_clientstat,		PF_NoCSQC,			232,	D("void(float num, float type, .__variant fld)", "Specifies what data to use in order to send various stats, in a client-specific way.\n'num' should be a value between 32 and 127, other values are reserved.\n'type' must be set to one of the EV_* constants, one of EV_FLOAT, EV_STRING, EV_INTEGER, EV_ENTITY.\nfld must be a reference to the field used, each player will be sent only their own copy of these fields.")},	//EXT_CSQC
+	{"globalstat",		PF_globalstat,		PF_NoCSQC,			233,	D("void(float num, float type, string name)", "Specifies what data to use in order to send various stats, in a non-client-specific way. num and type are as in clientstat, name however, is the name of the global to read in the form of a string (pass \"foo\").")},	//EXT_CSQC_1 actually
+	{"pointerstat",		PF_pointerstat,		PF_NoCSQC,			0,		D("void(float num, float type, __variant *address)", "Specifies what data to use in order to send various stats, in a non-client-specific way. num and type are as in clientstat, address however, is the address of the variable you would like to use (pass &foo).")},
+	{"isbackbuffered",	PF_isbackbuffered,	PF_NoCSQC,			234,	D("float(entity player)", "Returns if the given player's network buffer will take multiple network frames in order to clear. If this builtin returns non-zero, you should delay or reduce the amount of reliable (and also unreliable) data that you are sending to that client.")},
+//	{"rotatevectorsbyangle",PF_rotatevectorsbyangles,PF_rotatevectorsbyangles,235,D("void(vector angle)", "rotates the v_forward,v_right,v_up matrix by the specified angles.")}, // #235
+//	{"rotatevectorsbyvectors",PF_rotatevectorsbymatrix,PF_rotatevectorsbymatrix,236,"void(vector fwd, vector right, vector up)"}, // #236
+//	{"skinforname",		PF_skinforname,		PF_skinforname,		237,	"float(float mdlindex, string skinname)"},		// #237
+//	{"shaderforname",	PF_Fixme,			PF_Fixme,			238,	D("float(string shadername, optional string defaultshader, ...)", "Caches the named shader and returns a handle to it.\nIf the shader could not be loaded from disk (missing file or ruleset_allow_shaders 0), it will be created from the 'defaultshader' string if specified, or a 'skin shader' default will be used.\ndefaultshader if not empty should include the outer {} that you would ordinarily find in a shader.")},
+	{"te_bloodqw",		PF_sv_te_bloodqw,	NULL,				239,	"void(vector org, float count)"},
+//	{"te_muzzleflash",	PF_te_muzzleflash,	PF_clte_muzzleflash,0,		"void(entity ent)"},
+//	{"checkpvs",		PF_checkpvs,		PF_checkpvs,		240,	"float(vector viewpos, entity entity)"},
+//	{"matchclientname",	PF_matchclient,		PF_NoCSQC,			241,	"entity(string match, optional float matchnum)"},
+//	{"sendpacket",		PF_SendPacket,		PF_SendPacket,		242,	"void(string destaddress, string content)"},// (FTE_QC_SENDPACKET)
+//	{"rotatevectorsbytag",PF_Fixme,			PF_Fixme,			244,	"vector(entity ent, float tagnum)"},
+	{"mod",				PF_mod,				PF_mod,				245,	"float(float a, float n)"},
+	{"stoi",			PF_stoi,			PF_stoi,			259,	D("int(string)", "Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
+	{"itos",			PF_itos,			PF_itos,			260,	D("string(int)", "Converts the passed true integer into a base10 string.")},
+	{"stoh",			PF_stoh,			PF_stoh,			261,	D("int(string)", "Reads a base-16 string (with or without 0x prefix) as an integer. Bugs out if given a base 8 or base 10 string. :P")},
+	{"htos",			PF_htos,			PF_htos,			262,	D("string(int)", "Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters.")},
+	{"ftoi",			PF_ftoi,			PF_ftoi,			0,		D("int(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
+	{"itof",			PF_itof,			PF_itof,			0,		D("float(int)", "Converts the given true integer into a float without depending on extended qcvm instructions.")},
+//	{"skel_create",		PF_skel_create,		PF_skel_create,		263,	D("float(float modlindex, optional float useabstransforms)", "Allocates a new uninitiaised skeletal object, with enough bone info to animate the given model.\neg: self.skeletonobject = skel_create(self.modelindex);")}, // (FTE_CSQC_SKELETONOBJECTS)
+//	{"skel_build",		PF_skel_build,		PF_skel_build,		264,	D("float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)", "Animation data (according to the entity's frame info) is pulled from the specified model and blended into the specified skeletal object.\nIf retainfrac is set to 0 on the first call and 1 on the others, you can blend multiple animations together according to the addfrac value. The final weight should be 1. Other values will result in scaling and/or other weirdness. You can use firstbone and lastbone to update only part of the skeletal object, to allow legs to animate separately from torso, use 0 for both arguments to specify all, as bones are 1-based.")}, // (FTE_CSQC_SKELETONOBJECTS)
+//	{"skel_get_numbones",PF_skel_get_numbones,PF_skel_get_numbones,265,	D("float(float skel)", "Retrives the number of bones in the model. The valid range is 1<=bone<=numbones.")}, // (FTE_CSQC_SKELETONOBJECTS)
+//	{"skel_get_bonename",PF_skel_get_bonename,PF_skel_get_bonename,266,	D("string(float skel, float bonenum)", "Retrieves the name of the specified bone. Mostly only for debugging.")}, // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+//	{"skel_get_boneparent",PF_skel_get_boneparent,PF_skel_get_boneparent,267,D("float(float skel, float bonenum)", "Retrieves which bone this bone's position is relative to. Bone 0 refers to the entity's position rather than an actual bone")}, // (FTE_CSQC_SKELETONOBJECTS)
+//	{"skel_find_bone",	PF_skel_find_bone,	PF_skel_find_bone,	268,	D("float(float skel, string tagname)", "Finds a bone by its name, from the model that was used to create the skeletal object.")}, // (FTE_CSQC_SKELETONOBJECTS)
+//	{"skel_get_bonerel",PF_skel_get_bonerel,PF_skel_get_bonerel,269,	D("vector(float skel, float bonenum)", "Gets the bone position and orientation relative to the bone's parent. Return value is the offset, and v_forward, v_right, v_up contain the orientation.")}, // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+//	{"skel_get_boneabs",PF_skel_get_boneabs,PF_skel_get_boneabs,270,	D("vector(float skel, float bonenum)", "Gets the bone position and orientation relative to the entity. Return value is the offset, and v_forward, v_right, v_up contain the orientation.\nUse gettaginfo for world coord+orientation.")}, // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+//	{"skel_set_bone",	PF_skel_set_bone,	PF_skel_set_bone,	271,	D("void(float skel, float bonenum, vector org, optional vector fwd, optional vector right, optional vector up)", "Sets a bone position relative to its parent. If the orientation arguments are not specified, v_forward+v_right+v_up are used instead.")}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_premul_bone",PF_skel_premul_bone,PF_skel_premul_bone,272,	D("void(float skel, float bonenum, vector org, optional vector fwd, optional vector right, optional vector up)", "Transforms a single bone by a matrix. You can use makevectors to generate a rotation matrix from an angle.")}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_premul_bones",PF_skel_premul_bones,PF_skel_premul_bones,273,	D("void(float skel, float startbone, float endbone, vector org, optional vector fwd, optional vector right, optional vector up)", "Transforms an entire consecutive range of bones by a matrix. You can use makevectors to generate a rotation matrix from an angle, but you'll probably want to divide the angle by the number of bones.")}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_postmul_bone",PF_skel_postmul_bone,PF_skel_postmul_bone,0,	D("void(float skel, float bonenum, vector org, optional vector fwd, optional vector right, optional vector up)", "Transforms a single bone by a matrix. You can use makevectors to generate a rotation matrix from an angle.")}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_postmul_bones",PF_skel_postmul_bones,PF_skel_postmul_bones,0,D("void(float skel, float startbone, float endbone, vector org, optional vector fwd, optional vector right, optional vector up)", "Transforms an entire consecutive range of bones by a matrix. You can use makevectors to generate a rotation matrix from an angle, but you'll probably want to divide the angle by the number of bones.")}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_copybones",	PF_skel_copybones,	PF_skel_copybones,	274,	D("void(float skeldst, float skelsrc, float startbone, float entbone)", "Copy bone data from one skeleton directly into another.")}, // (FTE_CSQC_SKELETONOBJECTS)
+//	{"skel_delete",		PF_skel_delete,		PF_skel_delete,		275,	D("void(float skel)", "Deletes a skeletal object. The actual delete is delayed, allowing the skeletal object to be deleted in an entity's predraw function yet still be valid by the time the addentity+renderscene builtins need it. Also uninstanciates any ragdoll currently in effect on the skeletal object.")}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"crossproduct",	PF_crossproduct,	PF_crossproduct,	0,		D("#ifndef dotproduct\n#define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))\n#endif\nvector(vector v1, vector v2)", "Small helper function to calculate the crossproduct of two vectors.")},
+//	{"pushmove", 		PF_pushmove, 		PF_pushmove,	 	0, 		"float(entity pusher, vector move, vector amove)"},
+	{"frameforname",	PF_frameforname,	PF_frameforname,	276,	D("float(float modidx, string framename)", "Looks up a framegroup from a model by name, avoiding the need for hardcoding. Returns -1 on error.")},// (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",	PF_frameduration,	PF_frameduration,	277,	D("float(float modidx, float framenum)", "Retrieves the duration (in seconds) of the specified framegroup.")},// (FTE_CSQC_SKELETONOBJECTS)
+//	{"processmodelevents",PF_processmodelevents,PF_processmodelevents,0,D("void(float modidx, float framenum, __inout float basetime, float targettime, void(float timestamp, int code, string data) callback)", "Calls a callback for each event that has been reached. Basetime is set to targettime.")},
+//	{"getnextmodelevent",PF_getnextmodelevent,PF_getnextmodelevent,0,	D("float(float modidx, float framenum, __inout float basetime, float targettime, __out int code, __out string data)", "Reports the next event within a model's animation. Returns a boolean if an event was found between basetime and targettime. Writes to basetime,code,data arguments (if an event was found, basetime is set to the event's time, otherwise to targettime).\nWARNING: this builtin cannot deal with multiple events with the same timestamp (only the first will be reported).")},
+//	{"getmodeleventidx",PF_getmodeleventidx,PF_getmodeleventidx,0,		D("float(float modidx, float framenum, int eventidx, __out float timestamp, __out int code, __out string data)", "Reports an indexed event within a model's animation. Writes to timestamp,code,data arguments on success. Returns false if the animation/event/model was out of range/invalid. Does not consider looping animations (retry from index 0 if it fails and you know that its a looping animation). This builtin is more annoying to use than getnextmodelevent, but can be made to deal with multiple events with the exact same timestamp.")},
+///	{"touchtriggers",	PF_touchtriggers,	PF_touchtriggers,	279,	D("void(optional entity ent, optional vector neworigin)", "Triggers a touch events between self and every SOLID_TRIGGER entity that it is in contact with. This should typically just be the triggers touch functions. Also optionally updates the origin of the moved entity.")},//
+	{"WriteFloat",		PF_WriteFloat,		PF_NoCSQC,			280,	"void(float buf, float fl)"},
+//	{"skel_ragupdate",	PF_skel_ragedit,	PF_skel_ragedit,	281,	D("float(entity skelent, string dollcmd, float animskel)", "Updates the skeletal object attached to the entity according to its origin and other properties.\nif animskel is non-zero, the ragdoll will animate towards the bone state in the animskel skeletal object, otherwise they will pick up the model's base pose which may not give nice results.\nIf dollcmd is not set, the ragdoll will update (this should be done each frame).\nIf the doll is updated without having a valid doll, the model's default .doll will be instanciated.\ncommands:\n doll foo.doll : sets up the entity to use the named doll file\n dollstring TEXT : uses the doll file directly embedded within qc, with that extra prefix.\n cleardoll : uninstanciates the doll without destroying the skeletal object.\n animate 0.5 : specifies the strength of the ragdoll as a whole \n animatebody somebody 0.5 : specifies the strength of the ragdoll on a specific body (0 will disable ragdoll animations on that body).\n enablejoint somejoint 1 : enables (or disables) a joint. Disabling joints will allow the doll to shatter.")}, // (FTE_CSQC_RAGDOLL)
+//	{"skel_mmap",		PF_skel_mmap,		PF_skel_mmap,		282,	D("float*(float skel)", "Map the bones in VM memory. They can then be accessed via pointers. Each bone is 12 floats, the four vectors interleaved (sadly).")},// (FTE_QC_RAGDOLL)
+//	{"skel_set_bone_world",PF_skel_set_bone_world,PF_skel_set_bone_world,283,D("void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)", "Sets the world position of a bone within the given entity's attached skeletal object. The world position is dependant upon the owning entity's position. If no orientation argument is specified, v_forward+v_right+v_up are used for the orientation instead. If 1 is specified, it is understood as angles. If 3 are specified, they are the forawrd/right/up vectors to use.")},
+	{"frametoname",		PF_frametoname,		PF_frametoname,		284,	"string(float modidx, float framenum)"},
+//	{"skintoname",		PF_skintoname,		PF_skintoname,		285,	"string(float modidx, float skin)"},
+//	{"resourcestatus",	PF_NoSSQC,			PF_resourcestatus,	286,	D("float(float resourcetype, float tryload, string resourcename)", "resourcetype must be one of the RESTYPE_ constants. Returns one of the RESSTATE_ constants. Tryload 0 is a query only. Tryload 1 will attempt to reload the content if it was flushed.")},
+//	{"hash_createtab",	PF_hash_createtab,	PF_hash_createtab,	287,	D("hashtable(float tabsize, optional float defaulttype)", "Creates a hash table object with at least 'tabsize' slots. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return).")},
+//	{"hash_destroytab",	PF_hash_destroytab,	PF_hash_destroytab,	288,	D("void(hashtable table)", "Destroys a hash table object.")},
+//	{"hash_add",		PF_hash_add,		PF_hash_add,		289,	D("void(hashtable table, string name, __variant value, optional float typeandflags)", "Adds the given key with the given value to the table.\nIf flags&HASH_REPLACE, the old value will be removed, if not set then multiple values may be added for a single key, they won't overwrite.\nThe type argument describes how the value should be stored and saved to files. While you can claim that all variables are just vectors, being more precise can result in less issues with tempstrings or saved games.")},
+//	{"hash_get",		PF_hash_get,		PF_hash_get,		290,	D("__variant(hashtable table, string name, optional __variant deflt, optional float requiretype, optional float index)", "looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was. If requiretype is specified, then values not of the specified type will be ignored. Hurrah for multiple types with the same name.")},
+//	{"hash_delete",		PF_hash_delete,		PF_hash_delete,		291,	D("__variant(hashtable table, string name)", "removes the named key. returns the value of the object that was destroyed, or 0 on error.")},
+//	{"hash_getkey",		PF_hash_getkey,		PF_hash_getkey,		292,	D("string(hashtable table, float idx)", "gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all.")},
+//	{"hash_getcb",		PF_hash_getcb,		PF_hash_getcb,		293,	D("void(hashtable table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys."), true},
+	{"checkcommand",	PF_checkcommand,	PF_checkcommand,	294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
+//	{"argescape",		PF_argescape,		PF_argescape,		295,	D("string(string s)", "Marks up a string so that it can be reliably tokenized as a single argument later.")},
+//	{"clusterevent",	PF_clusterevent,	PF_NoCSQC,			0,		D("void(string dest, string from, string cmd, string info)", "Only functions in mapcluster mode. Sends an event to whichever server the named player is on. The destination server can then dispatch the event to the client or handle it itself via the SV_ParseClusterEvent entrypoint. If dest is empty, the event is broadcast to ALL servers. If the named player can't be found, the event will be returned to this server with the cmd prefixed with 'error:'.")},
+//	{"clustertransfer",	PF_clustertransfer,	PF_NoCSQC,			0,		D("string(entity player, optional string newnode)", "Only functions in mapcluster mode. Initiate transfer of the player to a different node. Can take some time. If dest is specified, returns null on error. Otherwise returns the current/new target node (or null if not transferring).")},
+//	{"modelframecount", PF_modelframecount, PF_modelframecount,	0,		D("float(float mdlidx)", "Retrieves the number of frames in the specified model.")},
 
-	{"copyentity",		PF_copyentity,		400,	D("entity(entity from, optional entity to)", "Copies all fields from one entity to another.")},// (DP_QC_COPYENTITY)
-	{"setcolors",		PF_setcolors,		401,	D("void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
-	{"findchain",		PF_sv_findchain,	402,	"entity(.string field, string match)"},// (DP_QC_FINDCHAIN)
-	{"findchainfloat",	PF_sv_findchainfloat,403,	"entity(.float fld, float match)"},// (DP_QC_FINDCHAINFLOAT)
-		{"effect",			PF_sv_effect,			404,	D("void(vector org, string modelname, float startframe, float endframe, float framerate)", "stub. Spawns a self-animating sprite")},// (DP_SV_EFFECT)
-	{"te_blood",		PF_sv_te_blooddp,	405,	"void(vector org, vector dir, float count)"},// #405 te_blood
-		{"te_bloodshower",	PF_sv_te_bloodshower,	406,	"void(vector mincorner, vector maxcorner, float explosionspeed, float howmany)", "stub."},// (DP_TE_BLOODSHOWER)
-		{"te_explosionrgb",	PF_sv_te_explosionrgb,	407,	"void(vector org, vector color)", "stub."},// (DP_TE_EXPLOSIONRGB)
-		{"te_particlecube",	PF_sv_te_particlecube,	408,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter)", "stub."},// (DP_TE_PARTICLECUBE)
-	{"te_particlerain",	PF_sv_te_particlerain,	409,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color)"},// (DP_TE_PARTICLERAIN)
-	{"te_particlesnow",	PF_sv_te_particlesnow,	410,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color)"},// (DP_TE_PARTICLESNOW)
-		{"te_spark",		PF_sv_te_spark,		411,	"void(vector org, vector vel, float howmany)", "stub."},// (DP_TE_SPARK)
-		{"te_gunshotquad",	PF_sv_te_gunshotquad,	412,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
-		{"te_spikequad",	PF_sv_te_spikequad,	413,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
-		{"te_superspikequad",PF_sv_te_superspikequad,414,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
-		{"te_explosionquad",PF_sv_te_explosionquad,415,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
-		{"te_smallflash",	PF_sv_te_smallflash,	416,	"void(vector org)", "stub."},// (DP_TE_SMALLFLASH)
-		{"te_customflash",	PF_sv_te_customflash,	417,	"void(vector org, float radius, float lifetime, vector color)", "stub."},// (DP_TE_CUSTOMFLASH)
-	{"te_gunshot",		PF_sv_te_gunshot,	418,	"void(vector org, optional float count)"},// #418 te_gunshot
-	{"te_spike",		PF_sv_te_spike,		419,	"void(vector org)"},// #419 te_spike
-	{"te_superspike",	PF_sv_te_superspike,420,	"void(vector org)"},// #420 te_superspike
-	{"te_explosion",	PF_sv_te_explosion,	421,	"void(vector org)"},// #421 te_explosion
-	{"te_tarexplosion",	PF_sv_te_tarexplosion,422,	"void(vector org)"},// #422 te_tarexplosion
-	{"te_wizspike",		PF_sv_te_wizspike,	423,	"void(vector org)"},// #423 te_wizspike
-	{"te_knightspike",	PF_sv_te_knightspike,424,	"void(vector org)"},// #424 te_knightspike
-	{"te_lavasplash",	PF_sv_te_lavasplash,425,	"void(vector org)"},// #425 te_lavasplash
-	{"te_teleport",		PF_sv_te_teleport,	426,	"void(vector org)"},// #426 te_teleport
-	{"te_explosion2",	PF_sv_te_explosion2,427,	"void(vector org, float color, float colorlength)"},// #427 te_explosion2
-	{"te_lightning1",	PF_sv_te_lightning1,428,	"void(entity own, vector start, vector end)"},// #428 te_lightning1
-	{"te_lightning2",	PF_sv_te_lightning2,429,	"void(entity own, vector start, vector end)"},// #429 te_lightning2
-	{"te_lightning3",	PF_sv_te_lightning3,430,	"void(entity own, vector start, vector end)"},// #430 te_lightning3
-	{"te_beam",			PF_sv_te_beam,		431,	"void(entity own, vector start, vector end)"},// #431 te_beam
-	{"vectorvectors",	PF_vectorvectors,	432,	"void(vector dir)"},// (DP_QC_VECTORVECTORS)
-		{"te_plasmaburn",	PF_sv_te_plasmaburn,433,	"void(vector org)", "stub."},// (DP_TE_PLASMABURN)
-	{"getsurfacenumpoints",PF_getsurfacenumpoints,434,	"float(entity e, float s)"},// (DP_QC_GETSURFACE)
-	{"getsurfacepoint",PF_getsurfacepoint,	435,	"vector(entity e, float s, float n)"},// (DP_QC_GETSURFACE)
-	{"getsurfacenormal",PF_getsurfacenormal,436,	"vector(entity e, float s)"},// (DP_QC_GETSURFACE)
-	{"getsurfacetexture",PF_getsurfacetexture,437,	"string(entity e, float s)"},// (DP_QC_GETSURFACE)
-	{"getsurfacenearpoint",PF_getsurfacenearpoint,438,	"float(entity e, vector p)"},// (DP_QC_GETSURFACE)
-	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,439,	"vector(entity e, float s, vector p)"},// (DP_QC_GETSURFACE)
-	{"clientcommand",	PF_clientcommand,	440,	"void(entity e, string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"tokenize",		PF_Tokenize,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"argv",			PF_ArgV,			442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
-	{"argc",			PF_ArgC,			0,		"float()"},
-	{"setattachment",	PF_setattachment,	443,	"void(entity e, entity tagentity, string tagname)", ""},// (DP_GFX_QUAKE3MODELTAGS)
-		{"search_begin",	PF_search_begin,			444,	"searchhandle(string pattern, optional float caseinsensitive, optional float quiet)", "stub. initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle."},
-		{"search_end",		PF_search_end,				445,	"void(searchhandle handle)", "stub."},
-		{"search_getsize",	PF_search_getsize,			446,	"float(searchhandle handle)", "stub. Retrieves the number of files that were found."},
-		{"search_getfilename", PF_search_getfilename,	447,	"string(searchhandle handle, float num)", "stub. Retrieves name of one of the files that was found by the initial search."},
-		{"search_getfilesize", PF_search_getfilesize,	0,		"float(searchhandle handle, float num)", "stub. Retrieves the size of one of the files that was found by the initial search."},
-		{"search_getfilemtime", PF_search_getfilemtime,	0,		"string(searchhandle handle, float num)", "stub. Retrieves modification time of one of the files in %Y-%m-%d %H:%M:%S format."},
-	{"cvar_string",		PF_cvar_string,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
-	{"findflags",		PF_sv_findflags,	449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
-	{"findchainflags",	PF_sv_findchainflags,450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
-	{"dropclient",		PF_dropclient,		453,	"void(entity player)"},//DP_SV_BOTCLIENT
-	{"spawnclient",		PF_spawnclient,		454,	"entity()", "Spawns a dummy player entity.\nNote that such dummy players will be carried from one map to the next.\nWarning: DP_SV_CLIENTCOLORS DP_SV_CLIENTNAME are not implemented in quakespasm, so use KRIMZON_SV_PARSECLIENTCOMMAND's clientcommand builtin to change the bot's name/colours/skin/team/etc, in the same way that clients would ask."},//DP_SV_BOTCLIENT
-	{"clienttype",		PF_clienttype,		455,	"float(entity client)"},//botclient
-	{"WriteUnterminatedString",PF_WriteString2,456,	"void(float target, string str)"},	//writestring but without the null terminator. makes things a little nicer.
-	{"edict_num",		PF_edict_for_num,	459,	"entity(float entnum)"},//DP_QC_EDICT_NUM
-	{"buf_create",		PF_buf_create,		460,	"strbuf()"},//DP_QC_STRINGBUFFERS
-	{"buf_del",			PF_buf_del,			461,	"void(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
-	{"buf_getsize",		PF_buf_getsize,		462,	"float(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
-	{"buf_copy",		PF_buf_copy,		463,	"void(strbuf bufhandle_from, strbuf bufhandle_to)"},//DP_QC_STRINGBUFFERS
-	{"buf_sort",		PF_buf_sort,		464,	"void(strbuf bufhandle, float sortprefixlen, float backward)"},//DP_QC_STRINGBUFFERS
-	{"buf_implode",		PF_buf_implode,		465,	"string(strbuf bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_get",		PF_bufstr_get,		466,	"string(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_set",		PF_bufstr_set,		467,	"void(strbuf bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_add",		PF_bufstr_add,		468,	"float(strbuf bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_free",		PF_bufstr_free,		469,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+//	{"clearscene",		PF_NoSSQC,			PF_FullCSQCOnly,	300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
+//	{"addentities",		PF_NoSSQC,			PF_FullCSQCOnly,	301,	D("void(float mask)", "Walks through all entities effectively doing this:\n if (ent.drawmask&mask){ if (!ent.predaw()) addentity(ent); }\nIf mask&MASK_DELTA, non-csqc entities, particles, and related effects will also be added to the rentity list.\n If mask&MASK_STDVIEWMODEL then the default view model will also be added.")},// (EXT_CSQC)
+//	{"addentity",		PF_NoSSQC,			PF_FullCSQCOnly,	302,	D("void(entity ent)", "Copies the entity fields into a new rentity for later rendering via addscene.")},// (EXT_CSQC)
+//	{"removeentity",	PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("void(entity ent)", "Undoes all addentities added to the scene from the given entity, without removing ALL entities (useful for splitscreen/etc, readd modified versions as desired).")},// (EXT_CSQC)
+//	{"addtrisoup_simple",PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("typedef float vec2[2];\ntypedef float vec3[3];\ntypedef float vec4[4];\ntypedef struct trisoup_simple_vert_s {vec3 xyz;vec2 st;vec4 rgba;} trisoup_simple_vert_t;\nvoid(string texturename, int flags, struct trisoup_simple_vert_s *verts, int *indexes, int numindexes)", "Adds the specified trisoup into the scene as additional geometry. This permits caching geometry to reduce builtin spam. Indexes are a triangle list (so eg quads will need 6 indicies to form two triangles). NOTE: this is not going to be a speedup over polygons if you're still generating lots of new data every frame.")},
+//	{"setproperty",		PF_NoSSQC,			PF_FullCSQCOnly,	303,	D("#define setviewprop setproperty\nfloat(float property, ...)", "Allows you to override default view properties like viewport, fov, and whether the engine hud will be drawn. Different VF_ values have slightly different arguments, some are vectors, some floats.")},// (EXT_CSQC)
+//	{"renderscene",		PF_NoSSQC,			PF_FullCSQCOnly,	304,	D("void()", "Draws all entities, polygons, and particles on the rentity list (which were added via addentities or addentity), using the various view properties set via setproperty. There is no ordering dependancy.\nThe scene must generally be cleared again before more entities are added, as entities will persist even over to the next frame.\nYou may call this builtin multiple times per frame, but should only be called from CSQC_UpdateView.")},// (EXT_CSQC)
+//	{"dynamiclight_add",PF_NoSSQC,			PF_FullCSQCOnly,	305,	D("float(vector org, float radius, vector lightcolours, optional float style, optional string cubemapname, optional float pflags)", "Adds a temporary dlight, ready to be drawn via addscene. Cubemap orientation will be read from v_forward/v_right/v_up.")},// (EXT_CSQC)
+//	{"R_BeginPolygon",	PF_NoSSQC,			PF_R_PolygonBegin,	306,	D("void(string texturename, optional float flags, optional float is2d)", "Specifies the shader to use for the following polygons, along with optional flags.\nIf is2d, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects.")},// (EXT_CSQC_???)
+//	{"R_PolygonVertex",	PF_NoSSQC,			PF_R_PolygonVertex,	307,	D("void(vector org, vector texcoords, vector rgb, float alpha)", "Specifies a polygon vertex with its various properties.")},// (EXT_CSQC_???)
+//	{"R_EndPolygon",	PF_NoSSQC,			PF_R_PolygonEnd,	308,	D("void()", "Ends the current polygon. At least 3 verticies must have been specified. You do not need to call beginpolygon if you wish to draw another polygon with the same shader.")},
+//	{"getproperty",		PF_NoSSQC,			PF_FullCSQCOnly,	309,	D("#define getviewprop getproperty\n__variant(float property)", "Retrieve a currently-set (typically view) property, allowing you to read the current viewport or other things. Due to cheat protection, certain values may be unretrievable.")},// (EXT_CSQC_1)
+//	{"unproject",		PF_NoSSQC,			PF_FullCSQCOnly,	310,	D("vector (vector v)", "Transform a 2d screen-space point (with depth) into a 3d world-space point, according the various origin+angle+fov etc settings set via setproperty.")},// (EXT_CSQC)
+//	{"project",			PF_NoSSQC,			PF_FullCSQCOnly,	311,	D("vector (vector v)", "Transform a 3d world-space point into a 2d screen-space point, according the various origin+angle+fov etc settings set via setproperty.")},// (EXT_CSQC)
+//	{"drawtextfield",	PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("void(vector pos, vector size, float alignflags, string text)", "Draws a multi-line block of text, including word wrapping and alignment. alignflags bits are RTLB, typically 3.")},// (EXT_CSQC)
+//	{"drawline",		PF_NoSSQC,			PF_FullCSQCOnly,	315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
+	{"iscachedpic",		PF_NoSSQC,			PF_cl_iscachedpic,	316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
+	{"precache_pic",	PF_NoSSQC,			PF_cl_precachepic,	317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension.")},// (EXT_CSQC)
+//	{"r_uploadimage",	PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("void(string imagename, int width, int height, int *pixeldata)", "Updates a texture with the specified rgba data. Will be created if needed.")},
+//	{"r_readimage",		PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw pixel data. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
+	{"drawgetimagesize",PF_NoSSQC,			PF_cl_getimagesize,	318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
+//	{"freepic",			PF_NoSSQC,			PF_FullCSQCOnly,	319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
+	{"drawcharacter",	PF_NoSSQC,			PF_cl_drawcharacter,320,	D("float(vector position, float character, vector size, vector rgb, float alpha, optional float drawflag)", "Draw the given quake character at the given position.\nIf flag&4, the function will consider the char to be a unicode char instead (or display as a ? if outside the 32-127 range).\nsize should normally be something like '8 8 0'.\nrgb should normally be '1 1 1'\nalpha normally 1.\nSoftware engines may assume the named defaults.\nNote that ALL text may be rescaled on the X axis due to variable width fonts. The X axis may even be ignored completely.")},// (EXT_CSQC, [EXT_CSQC_???])
+//	{"drawrawstring",	PF_NoSSQC,			PF_FullCSQCOnly,	321,	D("float(vector position, string text, vector size, vector rgb, float alpha, optional float drawflag)", "Draws the specified string without using any markup at all, even in engines that support it.\nIf UTF-8 is globally enabled in the engine, then that encoding is used (without additional markup), otherwise it is raw quake chars.\nSoftware engines may assume a size of '8 8 0', rgb='1 1 1', alpha=1, flag&3=0, but it is not an error to draw out of the screen.")},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",			PF_NoSSQC,			PF_cl_drawpic,		322,	D("float(vector position, string pic, vector size, vector rgb, float alpha, optional float drawflag)", "Draws an shader within the given 2d screen box. Software engines may omit support for rgb+alpha, but must support rescaling, and must clip to the screen without crashing.")},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawfill",		PF_NoSSQC,			PF_cl_drawfill,		323,	D("float(vector position, vector size, vector rgb, float alpha, optional float drawflag)", "Draws a solid block over the given 2d box, with given colour, alpha, and blend mode (specified via flags).\nflags&3=0 simple blend.\nflags&3=1 additive blend")},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawsetcliparea",	PF_NoSSQC,			PF_cl_drawsetclip,	324,	D("void(float x, float y, float width, float height)", "Specifies a 2d clipping region (aka: scissor test). 2d draw calls will all be clipped to this 2d box, the area outside will not be modified by any 2d draw call (even 2d polygons).")},// (EXT_CSQC_???)
+	{"drawresetcliparea",PF_NoSSQC,			PF_cl_drawresetclip,325,	D("void(void)", "Reverts the scissor/clip area to the whole screen.")},// (EXT_CSQC_???)
+	{"drawstring",		PF_NoSSQC,			PF_cl_drawstring,	326,	D("float(vector position, string text, vector size, vector rgb, float alpha, float drawflag)", "Draws a string, interpreting markup and recolouring as appropriate.")},// #326
+	{"stringwidth",		PF_NoSSQC,			PF_cl_stringwidth,	327,	D("float(string text, float usecolours, optional vector fontsize)", "Calculates the width of the screen in virtual pixels. If usecolours is 1, markup that does not affect the string width will be ignored. Will always be decoded as UTF-8 if UTF-8 is globally enabled.\nIf the char size is not specified, '8 8 0' will be assumed.")},// EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",		PF_NoSSQC,			PF_cl_drawsubpic,	328,	D("void(vector pos, vector sz, string pic, vector srcpos, vector srcsz, vector rgb, float alpha, optional float drawflag)", "Draws a rescaled subsection of an image to the screen.")},// #328 EXT_CSQC_'DARKPLACES'
+//	{"drawrotpic",		PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("void(vector pivot, vector mins, vector maxs, string pic, vector rgb, float alpha, float angle)", "Draws an image rotating at the pivot. To rotate in the center, use mins+maxs of half the size with mins negated. Angle is in degrees.")},
+//	{"drawrotsubpic",	PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("void(vector pivot, vector mins, vector maxs, string pic, vector txmin, vector txsize, vector rgb, vector alphaandangles)", "Overcomplicated draw function for over complicated people. Positions follow drawrotpic, while texture coords follow drawsubpic. Due to argument count limitations in builtins, the alpha value and angles are combined into separate fields of a vector (tip: use fteqcc's [alpha, angle] feature.")},
+	{"getstati",		PF_NoSSQC,			PF_cl_getstat_int,	330,	D("#define getstati_punf(stnum) (float)(__variant)getstati(stnum)\nint(float stnum)", "Retrieves the numerical value of the given EV_INTEGER or EV_ENTITY stat. Use getstati_punf if you wish to type-pun a float stat as an int to avoid truncation issues in DP.")},// (EXT_CSQC)
+	{"getstatf",		PF_NoSSQC,			PF_cl_getstat_float,331,	D("#define getstatbits getstatf\nfloat(float stnum, optional float firstbit, optional float bitcount)", "Retrieves the numerical value of the given EV_FLOAT stat. If firstbit and bitcount are specified, retrieves the upper bits of the STAT_ITEMS stat (converted into a float, so there are no VM dependancies).")},// (EXT_CSQC)
+//	{"getstats",		PF_NoSSQC,			PF_cl_getstat_str,	332,	D("string(float stnum)", "Retrieves the value of the given EV_STRING stat, as a tempstring.\nOlder engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but "FULLENGINENAME" uses a separate namespace for string stats and has a much higher length limit.")},
+//	{"getplayerstat",	PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("__variant(float playernum, float statnum, float stattype)", "Retrieves a specific player's stat, matching the type specified on the server. This builtin is primarily intended for mvd playback where ALL players are known. For EV_ENTITY, world will be returned if the entity is not in the pvs, use type-punning with EV_INTEGER to get the entity number if you just want to see if its set. STAT_ITEMS should be queried as an EV_INTEGER on account of runes and items2 being packed into the upper bits.")},
+	{"setmodelindex",	PF_sv_setmodelindex,PF_cl_setmodelindex,333,	D("void(entity e, float mdlindex)", "Sets a model by precache index instead of by name. Otherwise identical to setmodel.")},//
+//	{"modelnameforindex",PF_modelnameforidx,PF_modelnameforidx,	334,	D("string(float mdlindex)", "Retrieves the name of the model based upon a precache index. This can be used to reduce csqc network traffic by enabling model matching.")},//
+	{"particleeffectnum",PF_sv_particleeffectnum,PF_cl_particleeffectnum,335,D("float(string effectname)", "Precaches the named particle effect. If your effect name is of the form 'foo.bar' then particles/foo.cfg will be loaded by the client if foo.bar was not already defined.\nDifferent engines will have different particle systems, this specifies the QC API only.")},// (EXT_CSQC)
+	{"trailparticles",	PF_sv_trailparticles,PF_cl_trailparticles,336,	D("void(float effectnum, entity ent, vector start, vector end)", "Draws the given effect between the two named points. If ent is not world, distances will be cached in the entity in order to avoid framerate dependancies. The entity is not otherwise used.")},// (EXT_CSQC),
+	{"pointparticles",	PF_sv_pointparticles,PF_cl_pointparticles,337,	D("void(float effectnum, vector origin, optional vector dir, optional float count)", "Spawn a load of particles from the given effect at the given point traveling or aiming along the direction specified. The number of particles are scaled by the count argument.")},// (EXT_CSQC)
+	{"cprint",			PF_NoSSQC,			PF_cl_cprint,		338,	D("void(string s, ...)", "Print into the center of the screen just as ssqc's centerprint would appear.")},//(EXT_CSQC)
+	{"print",			PF_print,			PF_print,			339,	D("void(string s, ...)", "Unconditionally print on the local system's console, even in ssqc (doesn't care about the value of the developer cvar).")},//(EXT_CSQC)
+	{"keynumtostring",	NULL,				PF_cl_keynumtostring,340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (EXT_CSQC)
+	{"stringtokeynum",	NULL,				PF_cl_stringtokeynum,341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
+	{"getkeybind",		NULL,				PF_cl_getkeybind,	342,	D("string(float keynum)", "Returns the current binding for the given key (returning only the command executed when no modifiers are pressed).")},// (EXT_CSQC)
+	{"setcursormode",	PF_NoSSQC,			PF_cl_setcursormode,343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
+	{"getcursormode",	PF_NoSSQC,			PF_cl_getcursormode,0,		D("float(float effective)", "Reports the cursor mode this module previously attempted to use. If 'effective' is true, reports the cursor mode currently active (if was overriden by a different module which has precidence, for instance, or if there is only a touchscreen and no mouse).")},
+//	{"getmousepos",		PF_NoSSQC,			PF_FullCSQCOnly,	344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods.")},	// #344 This is a DP extension
+//	{"getinputstate",	PF_NoSSQC,			PF_FullCSQCOnly,	345,	D("float(float inputsequencenum)", "Looks up an input frame from the log, setting the input_* globals accordingly.\nThe sequence number range used for prediction should normally be servercommandframe < sequence <= clientcommandframe.\nThe sequence equal to clientcommandframe will change between input frames.")},// (EXT_CSQC)
+	{"setsensitivityscaler",PF_NoSSQC,		PF_cl_setsensitivity,346,	D("void(float sens)", "Temporarily scales the player's mouse sensitivity based upon something like zoom, avoiding potential cvar saving and thus corruption.")},// (EXT_CSQC)
+//	{"runstandardplayerphysics",NULL,		PF_FullCSQCOnly,	347,	D("void(entity ent)", "Perform the engine's standard player movement prediction upon the given entity using the input_* globals to describe movement.")},
+	{"getplayerkeyvalue",NULL,				PF_cl_playerkey_s,	348,	D("string(float playernum, string keyname)", "Look up a player's userinfo, to discover things like their name, topcolor, bottomcolor, skin, team, *ver.\nAlso includes scoreboard info like frags, ping, pl, userid, entertime, as well as voipspeaking and voiploudness.")},// (EXT_CSQC)
+	{"getplayerkeyfloat",NULL,				PF_cl_playerkey_f,	0,		D("float(float playernum, string keyname, optional float assumevalue)", "Cheaper version of getplayerkeyvalue that avoids the need for so many tempstrings.")},
+	{"isdemo",			PF_NoSSQC,			PF_cl_isdemo,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
+	{"isserver",		PF_NoSSQC,			PF_cl_isserver,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
+//	{"SetListener",		NULL,				PF_FullCSQCOnly,	351,	D("void(vector origin, vector forward, vector right, vector up, optional float reverbtype)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default. For reverbtype, see setup_reverb or treat as 'underwater'.")},// (EXT_CSQC)
+//	{"setup_reverb",	PF_NoSSQC,			PF_FullCSQCOnly,	0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
+	{"registercommand",	NULL,				PF_cl_registercommand,352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
+	{"wasfreed",		PF_WasFreed,		PF_WasFreed,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
+	{"serverkey",		NULL,				PF_cl_serverkey_s,	354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
+	{"serverkeyfloat",	NULL,				PF_cl_serverkey_f,	0,		D("float(string key, optional float assumevalue)", "Version of serverkey that returns the value as a float (which avoids tempstrings).")},//
+//	{"getentitytoken",	NULL,				PF_FullCSQCOnly,	355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
+//	{"findfont",		PF_NoSSQC,			PF_FullCSQCOnly,	356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
+//	{"loadfont",		PF_NoSSQC,			PF_FullCSQCOnly,	357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
+	{"sendevent",		PF_NoSSQC,			PF_cl_sendevent,	359,	D("void(string evname, string evargs, ...)", "Invoke Cmd_evname_evargs in ssqc. evargs must be a string of initials refering to the types of the arguments to pass. v=vector, e=entity(.entnum field is sent), f=float, i=int. 6 arguments max - you can get more if you pack your floats into vectors.")},// (EXT_CSQC_1)
+	{"readbyte",		PF_NoSSQC,			PF_cl_readbyte,		360,	"float()"},// (EXT_CSQC)
+	{"readchar",		PF_NoSSQC,			PF_cl_readchar,		361,	"float()"},// (EXT_CSQC)
+	{"readshort",		PF_NoSSQC,			PF_cl_readshort,	362,	"float()"},// (EXT_CSQC)
+	{"readlong",		PF_NoSSQC,			PF_cl_readlong,		363,	"float()"},// (EXT_CSQC)
+	{"readcoord",		PF_NoSSQC,			PF_cl_readcoord,	364,	"float()"},// (EXT_CSQC)
+	{"readangle",		PF_NoSSQC,			PF_cl_readangle,	365,	"float()"},// (EXT_CSQC)
+	{"readstring",		PF_NoSSQC,			PF_cl_readstring,	366,	"string()"},// (EXT_CSQC)
+	{"readfloat",		PF_NoSSQC,			PF_cl_readfloat,	367,	"float()"},// (EXT_CSQC)
+	{"readentitynum",	PF_NoSSQC,			PF_cl_readentitynum,368,	"float()"},// (EXT_CSQC)
+//	{"deltalisten",		NULL,				PF_FullCSQCOnly,	371,	D("float(string modelname, float(float isnew) updatecallback, float flags)", "Specifies a per-modelindex callback to listen for engine-networking entity updates. Such entities are automatically interpolated by the engine (unless flags specifies not to).\nThe various standard entity fields will be overwritten each frame before the updatecallback function is called.")},//  (EXT_CSQC_1)
+//	{"dynamiclight_get",PF_NoSSQC,			PF_FullCSQCOnly,	372,	D("__variant(float lno, float fld)", "Retrieves a property from the given dynamic/rt light. Return type depends upon the light field requested.")},
+//	{"dynamiclight_set",PF_NoSSQC,			PF_FullCSQCOnly,	373,	D("void(float lno, float fld, __variant value)", "Changes a property on the given dynamic/rt light. Value type depends upon the light field to be changed.")},
+//	{"particleeffectquery",PF_NoSSQC,		PF_FullCSQCOnly,	374,	D("string(float efnum, float body)", "Retrieves either the name or the body of the effect with the given number. The effect body is regenerated from internal state, and can be changed before being reapplied via the localcmd builtin.")},
+//	{"adddecal",		PF_NoSSQC,			PF_FullCSQCOnly,	375,	D("void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha)", "Adds a temporary clipped decal shader to the scene, centered at the given point with given orientation. Will be drawn by the next renderscene call, and freed by the next clearscene call.")},
+//	{"setcustomskin",	PF_NoSSQC,			PF_FullCSQCOnly,	376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h$s,t,s2,t2?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader).")},
+//	{"memalloc",		PF_memalloc,		PF_memalloc,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
+//	{"memfree",			PF_memfree,			PF_memfree,			385,	D("void(__variant *ptr)", "Frees a block of memory that was allocated with memfree")},
+//	{"memcpy",			PF_memcpy,			PF_memcpy,			386,	D("void(__variant *dst, __variant *src, int size)", "Copys memory from one location to another")},
+//	{"memfill8",		PF_memfill8,		PF_memfill8,		387,	D("void(__variant *dst, int val, int size)", "Sets an entire block of memory to a specified value. Pretty much always 0.")},
+//	{"memgetval",		PF_memgetval,		PF_memgetval,		388,	D("__variant(__variant *dst, float ofs)", "Looks up the 32bit value stored at a pointer-with-offset.")},
+//	{"memsetval",		PF_memsetval,		PF_memsetval,		389,	D("void(__variant *dst, float ofs, __variant val)", "Changes the 32bit value stored at the specified pointer-with-offset.")},
+//	{"memptradd",		PF_memptradd,		PF_memptradd,		390,	D("__variant*(__variant *base, float ofs)", "Perform some pointer maths. Woo.")},
+//	{"memstrsize",		PF_memstrsize,		PF_memstrsize,		0,		D("float(string s)", "strlen, except ignores utf-8")},
+//	{"con_getset",		PF_NoSSQC,			PF_FullCSQCOnly,				391,	D("string(string conname, string field, optional string newvalue)", "Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field. Valid properties: 	title, name, next, unseen, markup, forceutf8, close, clear, hidden, linecount")},
+//	{"con_printf",		PF_NoSSQC,			PF_FullCSQCOnly,				392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
+//	{"con_draw",		PF_NoSSQC,			PF_FullCSQCOnly,				393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
+//	{"con_input",		PF_NoSSQC,			PF_FullCSQCOnly,				394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
+	{"setwindowcaption",PF_NoSSQC,			PF_cl_setwindowcaption,0,	D("void(string newcaption)", "Replaces the title of the game window, as seen when task switching or just running in windowed mode.")},
+//	{"cvars_haveunsaved",PF_NoSSQC,			PF_FullCSQCOnly,				0,		D("float()", "Returns true if any archived cvar has an unsaved value.")},
+//	{"entityprotection",NULL,				NULL,				0,		D("float(entity e, float nowreadonly)", "Changes the protection on the specified entity to protect it from further edits from QC. The return value is the previous setting. Note that this can be used to unprotect the world, but doing so long term is not advised as you will no longer be able to detect invalid entity references. Also, world is not networked, so results might not be seen by clients (or in other words, world.avelocity_y=64 is a bad idea).")},
 
 
+	{"copyentity",		PF_copyentity,		PF_copyentity,		400,	D("entity(entity from, optional entity to)", "Copies all fields from one entity to another.")},// (DP_QC_COPYENTITY)
+	{"setcolors",		PF_setcolors,		PF_NoCSQC,			401,	D("void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
+	{"findchain",		PF_findchain,		PF_findchain,		402,	"entity(.string field, string match)"},// (DP_QC_FINDCHAIN)
+	{"findchainfloat",	PF_findchainfloat,	PF_findchainfloat,	403,	"entity(.float fld, float match)"},// (DP_QC_FINDCHAINFLOAT)
+		{"effect",			PF_sv_effect,			NULL,				404,	D("void(vector org, string modelname, float startframe, float endframe, float framerate)", "stub. Spawns a self-animating sprite")},// (DP_SV_EFFECT)
+	{"te_blood",		PF_sv_te_blooddp,	NULL,				405,	"void(vector org, vector dir, float count)"},// #405 te_blood
+		{"te_bloodshower",	PF_sv_te_bloodshower,	NULL,				406,	"void(vector mincorner, vector maxcorner, float explosionspeed, float howmany)", "stub."},// (DP_TE_BLOODSHOWER)
+		{"te_explosionrgb",	PF_sv_te_explosionrgb,	NULL,				407,	"void(vector org, vector color)", "stub."},// (DP_TE_EXPLOSIONRGB)
+		{"te_particlecube",	PF_sv_te_particlecube,	NULL,				408,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter)", "stub."},// (DP_TE_PARTICLECUBE)
+	{"te_particlerain",	PF_sv_te_particlerain,	NULL,				409,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color)"},// (DP_TE_PARTICLERAIN)
+	{"te_particlesnow",	PF_sv_te_particlesnow,	NULL,				410,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color)"},// (DP_TE_PARTICLESNOW)
+		{"te_spark",		PF_sv_te_spark,		NULL,				411,	"void(vector org, vector vel, float howmany)", "stub."},// (DP_TE_SPARK)
+		{"te_gunshotquad",	PF_sv_te_gunshotquad,	NULL,				412,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
+		{"te_spikequad",	PF_sv_te_spikequad,	NULL,					413,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
+		{"te_superspikequad",PF_sv_te_superspikequad,NULL,				414,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
+		{"te_explosionquad",PF_sv_te_explosionquad,	NULL,				415,	"void(vector org)", "stub."},// (DP_TE_QUADEFFECTS1)
+		{"te_smallflash",	PF_sv_te_smallflash,	NULL,				416,	"void(vector org)", "stub."},// (DP_TE_SMALLFLASH)
+		{"te_customflash",	PF_sv_te_customflash,	NULL,				417,	"void(vector org, float radius, float lifetime, vector color)", "stub."},// (DP_TE_CUSTOMFLASH)
+	{"te_gunshot",		PF_sv_te_gunshot,	NULL,				418,	"void(vector org, optional float count)"},// #418 te_gunshot
+	{"te_spike",		PF_sv_te_spike,		NULL,				419,	"void(vector org)"},// #419 te_spike
+	{"te_superspike",	PF_sv_te_superspike,NULL,				420,	"void(vector org)"},// #420 te_superspike
+	{"te_explosion",	PF_sv_te_explosion,	NULL,				421,	"void(vector org)"},// #421 te_explosion
+	{"te_tarexplosion",	PF_sv_te_tarexplosion,NULL,				422,	"void(vector org)"},// #422 te_tarexplosion
+	{"te_wizspike",		PF_sv_te_wizspike,	NULL,				423,	"void(vector org)"},// #423 te_wizspike
+	{"te_knightspike",	PF_sv_te_knightspike,NULL,				424,	"void(vector org)"},// #424 te_knightspike
+	{"te_lavasplash",	PF_sv_te_lavasplash,NULL,				425,	"void(vector org)"},// #425 te_lavasplash
+	{"te_teleport",		PF_sv_te_teleport,	NULL,				426,	"void(vector org)"},// #426 te_teleport
+	{"te_explosion2",	PF_sv_te_explosion2,NULL,				427,	"void(vector org, float color, float colorlength)"},// #427 te_explosion2
+	{"te_lightning1",	PF_sv_te_lightning1,NULL,				428,	"void(entity own, vector start, vector end)"},// #428 te_lightning1
+	{"te_lightning2",	PF_sv_te_lightning2,NULL,				429,	"void(entity own, vector start, vector end)"},// #429 te_lightning2
+	{"te_lightning3",	PF_sv_te_lightning3,NULL,				430,	"void(entity own, vector start, vector end)"},// #430 te_lightning3
+	{"te_beam",			PF_sv_te_beam,		NULL,				431,	"void(entity own, vector start, vector end)"},// #431 te_beam
+	{"vectorvectors",	PF_vectorvectors,	PF_vectorvectors,	432,	"void(vector dir)"},// (DP_QC_VECTORVECTORS)
+		{"te_plasmaburn",	PF_sv_te_plasmaburn,NULL,				433,	"void(vector org)", "stub."},// (DP_TE_PLASMABURN)
+	{"getsurfacenumpoints",PF_getsurfacenumpoints,PF_getsurfacenumpoints,434,"float(entity e, float s)"},// (DP_QC_GETSURFACE)
+	{"getsurfacepoint",	PF_getsurfacepoint,	PF_getsurfacepoint,	435,	"vector(entity e, float s, float n)"},// (DP_QC_GETSURFACE)
+	{"getsurfacenormal",PF_getsurfacenormal,PF_getsurfacenormal,436,	"vector(entity e, float s)"},// (DP_QC_GETSURFACE)
+	{"getsurfacetexture",PF_getsurfacetexture,PF_getsurfacetexture,437,	"string(entity e, float s)"},// (DP_QC_GETSURFACE)
+	{"getsurfacenearpoint",PF_getsurfacenearpoint,PF_getsurfacenearpoint,438,"float(entity e, vector p)"},// (DP_QC_GETSURFACE)
+	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,PF_getsurfaceclippedpoint,439,"vector(entity e, float s, vector p)"},// (DP_QC_GETSURFACE)
+	{"clientcommand",	PF_clientcommand,	PF_NoCSQC,			440,	"void(entity e, string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"tokenize",		PF_Tokenize,		PF_Tokenize,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"argv",			PF_ArgV,			PF_ArgV,			442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
+	{"argc",			PF_ArgC,			PF_ArgC,			0,		"float()"},
+		{"setattachment",	PF_setattachment,	PF_setattachment,	443,	"void(entity e, entity tagentity, string tagname)", ""},// (DP_GFX_QUAKE3MODELTAGS)
+	{"search_begin",	PF_search_begin,	PF_search_begin,	444,	"searchhandle(string pattern, optional float caseinsensitive, optional float quiet)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle."},
+	{"search_end",		PF_search_end,		PF_search_end,		445,	"void(searchhandle handle)", ""},
+	{"search_getsize",	PF_search_getsize,	PF_search_getsize,	446,	"float(searchhandle handle)", " Retrieves the number of files that were found."},
+	{"search_getfilename",PF_search_getfilename,PF_search_getfilename,447,"string(searchhandle handle, float num)", "Retrieves name of one of the files that was found by the initial search."},
+//	{"search_getfilesize",PF_search_getfilesize,PF_search_getfilesize,0,"float(searchhandle handle, float num)", "Retrieves the size of one of the files that was found by the initial search."},
+//	{"search_getfilemtime",PF_search_getfilemtime,PF_search_getfilemtime,0,"string(searchhandle handle, float num)", "Retrieves modification time of one of the files in %Y-%m-%d %H:%M:%S format."},
+	{"cvar_string",		PF_cvar_string,		PF_cvar_string,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
+	{"findflags",		PF_findflags,		PF_findflags,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
+	{"findchainflags",	PF_findchainflags,	PF_findchainflags,	450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
+	{"dropclient",		PF_dropclient,		PF_NoCSQC,			453,	"void(entity player)"},//DP_SV_BOTCLIENT
+	{"spawnclient",		PF_spawnclient,		PF_NoCSQC,			454,	"entity()", "Spawns a dummy player entity.\nNote that such dummy players will be carried from one map to the next.\nWarning: DP_SV_CLIENTCOLORS DP_SV_CLIENTNAME are not implemented in quakespasm, so use KRIMZON_SV_PARSECLIENTCOMMAND's clientcommand builtin to change the bot's name/colours/skin/team/etc, in the same way that clients would ask."},//DP_SV_BOTCLIENT
+	{"clienttype",		PF_clienttype,		PF_NoCSQC,			455,	"float(entity client)"},//botclient
+	{"WriteUnterminatedString",PF_WriteString2,PF_NoCSQC,		456,	"void(float target, string str)"},	//writestring but without the null terminator. makes things a little nicer.
+	{"edict_num",		PF_edict_for_num,	PF_edict_for_num,	459,	"entity(float entnum)"},//DP_QC_EDICT_NUM
+	{"buf_create",		PF_buf_create,		PF_buf_create,		460,	"strbuf()"},//DP_QC_STRINGBUFFERS
+	{"buf_del",			PF_buf_del,			PF_buf_del,			461,	"void(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_getsize",		PF_buf_getsize,		PF_buf_getsize,		462,	"float(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_copy",		PF_buf_copy,		PF_buf_copy,		463,	"void(strbuf bufhandle_from, strbuf bufhandle_to)"},//DP_QC_STRINGBUFFERS
+	{"buf_sort",		PF_buf_sort,		PF_buf_sort,		464,	"void(strbuf bufhandle, float sortprefixlen, float backward)"},//DP_QC_STRINGBUFFERS
+	{"buf_implode",		PF_buf_implode,		PF_buf_implode,		465,	"string(strbuf bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_get",		PF_bufstr_get,		PF_bufstr_get,		466,	"string(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_set",		PF_bufstr_set,		PF_bufstr_set,		467,	"void(strbuf bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_add",		PF_bufstr_add,		PF_bufstr_add,		468,	"float(strbuf bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_free",		PF_bufstr_free,		PF_bufstr_free,		469,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 
+	{"asin",			PF_asin,			PF_asin,			471,	"float(float s)"},//DP_QC_ASINACOSATANATAN2TAN
+	{"acos",			PF_acos,			PF_acos,			472,	"float(float c)"},//DP_QC_ASINACOSATANATAN2TAN
+	{"atan",			PF_atan,			PF_atan,			473,	"float(float t)"},//DP_QC_ASINACOSATANATAN2TAN
+	{"atan2",			PF_atan2,			PF_atan2,			474,	"float(float c, float s)"},//DP_QC_ASINACOSATANATAN2TAN
+	{"tan",				PF_tan,				PF_tan,				475,	"float(float a)"},//DP_QC_ASINACOSATANATAN2TAN
+	{"strlennocol",		PF_strlennocol,		PF_strlennocol,		476,	D("float(string s)", "Returns the number of characters in the string after any colour codes or other markup has been parsed.")},//DP_QC_STRINGCOLORFUNCTIONS
+	{"strdecolorize",	PF_strdecolorize,	PF_strdecolorize,	477,	D("string(string s)", "Flattens any markup/colours, removing them from the string.")},//DP_QC_STRINGCOLORFUNCTIONS
+	{"strftime",		PF_strftime,		PF_strftime,		478,	"string(float uselocaltime, string format, ...)"},	//DP_QC_STRFTIME
+	{"tokenizebyseparator",PF_tokenizebyseparator,PF_tokenizebyseparator,				479,	"float(string s, string separator1, ...)"},	//DP_QC_TOKENIZEBYSEPARATOR
+	{"strtolower",		PF_strtolower,		PF_strtolower,		480,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
+	{"strtoupper",		PF_strtoupper,		PF_strtoupper,		481,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
+	{"cvar_defstring",	PF_cvar_defstring,	PF_cvar_defstring,	482,	"string(string s)"},	//DP_QC_CVAR_DEFSTRING
+	{"pointsound",		PF_sv_pointsound,	NULL,				483,	"void(vector origin, string sample, float volume, float attenuation)"},//DP_SV_POINTSOUND
+	{"strreplace",		PF_strreplace,		PF_strreplace,		484,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
+	{"strireplace",		PF_strireplace,		PF_strireplace,		485,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
+	{"getsurfacepointattribute",PF_getsurfacepointattribute,PF_getsurfacepointattribute,				486,	"vector(entity e, float s, float n, float a)"},//DP_QC_GETSURFACEPOINTATTRIBUTE
 
-
-
-	{"asin",			PF_asin,			471,	"float(float s)"},//DP_QC_ASINACOSATANATAN2TAN
-	{"acos",			PF_acos,			472,	"float(float c)"},//DP_QC_ASINACOSATANATAN2TAN
-	{"atan",			PF_atan,			473,	"float(float t)"},//DP_QC_ASINACOSATANATAN2TAN
-	{"atan2",			PF_atan2,			474,	"float(float c, float s)"},//DP_QC_ASINACOSATANATAN2TAN
-	{"tan",				PF_tan,				475,	"float(float a)"},//DP_QC_ASINACOSATANATAN2TAN
-		{"strlennocol",		PF_strlennocol,		476,	D("float(string s)", "stub. Returns the number of characters in the string after any colour codes or other markup has been parsed.")},//DP_QC_STRINGCOLORFUNCTIONS
-		{"strdecolorize",	PF_strdecolorize,	477,	D("string(string s)", "stub. Flattens any markup/colours, removing them from the string.")},//DP_QC_STRINGCOLORFUNCTIONS
-	{"strftime",		PF_strftime,		478,	"string(float uselocaltime, string format, ...)"},	//DP_QC_STRFTIME
-	{"tokenizebyseparator",PF_tokenizebyseparator,479,	"float(string s, string separator1, ...)"},	//DP_QC_TOKENIZEBYSEPARATOR
-	{"strtolower",		PF_strtolower,		480,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
-	{"strtoupper",		PF_strtoupper,		481,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
-	{"cvar_defstring",	PF_cvar_defstring,	482,	"string(string s)"},	//DP_QC_CVAR_DEFSTRING
-	{"pointsound",		PF_sv_pointsound,	483,	"void(vector origin, string sample, float volume, float attenuation)"},//DP_SV_POINTSOUND
-	{"strreplace",		PF_strreplace,		484,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
-	{"strireplace",		PF_strireplace,		485,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
-	{"getsurfacepointattribute",PF_getsurfacepointattribute,486,	"vector(entity e, float s, float n, float a)"},//DP_QC_GETSURFACEPOINTATTRIBUTE
-
-	{"crc16",			PF_crc16,			494,	"float(float caseinsensitive, string s, ...)"},//DP_QC_CRC16
-	{"cvar_type",		PF_cvar_type,		495,	"float(string name)"},//DP_QC_CVAR_TYPE
-	{"numentityfields",	PF_numentityfields,	496,	D("float()", "Gives the number of named entity fields. Note that this is not the size of an entity, but rather just the number of unique names (ie: vectors use 4 names rather than 3).")},//DP_QC_ENTITYDATA
-	{"findentityfield",	PF_findentityfield,	0,		D("float(string fieldname)", "Find a field index by name.")},
-	{"entityfieldref",	PF_entityfieldref,	0,		D("typedef .__variant field_t;\nfield_t(float fieldnum)", "Returns a field value that can be directly used to read entity fields. Be sure to validate the type with entityfieldtype before using.")},//DP_QC_ENTITYDATA
-	{"entityfieldname",	PF_entityfieldname,	497,	D("string(float fieldnum)", "Retrieves the name of the given entity field.")},//DP_QC_ENTITYDATA
-	{"entityfieldtype",	PF_entityfieldtype,	498,	D("float(float fieldnum)", "Provides information about the type of the field specified by the field num. Returns one of the EV_ values.")},//DP_QC_ENTITYDATA
-	{"getentityfieldstring",PF_getentityfieldstring,499,	"string(float fieldnum, entity ent)"},//DP_QC_ENTITYDATA
-	{"putentityfieldstring",PF_putentityfieldstring,500,	"float(float fieldnum, entity ent, string s)"},//DP_QC_ENTITYDATA
-	{"whichpack",		PF_whichpack,		503,	D("string(string filename, optional float makereferenced)", "Returns the pak file name that contains the file specified. progs/player.mdl will generally return something like 'pak0.pak'. If makereferenced is true, clients will automatically be told that the returned package should be pre-downloaded and used, even if allow_download_refpackages is not set.")},//DP_QC_WHICHPACK
-	{"uri_escape",		PF_uri_escape,		510,	"string(string in)"},//DP_QC_URI_ESCAPE
-	{"uri_unescape",	PF_uri_unescape,	511,	"string(string in)"},//DP_QC_URI_ESCAPE
-	{"num_for_edict",	PF_num_for_edict,	512,	"float(entity ent)"},//DP_QC_NUM_FOR_EDICT
-	{"tokenize_console",PF_tokenize_console,514,	D("float(string str)", "Tokenize a string exactly as the console's tokenizer would do so. The regular tokenize builtin became bastardized for convienient string parsing, which resulted in a large disparity that can be exploited to bypass checks implemented in a naive SV_ParseClientCommand function, therefore you can use this builtin to make sure it exactly matches.")},
-	{"argv_start_index",PF_argv_start_index,515,	D("float(float idx)", "Returns the character index that the tokenized arg started at.")},
-	{"argv_end_index",	PF_argv_end_index,	516,	D("float(float idx)", "Returns the character index that the tokenized arg stopped at.")},
-//	{"buf_cvarlist",	PF_buf_cvarlist,	517,	"void(strbuf strbuf, string pattern, string antipattern)"},
-	{"cvar_description",PF_cvar_description,518,	D("string(string cvarname)", "Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful.")},
-	{"gettime",			PF_gettime,			519,	"float(optional float timetype)"},
-//	{"loadfromdata",	PF_loadfromdata,	529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
-//	{"loadfromfile",	PF_loadfromfile,	530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
-	{"log",				PF_Logarithm,		532,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
-	{"buf_loadfile",	PF_buf_loadfile,	535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
-	{"buf_writefile",	PF_buf_writefile,	536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
-	{"callfunction",	PF_callfunction,	605,	D("void(.../*, string funcname*/)", "Invokes the named function. The function name is always passed as the last parameter and must always be present. The others are passed to the named function as-is")},
-	{"isfunction",		PF_isfunction,		607,	D("float(string s)", "Returns true if the named function exists and can be called with the callfunction builtin.")},
-	{"parseentitydata",	PF_parseentitydata,	613,	D("float(entity e, string s, optional float offset)", "Reads a single entity's fields into an already-spawned entity. s should contain field pairs like in a saved game: {\"foo1\" \"bar\" \"foo2\" \"5\"}. Returns <=0 on failure, otherwise returns the offset in the string that was read to.")},
-//	{"generateentitydata",PF_generateentitydata,0,	D("string(entity e)", "Dumps the entities fields into a string which can later be parsed with parseentitydata."}),
-	{"sprintf",			PF_sprintf,			627,	"string(string fmt, ...)"},
-	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,628,"float(entity e, float s)"},
-	{"getsurfacetriangle",PF_getsurfacetriangle,629,"vector(entity e, float s, float n)"},
-//	{"digest_hex",		PF_digest_hex,		639,	"string(string digest, string data, ...)"},
+	{"crc16",			PF_crc16,			PF_crc16,			494,	"float(float caseinsensitive, string s, ...)"},//DP_QC_CRC16
+	{"cvar_type",		PF_cvar_type,		PF_cvar_type,		495,	"float(string name)"},//DP_QC_CVAR_TYPE
+	{"numentityfields",	PF_numentityfields,	PF_numentityfields,	496,	D("float()", "Gives the number of named entity fields. Note that this is not the size of an entity, but rather just the number of unique names (ie: vectors use 4 names rather than 3).")},//DP_QC_ENTITYDATA
+	{"findentityfield",	PF_findentityfield,	PF_findentityfield,	0,		D("float(string fieldname)", "Find a field index by name.")},
+	{"entityfieldref",	PF_entityfieldref,	PF_entityfieldref,	0,		D("typedef .__variant field_t;\nfield_t(float fieldnum)", "Returns a field value that can be directly used to read entity fields. Be sure to validate the type with entityfieldtype before using.")},//DP_QC_ENTITYDATA
+	{"entityfieldname",	PF_entityfieldname,	PF_entityfieldname,	497,	D("string(float fieldnum)", "Retrieves the name of the given entity field.")},//DP_QC_ENTITYDATA
+	{"entityfieldtype",	PF_entityfieldtype,	PF_entityfieldtype,	498,	D("float(float fieldnum)", "Provides information about the type of the field specified by the field num. Returns one of the EV_ values.")},//DP_QC_ENTITYDATA
+	{"getentityfieldstring",PF_getentfldstr,PF_getentfldstr,	499,	"string(float fieldnum, entity ent)"},//DP_QC_ENTITYDATA
+	{"putentityfieldstring",PF_putentfldstr,PF_putentfldstr,	500,	"float(float fieldnum, entity ent, string s)"},//DP_QC_ENTITYDATA
+	{"whichpack",		PF_whichpack,		PF_whichpack,		503,	D("string(string filename, optional float makereferenced)", "Returns the pak file name that contains the file specified. progs/player.mdl will generally return something like 'pak0.pak'. If makereferenced is true, clients will automatically be told that the returned package should be pre-downloaded and used, even if allow_download_refpackages is not set.")},//DP_QC_WHICHPACK
+	{"uri_escape",		PF_uri_escape,		PF_uri_escape,		510,	"string(string in)"},//DP_QC_URI_ESCAPE
+	{"uri_unescape",	PF_uri_unescape,	PF_uri_unescape,	511,	"string(string in)"},//DP_QC_URI_ESCAPE
+	{"num_for_edict",	PF_num_for_edict,	PF_num_for_edict,	512,	"float(entity ent)"},//DP_QC_NUM_FOR_EDICT
+	{"tokenize_console",PF_tokenize_console,PF_tokenize_console,514,	D("float(string str)", "Tokenize a string exactly as the console's tokenizer would do so. The regular tokenize builtin became bastardized for convienient string parsing, which resulted in a large disparity that can be exploited to bypass checks implemented in a naive SV_ParseClientCommand function, therefore you can use this builtin to make sure it exactly matches.")},
+	{"argv_start_index",PF_argv_start_index,PF_argv_start_index,515,	D("float(float idx)", "Returns the character index that the tokenized arg started at.")},
+	{"argv_end_index",	PF_argv_end_index,	PF_argv_end_index,	516,	D("float(float idx)", "Returns the character index that the tokenized arg stopped at.")},
+//	{"buf_cvarlist",	PF_buf_cvarlist,	PF_buf_cvarlist,	517,	"void(strbuf strbuf, string pattern, string antipattern)"},
+	{"cvar_description",PF_cvar_description,PF_cvar_description,518,	D("string(string cvarname)", "Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful.")},
+	{"gettime",			PF_gettime,			PF_gettime,			519,	"float(optional float timetype)"},
+	{"findkeysforcommand",PF_NoSSQC,		PF_cl_findkeysforcommand,521,D("string(string command, optional float bindmap)", "Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This always returns at least two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE.")},
+	{"findkeysforcommandex",PF_NoSSQC,		PF_cl_findkeysforcommandex,0,D("string(string command, optional float bindmap)", "Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys.")},
+//	{"loadfromdata",	PF_loadfromdata,	PF_loadfromdata,	529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
+//	{"loadfromfile",	PF_loadfromfile,	PF_loadfromfile,	530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
+	{"log",				PF_Logarithm,		PF_Logarithm,		532,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
+	{"buf_loadfile",	PF_buf_loadfile,	NULL,				535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
+	{"buf_writefile",	PF_buf_writefile,	NULL,				536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
+	{"callfunction",	PF_callfunction,	PF_callfunction,	605,	D("void(.../*, string funcname*/)", "Invokes the named function. The function name is always passed as the last parameter and must always be present. The others are passed to the named function as-is")},
+	{"isfunction",		PF_isfunction,		PF_isfunction,		607,	D("float(string s)", "Returns true if the named function exists and can be called with the callfunction builtin.")},
+	{"parseentitydata",	PF_parseentitydata, NULL,				613,	D("float(entity e, string s, optional float offset)", "Reads a single entity's fields into an already-spawned entity. s should contain field pairs like in a saved game: {\"foo1\" \"bar\" \"foo2\" \"5\"}. Returns <=0 on failure, otherwise returns the offset in the string that was read to.")},
+//	{"generateentitydata",PF_generateentitydata,NULL,				0,	D("string(entity e)", "Dumps the entities fields into a string which can later be parsed with parseentitydata."}),
+	{"sprintf",			PF_sprintf,			PF_sprintf,			627,	"string(string fmt, ...)"},
+	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,PF_getsurfacenumtriangles,628,"float(entity e, float s)"},
+	{"getsurfacetriangle",PF_getsurfacetriangle,PF_getsurfacetriangle,629,"vector(entity e, float s, float n)"},
+//	{"digest_hex",		PF_digest_hex,		PF_digest_hex,		639,	"string(string digest, string data, ...)"},
 };
 
 static const char *extnames[] = 
@@ -4182,7 +5465,7 @@ static const char *extnames[] =
 	"DP_QC_STRFTIME",
 	"DP_QC_STRING_CASE_FUNCTIONS",
 	"DP_QC_STRINGBUFFERS",
-//	"DP_QC_STRINGCOLORFUNCTIONS",	//the functions are provided only as stubs. the client has absolutely no support.
+	"DP_QC_STRINGCOLORFUNCTIONS",
 	"DP_QC_STRREPLACE",
 	"DP_QC_TOKENIZEBYSEPARATOR",
 	"DP_QC_TRACEBOX",
@@ -4231,8 +5514,6 @@ static const char *extnames[] =
 
 };
 
-static builtin_t extbuiltins[1024];
-
 static void PF_checkextension(void)
 {
 	const char *extname = G_STRING(OFS_PARM0);
@@ -4250,17 +5531,6 @@ static void PF_checkextension(void)
 	if (!pr_checkextension.value)
 		Con_DPrintf("Mod tried extension %s\n", extname);
 	G_FLOAT(OFS_RETURN) = false;
-}
-
-static void PF_EnableExtensionBuiltins(void)
-{
-	if (pr_builtins != extbuiltins)
-	{	//first time we're using an extension! woo, everything is new!...
-		memcpy(extbuiltins, pr_builtins, sizeof(pr_builtins[0])*pr_numbuiltins);
-		pr_builtins = extbuiltins;
-		for (; (unsigned int)pr_numbuiltins < sizeof(extbuiltins)/sizeof(extbuiltins[0]); )
-			extbuiltins[pr_numbuiltins++] = PF_Fixme;
-	}
 }
 
 static void PF_builtinsupported(void)
@@ -4282,17 +5552,17 @@ static void PF_builtinsupported(void)
 static void PF_checkbuiltin (void)
 {
 	func_t funcref = G_INT(OFS_PARM0);
-	if ((unsigned int)funcref < (unsigned int)progs->numfunctions)
+	if ((unsigned int)funcref < (unsigned int)qcvm->progs->numfunctions)
 	{
-		dfunction_t *fnc = &pr_functions[(unsigned int)funcref];
+		dfunction_t *fnc = &qcvm->functions[(unsigned int)funcref];
 //		const char *funcname = PR_GetString(fnc->s_name);
 		int binum = -fnc->first_statement;
 		unsigned int i;
 
 		//qc defines the function at least. nothing weird there...
-		if (binum > 0 && binum < pr_numbuiltins)
+		if (binum > 0 && binum < qcvm->numbuiltins)
 		{
-			if (pr_builtins[binum] == PF_Fixme)
+			if (qcvm->builtins[binum] == PF_Fixme)
 			{
 				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
 				for (i = 0; i < sizeof(extensionbuiltins) / sizeof(extensionbuiltins[0]); i++)
@@ -4326,11 +5596,11 @@ static void PF_checkbuiltin (void)
 void PF_Fixme (void)
 {
 	//interrogate the vm to try to figure out exactly which builtin they just tried to execute.
-	dstatement_t *st = &pr_statements[pr_xstatement];
-	eval_t *glob = (eval_t*)&pr_globals[st->a];
-	if ((unsigned int)glob->function < (unsigned int)progs->numfunctions)
+	dstatement_t *st = &qcvm->statements[qcvm->xstatement];
+	eval_t *glob = (eval_t*)&qcvm->globals[st->a];
+	if ((unsigned int)glob->function < (unsigned int)qcvm->progs->numfunctions)
 	{
-		dfunction_t *fnc = &pr_functions[(unsigned int)glob->function];
+		dfunction_t *fnc = &qcvm->functions[(unsigned int)glob->function];
 		const char *funcname = PR_GetString(fnc->s_name);
 		int binum = -fnc->first_statement;
 		unsigned int i;
@@ -4341,13 +5611,20 @@ void PF_Fixme (void)
 			{
 				if (extensionbuiltins[i].number == binum)
 				{	//set it up so we're faster next time
-					PF_EnableExtensionBuiltins();
+					builtin_t bi = NULL;
+					if (qcvm == &sv.qcvm)
+						bi = extensionbuiltins[i].ssqcfunc;
+					else if (qcvm == &cl.qcvm)
+						bi = extensionbuiltins[i].csqcfunc;
+					if (!bi)
+						continue;
+
 					if (!pr_checkextension.value || (extensionbuiltins[i].desc && !strncmp(extensionbuiltins[i].desc, "stub.", 5)))
 						Con_Warning("Mod is using builtin #%u - %s\n", extensionbuiltins[i].documentednumber, extensionbuiltins[i].name);
 					else
 						Con_DPrintf2("Mod uses builtin #%u - %s\n", extensionbuiltins[i].documentednumber, extensionbuiltins[i].name);
-					extbuiltins[binum] = extensionbuiltins[i].func;
-					extensionbuiltins[i].func();
+					qcvm->builtins[binum] = bi;
+					qcvm->builtins[binum]();
 					return;
 				}
 			}
@@ -4363,34 +5640,75 @@ void PF_Fixme (void)
 void PR_ShutdownExtensions(void)
 {
 	PR_UnzoneAll();
+	PF_frikfile_shutdown();
+	PF_search_shutdown();
 	PF_buf_shutdown();
 	tokenize_flush();
 
 	pr_ext_warned_particleeffectnum = 0;
 }
 
-static func_t PR_FindExtFunction(const char *entryname)
+func_t PR_FindExtFunction(const char *entryname)
 {	//depends on 0 being an invalid function,
 	dfunction_t *func = ED_FindFunction(entryname);
 	if (func)
-		return func - pr_functions;
+		return func - qcvm->functions;
 	return 0;
+}
+static void *PR_FindExtGlobal(int type, const char *name)
+{
+	ddef_t *def = ED_FindGlobal(name);
+	if (def && (def->type&~DEF_SAVEGLOBAL) == type && def->ofs < qcvm->progs->numglobals)
+		return qcvm->globals + def->ofs;
+	return NULL;
 }
 
 void PR_AutoCvarChanged(cvar_t *var)
 {
 	char *n;
 	ddef_t *glob;
-
-	if (!sv.active)
-		return;	//someone flushed our globals!..
-
-	n = va("autocvar_%s", var->name);
-	glob = ED_FindGlobal(n);
-	if (glob)
+	qcvm_t *oldqcvm = qcvm;
+	PR_SwitchQCVM(NULL);
+	if (sv.active)
 	{
-		if (!ED_ParseEpair ((void *)pr_globals, glob, var->string))
-			Con_Warning("EXT: Unable to configure %s\n", n);
+		PR_SwitchQCVM(&sv.qcvm);
+		n = va("autocvar_%s", var->name);
+		glob = ED_FindGlobal(n);
+		if (glob)
+		{
+			if (!ED_ParseEpair ((void *)qcvm->globals, glob, var->string))
+				Con_Warning("EXT: Unable to configure %s\n", n);
+		}
+		PR_SwitchQCVM(NULL);
+	}
+	if (cl.qcvm.globals)
+	{
+		PR_SwitchQCVM(NULL);
+		PR_SwitchQCVM(&cl.qcvm);
+		n = va("autocvar_%s", var->name);
+		glob = ED_FindGlobal(n);
+		if (glob)
+		{
+			if (!ED_ParseEpair ((void *)qcvm->globals, glob, var->string))
+				Con_Warning("EXT: Unable to configure %s\n", n);
+		}
+		PR_SwitchQCVM(NULL);
+	}
+	PR_SwitchQCVM(oldqcvm);
+}
+
+void PR_InitExtensions(void)
+{
+	size_t i, j;
+	//this only needs to be done once. because we're evil. 
+	//it should help slightly with the 'documentation' above at least.
+	j = sizeof(qcvm->builtins)/sizeof(qcvm->builtins[0]);
+	for (i = 1; i < sizeof(extensionbuiltins)/sizeof(extensionbuiltins[0]); i++)
+	{
+		if (extensionbuiltins[i].documentednumber)
+			extensionbuiltins[i].number = extensionbuiltins[i].documentednumber;
+		else
+			extensionbuiltins[i].number = --j;
 	}
 }
 
@@ -4400,54 +5718,45 @@ void PR_EnableExtensions(ddef_t *pr_globaldefs)
 	unsigned int i, j;
 	unsigned int numautocvars = 0;
 
-	static builtin_t *stdbuiltins;
-	static int stdnumbuiltins;
-	if (!stdbuiltins)
-	{
-		stdbuiltins = pr_builtins;
-		stdnumbuiltins = pr_numbuiltins;
-
-		//this also only needs to be done once. because we're evil. 
-		//it should help slightly with the 'documentation' above at least.
-		j = sizeof(extbuiltins)/sizeof(extbuiltins[0]);
-		for (i = 1; i < sizeof(extensionbuiltins)/sizeof(extensionbuiltins[0]); i++)
-		{
-			if (extensionbuiltins[i].documentednumber)
-				extensionbuiltins[i].number = extensionbuiltins[i].documentednumber;
-			else
-				extensionbuiltins[i].number = --j;
-		}
-	}
-	pr_builtins = stdbuiltins;
-	pr_numbuiltins = stdnumbuiltins;
-
-	memset(&pr_extfuncs, 0, sizeof(pr_extfuncs));
-
-	PR_ShutdownExtensions();	//just in case.
-
 	if (!pr_checkextension.value)
 	{
 		Con_DPrintf("not enabling qc extensions\n");
 		return;
 	}
+	for (i = qcvm->numbuiltins; i < countof(qcvm->builtins); i++)
+		qcvm->builtins[i] = PF_Fixme;
+	qcvm->numbuiltins = i;
 
-	PF_EnableExtensionBuiltins();
-	extbuiltins[51] = PF_ext_vectoangles;
+	qcvm->builtins[51] = PF_ext_vectoangles;	//swap it with a two-arg version.
 
-	pr_extfuncs.parseclientcommand = PR_FindExtFunction("SV_ParseClientCommand");
-	pr_extfuncs.endframe = PR_FindExtFunction("EndFrame");
+	qcvm->extfuncs.SV_ParseClientCommand = PR_FindExtFunction("SV_ParseClientCommand");
+	qcvm->extfuncs.EndFrame = PR_FindExtFunction("EndFrame");
+
+	qcvm->extfuncs.CSQC_Init = PR_FindExtFunction("CSQC_Init");
+	qcvm->extfuncs.CSQC_DrawHud = PR_FindExtFunction("CSQC_DrawHud");
+	qcvm->extfuncs.CSQC_DrawScores = PR_FindExtFunction("CSQC_DrawScores");
+	qcvm->extfuncs.CSQC_InputEvent = PR_FindExtFunction("CSQC_InputEvent");
+	qcvm->extfuncs.CSQC_ConsoleCommand = PR_FindExtFunction("CSQC_ConsoleCommand");
+	qcvm->extfuncs.CSQC_Parse_Event = PR_FindExtFunction("CSQC_Parse_Event");
+	qcvm->extfuncs.CSQC_Parse_Damage = PR_FindExtFunction("CSQC_Parse_Damage");
+	qcvm->extglobals.cltime = PR_FindExtGlobal(ev_float, "cltime");
+	qcvm->extglobals.maxclients = PR_FindExtGlobal(ev_float, "maxclients");
+	qcvm->extglobals.intermission = PR_FindExtGlobal(ev_float, "intermission");
+	qcvm->extglobals.intermission_time = PR_FindExtGlobal(ev_float, "intermission_time");
+	qcvm->extglobals.player_localnum = PR_FindExtGlobal(ev_float, "player_localnum");
+	qcvm->extglobals.player_localentnum = PR_FindExtGlobal(ev_float, "player_localentnum");
 
 	//any #0 functions are remapped to their builtins here, so we don't have to tweak the VM in an obscure potentially-breaking way.
-	for (i = 0; i < (unsigned int)progs->numfunctions; i++)
+	for (i = 0; i < (unsigned int)qcvm->progs->numfunctions; i++)
 	{
-		if (pr_functions[i].first_statement == 0 && pr_functions[i].s_name && !pr_functions[i].parm_start && !pr_functions[i].locals)
+		if (qcvm->functions[i].first_statement == 0 && qcvm->functions[i].s_name && !qcvm->functions[i].parm_start && !qcvm->functions[i].locals)
 		{
-			const char *name = PR_GetString(pr_functions[i].s_name);
+			const char *name = PR_GetString(qcvm->functions[i].s_name);
 			for (j = 0; j < sizeof(extensionbuiltins)/sizeof(extensionbuiltins[0]); j++)
 			{
 				if (!strcmp(extensionbuiltins[j].name, name))
 				{	//okay, map it
-					pr_functions[i].first_statement = -extensionbuiltins[j].number;
+					qcvm->functions[i].first_statement = -extensionbuiltins[j].number;
 					break;
 				}
 			}
@@ -4455,18 +5764,18 @@ void PR_EnableExtensions(ddef_t *pr_globaldefs)
 	}
 
 	//autocvars
-	for (i = 0; i < (unsigned int)progs->numglobaldefs; i++)
+	for (i = 0; i < (unsigned int)qcvm->progs->numglobaldefs; i++)
 	{
-		const char *n = PR_GetString(pr_globaldefs[i].s_name);
+		const char *n = PR_GetString(qcvm->globaldefs[i].s_name);
 		if (!strncmp(n, "autocvar_", 9))
 		{
 			//really crappy approach
-			cvar_t *var = Cvar_Create(n + 9, PR_UglyValueString (pr_globaldefs[i].type, (eval_t*)(pr_globals + pr_globaldefs[i].ofs)));
+			cvar_t *var = Cvar_Create(n + 9, PR_UglyValueString (qcvm->globaldefs[i].type, (eval_t*)(qcvm->globals + qcvm->globaldefs[i].ofs)));
 			numautocvars++;
 			if (!var)
 				continue;	//name conflicts with a command?
 	
-			if (!ED_ParseEpair ((void *)pr_globals, &pr_globaldefs[i], var->string))
+			if (!ED_ParseEpair ((void *)qcvm->globals, &pr_globaldefs[i], var->string))
 				Con_Warning("EXT: Unable to configure %s\n", n);
 			var->flags |= CVAR_AUTOCVAR;
 		}
@@ -4479,8 +5788,9 @@ void PR_DumpPlatform_f(void)
 {
 	char	name[MAX_OSPATH];
 	FILE *f;
-	const char *outname = "qsextensions";
+	const char *outname = NULL;
 	unsigned int i, j;
+	int targs = 0;
 	for (i = 1; i < (unsigned)Cmd_Argc(); )
 	{
 		const char *arg = Cmd_Argv(i++);
@@ -4491,12 +5801,20 @@ void PR_DumpPlatform_f(void)
 			else
 				outname = Cmd_Argv(i++);
 		}
+		else if (!q_strcasecmp(arg, "-Tcs"))
+			targs |= 2;
+		else if (!q_strcasecmp(arg, "-Tss"))
+			targs |= 1;
 		else
 		{
 			Con_Printf("%s: Unknown argument\n", Cmd_Argv(0));
 			return;
 		}
 	}
+	if (!outname)
+		outname = ((targs==2)?"qscsextensions":"qsextensions");
+	if (!targs)
+		targs = 3;
 
 	if (strstr(outname, ".."))
 		return;
@@ -4518,9 +5836,15 @@ void PR_DumpPlatform_f(void)
 		,Cmd_Argv(0), Cmd_Args()?Cmd_Args():"with no args");
 
 	fprintf(f, 
-		"\n\n//QuakeSpasm only supports ssqc, so including this file in some other situation is a user error\n"
-		"#if defined(QUAKEWORLD) || defined(CSQC) || defined(MENU)\n"
+		"\n\n//This file only supports csqc, so including this file in some other situation is a user error\n"
+		"#if defined(QUAKEWORLD) || defined(MENU)\n"
 		"#error Mixed up module defs\n"
+		"#endif\n"
+		"#ifndef CSQC\n"
+		"#define CSQC\n"
+		"#endif\n"
+		"#ifndef CSQC_SIMPLE\n"	//quakespasm's csqc implementation is simplified, and can do huds+menus, but that's about it.
+		"#define CSQC_SIMPLE\n"
 		"#endif\n"
 		);
 
@@ -4530,6 +5854,55 @@ void PR_DumpPlatform_f(void)
 
 	fprintf(f, "\n\n//Explicitly flag this stuff as probably-not-referenced, meaning fteqcc will shut up about it and silently strip what it can.\n");
 	fprintf(f, "#pragma noref 1\n");
+
+	if (targs & 2)
+	{	//I really hope that fteqcc's unused variable logic is up to scratch
+		fprintf(f, "entity		self,other,world;\n");
+		fprintf(f, "float		time,frametime,force_retouch;\n");
+		fprintf(f, "string		mapname;\n");
+		fprintf(f, "float		deathmatch,coop,teamplay,serverflags,total_secrets,total_monsters,found_secrets,killed_monsters,parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16;\n");
+		fprintf(f, "vector		v_forward, v_up, v_right;\n");
+		fprintf(f, "float		trace_allsolid,trace_startsolid,trace_fraction;\n");
+		fprintf(f, "vector		trace_endpos,trace_plane_normal;\n");
+		fprintf(f, "float		trace_plane_dist;\n");
+		fprintf(f, "entity		trace_ent;\n");
+		fprintf(f, "float		trace_inopen,trace_inwater;\n");
+		fprintf(f, "entity		msg_entity;\n");
+		fprintf(f, "void() 		main,StartFrame,PlayerPreThink,PlayerPostThink,ClientKill,ClientConnect,PutClientInServer,ClientDisconnect,SetNewParms,SetChangeParms;\n");
+		fprintf(f, "void		end_sys_globals;\n");
+		fprintf(f, ".float		modelindex;\n");
+		fprintf(f, ".vector		absmin, absmax;\n");
+		fprintf(f, ".float		ltime,movetype,solid;\n");
+		fprintf(f, ".vector		origin,oldorigin,velocity,angles,avelocity,punchangle;\n");
+		fprintf(f, ".string		classname,model;\n");
+		fprintf(f, ".float		frame,skin,effects;\n");
+		fprintf(f, ".vector		mins, maxs,size;\n");
+		fprintf(f, ".void()		touch,use,think,blocked;\n");
+		fprintf(f, ".float		nextthink;\n");
+		fprintf(f, ".entity		groundentity;\n");
+		fprintf(f, ".float		health,frags,weapon;\n");
+		fprintf(f, ".string		weaponmodel;\n");
+		fprintf(f, ".float		weaponframe,currentammo,ammo_shells,ammo_nails,ammo_rockets,ammo_cells,items,takedamage;\n");
+		fprintf(f, ".entity		chain;\n");
+		fprintf(f, ".float		deadflag;\n");
+		fprintf(f, ".vector		view_ofs;\n");
+		fprintf(f, ".float		button0,button1,button2,impulse,fixangle;\n");
+		fprintf(f, ".vector		v_angle;\n");
+		fprintf(f, ".float		idealpitch;\n");
+		fprintf(f, ".string		netname;\n");
+		fprintf(f, ".entity 	enemy;\n");
+		fprintf(f, ".float		flags,colormap,team,max_health,teleport_time,armortype,armorvalue,waterlevel,watertype,ideal_yaw,yaw_speed;\n");
+		fprintf(f, ".entity		aiment,goalentity;\n");
+		fprintf(f, ".float		spawnflags;\n");
+		fprintf(f, ".string		target,targetname;\n");
+		fprintf(f, ".float		dmg_take,dmg_save;\n");
+		fprintf(f, ".entity		dmg_inflictor,owner;\n");
+		fprintf(f, ".vector		movedir;\n");
+		fprintf(f, ".string		message;\n");
+		fprintf(f, ".float		sounds;\n");
+		fprintf(f, ".string		noise, noise1, noise2, noise3;\n");
+		fprintf(f, "void		end_sys_fields;\n");
+	}
 
 	fprintf(f, "\n\n//Some custom types (that might be redefined as accessors by fteextensions.qc, although we don't define any methods here)\n");
 	fprintf(f, "#ifdef _ACCESSORS\n");
@@ -4546,64 +5919,169 @@ void PR_DumpPlatform_f(void)
 	fprintf(f, "#define filestream float\n");
 	fprintf(f, "#endif\n");
 
-	//extra fields
-	fprintf(f, "\n\n//Supported Extension fields\n");
-	fprintf(f, ".float gravity;\n");	//used by hipnotic
-	fprintf(f, "//.float items2;			/*if defined, overrides serverflags for displaying runes on the hud*/\n");	//used by both mission packs. *REPLACES* serverflags if defined, so lets try not to define it.
-	fprintf(f, ".float traileffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
-	fprintf(f, ".float emiteffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
-	fprintf(f, ".vector movement;			/*describes which forward/right/up keys the player is holidng*/\n");
-	fprintf(f, ".entity viewmodelforclient;	/*attaches this entity to the specified player's view. invisible to other players*/\n");
-	fprintf(f, ".float scale;				/*rescales the etntiy*/\n");
-	fprintf(f, ".float alpha;				/*entity opacity*/\n");		//entity alpha. woot.
-	fprintf(f, ".vector colormod;			/*tints the entity's colours*/\n");
-	fprintf(f, ".entity tag_entity;\n");
-	fprintf(f, ".float tag_index;\n");
-	fprintf(f, ".float button3;\n");
-	fprintf(f, ".float button4;\n");
-	fprintf(f, ".float button5;\n");
-	fprintf(f, ".float button6;\n");
-	fprintf(f, ".float button7;\n");
-	fprintf(f, ".float button8;\n");
-	fprintf(f, ".float viewzoom;			/*rescales the user's fov*/\n");
-	fprintf(f, ".float modelflags;			/*provides additional modelflags to use (effects&EF_NOMODELFLAGS to replace the original model's)*/\n");
 
-	//extra constants
-	fprintf(f, "\n\n//Supported Extension Constants\n");
-	fprintf(f, "const float MOVETYPE_FOLLOW	= "STRINGIFY(MOVETYPE_EXT_FOLLOW)";\n");
-	fprintf(f, "const float SOLID_CORPSE	= "STRINGIFY(SOLID_EXT_CORPSE)";\n");
+	if (targs & 1)
+	{
+		fprintf(f, "void(string cmd) SV_ParseClientCommand;\n");
+		fprintf(f, "void() EndFrame;\n");
+	}
+
+	if (targs & 2)
+	{
+		fprintf(f, "void(float apilevel, string enginename, float engineversion) CSQC_Init;\n");
+		fprintf(f, "float(string cmdstr) CSQC_ConsoleCommand;\n");
+		fprintf(f, "void(vector virtmin, vector virtsize, float showscores) CSQC_DrawHud;\n");
+		fprintf(f, "void(vector virtmin, vector virtsize, float showscores) CSQC_DrawScores;\n");
+		fprintf(f, "float(float evtype, float scanx, float chary, float devid) CSQC_InputEvent;\n");
+		fprintf(f, "void() CSQC_Parse_Event;\n");
+		fprintf(f, "float(float save, float take, vector dir) CSQC_Parse_Damage;\n");
+	}
+
+	if (targs & 2)
+	{
+		fprintf(f, "float cltime;				/* increases regardless of pause state or game speed */\n");
+		fprintf(f, "float maxclients;			/* maximum number of players possible on this server */\n");
+		fprintf(f, "float intermission;			/* in intermission */\n");
+		fprintf(f, "float intermission_time;	/* when the intermission started */\n");
+		fprintf(f, "float player_localnum;		/* the player slot that is believed to be assigned to us*/\n");
+		fprintf(f, "float player_localentnum;	/* the entity number that the view is attached to */\n");
+	}
+
+	fprintf(f, "const float FALSE		= 0;\n");
+	fprintf(f, "const float TRUE		= 1;\n");
+
+	if (targs & 2)
+	{
+		fprintf(f, "const float IE_KEYDOWN		= %i;\n", CSIE_KEYDOWN);
+		fprintf(f, "const float IE_KEYUP		= %i;\n", CSIE_KEYUP);
+		fprintf(f, "const float IE_MOUSEDELTA	= %i;\n", CSIE_MOUSEDELTA);
+		fprintf(f, "const float IE_MOUSEABS		= %i;\n", CSIE_MOUSEABS);
+		fprintf(f, "const float IE_JOYAXIS		= %i;\n", CSIE_JOYAXIS);
+
+		fprintf(f, "const float STAT_HEALTH = 0;		/* Player's health. */\n");
+//		fprintf(f, "const float STAT_FRAGS = 1;			/* unused */\n");
+		fprintf(f, "const float STAT_WEAPONMODELI = 2;	/* This is the modelindex of the current viewmodel (renamed from the original name 'STAT_WEAPON' due to confusions). */\n");
+		fprintf(f, "const float STAT_AMMO = 3;			/* player.currentammo */\n");
+		fprintf(f, "const float STAT_ARMOR = 4;\n");
+		fprintf(f, "const float STAT_WEAPONFRAME = 5;\n");
+		fprintf(f, "const float STAT_SHELLS = 6;\n");
+		fprintf(f, "const float STAT_NAILS = 7;\n");
+		fprintf(f, "const float STAT_ROCKETS = 8;\n");
+		fprintf(f, "const float STAT_CELLS = 9;\n");
+		fprintf(f, "const float STAT_ACTIVEWEAPON = 10;	/* player.weapon */\n");
+		fprintf(f, "const float STAT_TOTALSECRETS = 11;\n");
+		fprintf(f, "const float STAT_TOTALMONSTERS = 12;\n");
+		fprintf(f, "const float STAT_FOUNDSECRETS = 13;\n");
+		fprintf(f, "const float STAT_KILLEDMONSTERS = 14;\n");
+		fprintf(f, "const float STAT_ITEMS = 15;		/* self.items | (self.items2<<23). In order to decode this stat properly, you need to use getstatbits(STAT_ITEMS,0,23) to read self.items, and getstatbits(STAT_ITEMS,23,11) to read self.items2 or getstatbits(STAT_ITEMS,28,4) to read the visible part of serverflags, whichever is applicable. */\n");
+		fprintf(f, "const float STAT_VIEWHEIGHT = 16;	/* player.view_ofs_z */\n");
+//		fprintf(f, "const float STAT_TIME = 17;\n");
+//		fprintf(f, "//const float STAT_MATCHSTARTTIME = 18;\n");
+//		fprintf(f, "const float STAT_UNUSED = 19;\n");
+		fprintf(f, "const float STAT_VIEW2 = 20;		/* This stat contains the number of the entity in the server's .view2 field. */\n");
+		fprintf(f, "const float STAT_VIEWZOOM = 21;		/* Scales fov and sensitiity. Part of DP_VIEWZOOM. */\n");
+//		fprintf(f, "const float STAT_UNUSED = 22;\n");
+//		fprintf(f, "const float STAT_UNUSED = 23;\n");
+//		fprintf(f, "const float STAT_UNUSED = 24;\n");
+		fprintf(f, "const float STAT_IDEALPITCH = 25;\n");
+		fprintf(f, "const float STAT_PUNCHANGLE_X = 26;\n");
+		fprintf(f, "const float STAT_PUNCHANGLE_Y = 27;\n");
+		fprintf(f, "const float STAT_PUNCHANGLE_Y = 28;\n");
+//		fprintf(f, "const float STAT_PUNCHVECTOR_X = 29;\n");
+//		fprintf(f, "const float STAT_PUNCHVECTOR_Y = 30;\n");
+//		fprintf(f, "const float STAT_PUNCHVECTOR_Z = 31;\n");
+	}
+	fprintf(f, "const float STAT_USER = 32;			/* Custom user stats start here (lower values are reserved for engine use). */\n");
+
+	if (targs & 1)
+	{
+		//extra fields
+		fprintf(f, "\n\n//Supported Extension fields\n");
+		fprintf(f, ".float gravity;\n");	//used by hipnotic
+		fprintf(f, "//.float items2;			/*if defined, overrides serverflags for displaying runes on the hud*/\n");	//used by both mission packs. *REPLACES* serverflags if defined, so lets try not to define it.
+		fprintf(f, ".float traileffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
+		fprintf(f, ".float emiteffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
+		fprintf(f, ".vector movement;			/*describes which forward/right/up keys the player is holidng*/\n");
+		fprintf(f, ".entity viewmodelforclient;	/*attaches this entity to the specified player's view. invisible to other players*/\n");
+		fprintf(f, ".float scale;				/*rescales the etntiy*/\n");
+		fprintf(f, ".float alpha;				/*entity opacity*/\n");		//entity alpha. woot.
+		fprintf(f, ".vector colormod;			/*tints the entity's colours*/\n");
+		fprintf(f, ".entity tag_entity;\n");
+		fprintf(f, ".float tag_index;\n");
+		fprintf(f, ".float button3;\n");
+		fprintf(f, ".float button4;\n");
+		fprintf(f, ".float button5;\n");
+		fprintf(f, ".float button6;\n");
+		fprintf(f, ".float button7;\n");
+		fprintf(f, ".float button8;\n");
+		fprintf(f, ".float viewzoom;			/*rescales the user's fov*/\n");
+		fprintf(f, ".float modelflags;			/*provides additional modelflags to use (effects&EF_NOMODELFLAGS to replace the original model's)*/\n");
+
+		//extra constants
+		fprintf(f, "\n\n//Supported Extension Constants\n");
+		fprintf(f, "const float MOVETYPE_FOLLOW	= "STRINGIFY(MOVETYPE_EXT_FOLLOW)";\n");
+		fprintf(f, "const float SOLID_CORPSE	= "STRINGIFY(SOLID_EXT_CORPSE)";\n");
+
+		fprintf(f, "const float CLIENTTYPE_DISCONNECT	= "STRINGIFY(0)";\n");
+		fprintf(f, "const float CLIENTTYPE_REAL			= "STRINGIFY(1)";\n");
+		fprintf(f, "const float CLIENTTYPE_BOT			= "STRINGIFY(2)";\n");
+		fprintf(f, "const float CLIENTTYPE_NOTCLIENT	= "STRINGIFY(3)";\n");
+
+		fprintf(f, "const float EF_NOSHADOW			= %#x;\n", EF_NOSHADOW);
+		fprintf(f, "const float EF_NOMODELFLAGS		= %#x; /*the standard modelflags from the model are ignored*/\n", EF_NOMODELFLAGS);
+
+		fprintf(f, "const float MF_ROCKET			= %#x;\n", EF_ROCKET);
+		fprintf(f, "const float MF_GRENADE			= %#x;\n", EF_GRENADE);
+		fprintf(f, "const float MF_GIB				= %#x;\n", EF_GIB);
+		fprintf(f, "const float MF_ROTATE			= %#x;\n", EF_ROTATE);
+		fprintf(f, "const float MF_TRACER			= %#x;\n", EF_TRACER);
+		fprintf(f, "const float MF_ZOMGIB			= %#x;\n", EF_ZOMGIB);
+		fprintf(f, "const float MF_TRACER2			= %#x;\n", EF_TRACER2);
+		fprintf(f, "const float MF_TRACER3			= %#x;\n", EF_TRACER3);
+
+		fprintf(f, "const float MSG_MULTICAST	= %i;\n", 4);
+		fprintf(f, "const float MULTICAST_ALL	= %i;\n", MULTICAST_ALL_U);
+	//	fprintf(f, "const float MULTICAST_PHS	= %i;\n", MULTICAST_PHS_U);
+		fprintf(f, "const float MULTICAST_PVS	= %i;\n", MULTICAST_PVS_U);
+		fprintf(f, "const float MULTICAST_ONE	= %i;\n", MULTICAST_ONE_U);
+		fprintf(f, "const float MULTICAST_ALL_R	= %i;\n", MULTICAST_ALL_R);
+	//	fprintf(f, "const float MULTICAST_PHS_R	= %i;\n", MULTICAST_PHS_R);
+		fprintf(f, "const float MULTICAST_PVS_R	= %i;\n", MULTICAST_PVS_R);
+		fprintf(f, "const float MULTICAST_ONE_R	= %i;\n", MULTICAST_ONE_R);
+		fprintf(f, "const float MULTICAST_INIT	= %i;\n", MULTICAST_INIT);
+	}
 
 	fprintf(f, "const float FILE_READ		= "STRINGIFY(0)";\n");
 	fprintf(f, "const float FILE_APPEND		= "STRINGIFY(1)";\n");
 	fprintf(f, "const float FILE_WRITE		= "STRINGIFY(2)";\n");
 
-	fprintf(f, "const float CLIENTTYPE_DISCONNECT	= "STRINGIFY(0)";\n");
-	fprintf(f, "const float CLIENTTYPE_REAL			= "STRINGIFY(1)";\n");
-	fprintf(f, "const float CLIENTTYPE_BOT			= "STRINGIFY(2)";\n");
-	fprintf(f, "const float CLIENTTYPE_NOTCLIENT	= "STRINGIFY(3)";\n");
-
-	fprintf(f, "const float EF_NOSHADOW			= %#x;\n", EF_NOSHADOW);
-	fprintf(f, "const float EF_NOMODELFLAGS		= %#x; /*the standard modelflags from the model are ignored*/\n", EF_NOMODELFLAGS);
-
-	fprintf(f, "const float MF_ROCKET			= %#x;\n", EF_ROCKET);
-	fprintf(f, "const float MF_GRENADE			= %#x;\n", EF_GRENADE);
-	fprintf(f, "const float MF_GIB				= %#x;\n", EF_GIB);
-	fprintf(f, "const float MF_ROTATE			= %#x;\n", EF_ROTATE);
-	fprintf(f, "const float MF_TRACER			= %#x;\n", EF_TRACER);
-	fprintf(f, "const float MF_ZOMGIB			= %#x;\n", EF_ZOMGIB);
-	fprintf(f, "const float MF_TRACER2			= %#x;\n", EF_TRACER2);
-	fprintf(f, "const float MF_TRACER3			= %#x;\n", EF_TRACER3);
-
-	fprintf(f, "const float MSG_MULTICAST	= "STRINGIFY(4)";\n");
-	fprintf(f, "const float MULTICAST_ALL	= "STRINGIFY(MULTICAST_ALL_U)";\n");
-//	fprintf(f, "const float MULTICAST_PHS	= "STRINGIFY(MULTICAST_PHS_U)";\n");
-	fprintf(f, "const float MULTICAST_PVS	= "STRINGIFY(MULTICAST_PVS_U)";\n");
-	fprintf(f, "const float MULTICAST_ONE	= "STRINGIFY(MULTICAST_ONE_U)";\n");
-	fprintf(f, "const float MULTICAST_ALL_R	= "STRINGIFY(MULTICAST_ALL_R)";\n");
-//	fprintf(f, "const float MULTICAST_PHS_R	= "STRINGIFY(MULTICAST_PHS_R)";\n");
-	fprintf(f, "const float MULTICAST_PVS_R	= "STRINGIFY(MULTICAST_PVS_R)";\n");
-	fprintf(f, "const float MULTICAST_ONE_R	= "STRINGIFY(MULTICAST_ONE_R)";\n");
-	fprintf(f, "const float MULTICAST_INIT	= "STRINGIFY(MULTICAST_INIT)";\n");
+	if (targs & 2)
+	{
+		fprintf(f, "\n\n//Vanilla Builtin list (reduced, so as to avoid conflicts)\n");
+		fprintf(f, "void(vector) makevectors = #1;\n");
+		fprintf(f, "void(entity,vector) setorigin = #2;\n");
+		fprintf(f, "void(entity,string) setmodel = #3;\n");
+		fprintf(f, "void(entity,vector,vector) setsize = #4;\n");
+		fprintf(f, "float() random = #7;\n");
+		//sound = #8
+		fprintf(f, "vector(vector) normalize = #9;\n");
+		fprintf(f, "void(string e) error = #10;\n");
+		fprintf(f, "void(string n) objerror = #11;\n");
+		fprintf(f, "float(vector) vlen = #12;\n");
+		fprintf(f, "entity() spawn = #14;\n");
+		fprintf(f, "void(entity e) remove = #15;\n");
+		fprintf(f, "void(string,...) dprint = #25;\n");
+		fprintf(f, "string(float) ftos = #26;\n");
+		fprintf(f, "string(vector) vtos = #27;\n");
+		fprintf(f, "float(float n) rint = #36;\n");
+		fprintf(f, "float(float n) floor = #37;\n");
+		fprintf(f, "float(float n) ceil = #38;\n");
+		fprintf(f, "float(float n) fabs = #43;\n");
+		fprintf(f, "float(string) cvar = #45;\n");
+		fprintf(f, "void(string,...) localcmd = #46;\n");
+		fprintf(f, "entity(entity) nextent = #47;\n");
+		fprintf(f, "void(string var, string val) cvar_set = #72;\n");
+	}
 
 	for (j = 0; j < 2; j++)
 	{
@@ -4613,6 +6091,13 @@ void PR_DumpPlatform_f(void)
 			fprintf(f, "\n\n//Builtin list\n");
 		for (i = 0; i < sizeof(extensionbuiltins)/sizeof(extensionbuiltins[0]); i++)
 		{
+			if ((targs & 2) && extensionbuiltins[i].csqcfunc)
+				;
+			else if ((targs & 1) && extensionbuiltins[i].ssqcfunc)
+				;
+			else
+				continue;
+
 			if (j != (extensionbuiltins[i].desc?!strncmp(extensionbuiltins[i].desc, "stub.", 5):0))
 				continue;
 			fprintf(f, "%s %s = #%i;", extensionbuiltins[i].typestr, extensionbuiltins[i].name, extensionbuiltins[i].documentednumber);
@@ -4642,6 +6127,18 @@ void PR_DumpPlatform_f(void)
 		if (j)
 			fprintf(f, "*/\n");
 	}
+
+	if (targs & 2)
+	{
+		for (i = 0; i < MAX_KEYS; i++)
+		{
+			const char *k = Key_KeynumToString(i);
+			if (!k[0] || !k[1] || k[0] == '<')
+				continue;	//skip simple keynames that can be swapped with 'k', and <invalid> keys.
+			fprintf(f, "const float K_%s = %i;\n", k, Key_NativeToQC(i));
+		}
+	}
+
 
 	fprintf(f, "\n\n//Reset this back to normal.\n");
 	fprintf(f, "#pragma noref 0\n");

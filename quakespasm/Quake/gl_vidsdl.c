@@ -840,13 +840,7 @@ static void VID_Restart (void)
 //
 // update mouse grab
 //
-	if (key_dest == key_console || key_dest == key_menu)
-	{
-		if (modestate == MS_WINDOWED)
-			IN_Deactivate(true);
-		else if (modestate == MS_FULLSCREEN)
-			IN_Activate();
-	}
+	IN_UpdateGrabs();
 }
 
 /*
@@ -1397,6 +1391,15 @@ void	VID_Shutdown (void)
 	}
 }
 
+void	VID_SetWindowCaption(const char *newcaption)
+{
+#if defined(USE_SDL2)
+	SDL_SetWindowTitle(draw_context, newcaption);
+#else
+	SDL_WM_SetCaption(newcaption, newcaption);
+#endif
+}
+
 /*
 ===================================================================
 
@@ -1802,14 +1805,7 @@ void	VID_Toggle (void)
 
 		VID_SyncCvars();
 
-		// update mouse grab
-		if (key_dest == key_console || key_dest == key_menu)
-		{
-			if (modestate == MS_WINDOWED)
-				IN_Deactivate(true);
-			else if (modestate == MS_FULLSCREEN)
-				IN_Activate();
-		}
+		IN_UpdateGrabs();
 	}
 	else
 	{
@@ -2231,7 +2227,7 @@ static void VID_MenuKey (int key)
 			Cbuf_AddText ("vid_restart\n");
 			key_dest = key_game;
 			m_state = m_none;
-			IN_Activate();
+			IN_UpdateGrabs();
 			break;
 		default:
 			break;
@@ -2323,10 +2319,10 @@ VID_Menu_f
 */
 static void VID_Menu_f (void)
 {
-	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_video;
 	m_entersound = true;
+	IN_UpdateGrabs();
 
 	//set all the cvars to match the current mode when entering the menu
 	VID_SyncCvars ();

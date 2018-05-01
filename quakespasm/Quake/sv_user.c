@@ -284,7 +284,7 @@ void SV_WaterMove (void)
 
 void SV_WaterJump (void)
 {
-	if (sv.time > sv_player->v.teleport_time
+	if (qcvm->time > sv_player->v.teleport_time
 	|| !sv_player->v.waterlevel)
 	{
 		sv_player->v.flags = (int)sv_player->v.flags & ~FL_WATERJUMP;
@@ -335,7 +335,7 @@ void SV_AirMove (void)
 	smove = cmd.sidemove;
 
 // hack to not let you back into teleporter
-	if (sv.time < sv_player->v.teleport_time && fmove < 0)
+	if (qcvm->time < sv_player->v.teleport_time && fmove < 0)
 		fmove = 0;
 
 	for (i=0 ; i<3 ; i++)
@@ -486,7 +486,7 @@ void SV_ReadClientMove (usercmd_t *move)
 	if (!(host_client->protocol_pext2 & PEXT2_PREDINFO))
 	{
 		host_client->ping_times[host_client->num_pings%NUM_PING_TIMES]
-			= sv.time - timestamp;
+			= qcvm->time - timestamp;
 		host_client->num_pings++;
 	}	//otherwise time is still useful for determining the input frame's time value
 
@@ -500,23 +500,23 @@ void SV_ReadClientMove (usercmd_t *move)
 	host_client->edict->v.button0 = (buttonbits & 1)>>0;
 	//button1 was meant to be 'use', but got reused by too many mods to get implemented now
 	host_client->edict->v.button2 = (buttonbits & 2)>>1;
-	if ((val = GetEdictFieldValue(host_client->edict, pr_extfields.button3)))
+	if ((val = GetEdictFieldValue(host_client->edict, qcvm->extfields.button3)))
 		val->_float = (buttonbits & 4)>>2;
-	if ((val = GetEdictFieldValue(host_client->edict, pr_extfields.button4)))
+	if ((val = GetEdictFieldValue(host_client->edict, qcvm->extfields.button4)))
 		val->_float = (buttonbits & 8)>>3;
-	if ((val = GetEdictFieldValue(host_client->edict, pr_extfields.button5)))
+	if ((val = GetEdictFieldValue(host_client->edict, qcvm->extfields.button5)))
 		val->_float = (buttonbits & 0x10)>>4;
-	if ((val = GetEdictFieldValue(host_client->edict, pr_extfields.button6)))
+	if ((val = GetEdictFieldValue(host_client->edict, qcvm->extfields.button6)))
 		val->_float = (buttonbits & 0x20)>>5;
-	if ((val = GetEdictFieldValue(host_client->edict, pr_extfields.button7)))
+	if ((val = GetEdictFieldValue(host_client->edict, qcvm->extfields.button7)))
 		val->_float = (buttonbits & 0x40)>>6;
-	if ((val = GetEdictFieldValue(host_client->edict, pr_extfields.button8)))
+	if ((val = GetEdictFieldValue(host_client->edict, qcvm->extfields.button8)))
 		val->_float = (buttonbits & 0x80)>>7;
 
 	if (newimpulse)
 		host_client->edict->v.impulse = newimpulse;
 
-	eval = GetEdictFieldValue(host_client->edict, pr_extfields.movement);
+	eval = GetEdictFieldValue(host_client->edict, qcvm->extfields.movement);
 	if (eval)
 	{
 		eval->vector[0] = move->forwardmove;
@@ -525,6 +525,98 @@ void SV_ReadClientMove (usercmd_t *move)
 	}
 
 	//FIXME: attempt to apply physics command now, if the mod has custom physics+csqc-prediction
+}
+
+void SV_ReadQCRequest(void)
+{
+	int e;
+	char args[8];
+	const char *rname, *fname;
+	func_t f;
+	int i;
+	client_t *cl = host_client;
+
+	for (i = 0; ; )
+	{
+		byte ev = MSG_ReadByte();
+		/*if (ev >= 200 && ev < 200+MAX_SPLITS)
+		{
+			ev -= 200;
+			while (ev-- && cl)
+				cl = cl->controlled;
+			continue;
+		}*/
+		if (i >= sizeof(args)-1)
+		{
+			if (ev != ev_void)
+			{
+				msg_badread = true;
+				return;
+			}
+			goto done;
+		}
+		switch(ev)
+		{
+		default:
+			args[i] = '?';
+			G_INT(OFS_PARM0+i*3) = MSG_ReadLong();
+			break;
+		case ev_void:
+			goto done;
+		case ev_float:
+			args[i] = 'f';
+			G_FLOAT(OFS_PARM0+i*3) = MSG_ReadFloat();
+			break;
+		case ev_vector:
+			args[i] = 'v';
+			G_FLOAT(OFS_PARM0+i*3+0) = MSG_ReadFloat();
+			G_FLOAT(OFS_PARM0+i*3+1) = MSG_ReadFloat();
+			G_FLOAT(OFS_PARM0+i*3+2) = MSG_ReadFloat();
+			break;
+		case ev_ext_integer:
+			args[i] = 'i';
+			G_INT(OFS_PARM0+i*3) = MSG_ReadLong();
+			break;
+		case ev_string:
+			args[i] = 's';
+			G_INT(OFS_PARM0+i*3) = PR_MakeTempString(MSG_ReadString());
+			break;
+		case ev_entity:
+			args[i] = 'e';
+			e = MSG_ReadEntity(host_client->protocol_pext2);
+			if (e < 0 || e >= qcvm->num_edicts)
+				e = 0;
+			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(EDICT_NUM(e));
+			break;
+		}
+		i++;
+	}
+
+done:
+	args[i] = 0;
+	rname = MSG_ReadString();
+	if (i)
+		fname = va("CSEv_%s_%s", rname, args);
+	else
+		fname = va("CSEv_%s", rname);
+	f = PR_FindExtFunction(fname);
+	/*if (!f)
+	{
+		if (i)
+			rname = va("Cmd_%s_%s", rname, args);
+		else
+			rname = va("Cmd_%s", rname);
+		f = PR_FindExtFunction(rname);
+	}*/
+	if (!cl)
+		;	//bad seat! not going to warn as they might have been removed recently
+	else if (f)
+	{
+		pr_global_struct->self = EDICT_TO_PROG(cl->edict);
+		PR_ExecuteProgram(f);
+	}
+	else
+		SV_ClientPrintf("qcrequest \"%s\" not supported\n", fname);
 }
 
 /*
@@ -569,14 +661,14 @@ qboolean SV_ReadClientMessage (void)
 
 		case clc_stringcmd:
 			s = MSG_ReadString ();
-			if (q_strncasecmp(s, "spawn", 5) && q_strncasecmp(s, "begin", 5) && q_strncasecmp(s, "prespawn", 8) && pr_extfuncs.parseclientcommand)
+			if (q_strncasecmp(s, "spawn", 5) && q_strncasecmp(s, "begin", 5) && q_strncasecmp(s, "prespawn", 8) && qcvm->extfuncs.SV_ParseClientCommand)
 			{	//the spawn/begin/prespawn are because of numerous mods that disobey the rules.
 				//at a minimum, we must be able to join the server, so that we can see any sprints/bprints (because dprint sucks, yes there's proper ways to deal with this, but moders don't always know them).
 				client_t *ohc = host_client;
 				G_INT(OFS_PARM0) = PR_SetEngineString(s);
-				pr_global_struct->time = sv.time;
+				pr_global_struct->time = qcvm->time;
 				pr_global_struct->self = EDICT_TO_PROG(host_client->edict);
-				PR_ExecuteProgram(pr_extfuncs.parseclientcommand);
+				PR_ExecuteProgram(qcvm->extfuncs.SV_ParseClientCommand);
 				host_client = ohc;
 			}
 			else
@@ -599,6 +691,10 @@ qboolean SV_ReadClientMessage (void)
 
 		case clcdp_ackdownloaddata:
 			Host_DownloadAck(host_client);
+			break;
+
+		case clcfte_qcrequest:
+			SV_ReadQCRequest();
 			break;
 
 		case clcfte_voicechat:
@@ -664,7 +760,7 @@ void SV_RunClients (void)
 			//botclients can't receive packets. don't even try.
 			//not sure where to put this code, but here seems sane enough.
 			//fill in the user's desired stuff according to a few things.
-			eval_t *ev = GetEdictFieldValue(host_client->edict, pr_extfields.movement);
+			eval_t *ev = GetEdictFieldValue(host_client->edict, qcvm->extfields.movement);
 			if (ev)	//.movement normally works the other way around. oh well.
 			{
 				host_client->cmd.forwardmove = ev->vector[0];

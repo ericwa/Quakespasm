@@ -121,6 +121,7 @@ float MSG_ReadCoord (unsigned int flags);
 float MSG_ReadAngle (unsigned int flags);
 float MSG_ReadAngle16 (unsigned int flags); //johnfitz
 byte *MSG_ReadData (unsigned int length); // spike
+int MSG_ReadEntity(unsigned int pext2); //spike
 
 void COM_Effectinfo_Enumerate(int (*cb)(const char *pname));	//spike -- for dp compat
 

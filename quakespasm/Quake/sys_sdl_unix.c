@@ -387,6 +387,8 @@ void Sys_Error (const char *error, ...)
 
 	Con_Redirect(NULL);
 
+	PR_SwitchQCVM(NULL);
+
 	Host_Shutdown ();
 
 	va_start (argptr, error);

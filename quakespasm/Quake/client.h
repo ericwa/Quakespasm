@@ -254,6 +254,11 @@ typedef struct
 		const char *name;
 		int index;
 	} particle_precache[MAX_PARTICLETYPES];
+	struct
+	{
+		const char *name;
+		int index;
+	} local_particle_precache[MAX_PARTICLETYPES];
 #endif
 	int ackframes[8];	//big enough to cover burst
 	unsigned int ackframes_count;
@@ -281,6 +286,10 @@ typedef struct
 	int		sound_download;
 	char	sound_name[MAX_SOUNDS][MAX_QPATH];
 	//spike -- end downloads
+
+	qcvm_t	qcvm;	//for csqc.
+	qboolean csqc_cursorforced;	//we want a mouse cursor.
+	float	csqc_sensitivity;	//scaler for sensitivity
 } client_state_t;
 
 

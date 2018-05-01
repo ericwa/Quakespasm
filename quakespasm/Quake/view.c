@@ -279,6 +279,21 @@ void V_ParseDamage (void)
 	for (i=0 ; i<3 ; i++)
 		from[i] = MSG_ReadCoord (cl.protocolflags);
 
+	if (cl.qcvm.extfuncs.CSQC_Parse_Damage)
+	{
+		qboolean inhibit;
+		PR_SwitchQCVM(&cl.qcvm);
+		pr_global_struct->time = cl.time;
+		G_FLOAT(OFS_PARM0) = armor;
+		G_FLOAT(OFS_PARM1) = blood;
+		G_VECTORSET(OFS_PARM2, from[0], from[1], from[2]);
+		PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_Parse_Damage);
+		inhibit = G_FLOAT(OFS_RETURN);
+		PR_SwitchQCVM(NULL);
+		if (inhibit)
+			return;
+	}
+
 	count = blood*0.5 + armor*0.5;
 	if (count < 10)
 		count = 10;

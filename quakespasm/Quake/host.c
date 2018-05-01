@@ -62,6 +62,7 @@ cvar_t	host_speeds = {"host_speeds","0",CVAR_NONE};			// set for running times
 cvar_t	host_maxfps = {"host_maxfps", "72", CVAR_ARCHIVE}; //johnfitz
 cvar_t	host_timescale = {"host_timescale", "0", CVAR_NONE}; //johnfitz
 cvar_t	max_edicts = {"max_edicts", "15000", CVAR_NONE}; //johnfitz //ericw -- changed from 2048 to 8192, removed CVAR_ARCHIVE
+cvar_t	cl_nocsqc = {"cl_nocsqc", "0", CVAR_NONE};	//spike -- blocks the loading of any csqc modules
 
 cvar_t	sys_ticrate = {"sys_ticrate","0.05",CVAR_NONE}; // dedicated server
 cvar_t	serverprofile = {"serverprofile","0",CVAR_NONE};
@@ -124,6 +125,8 @@ void Host_EndGame (const char *message, ...)
 	va_end (argptr);
 	Con_DPrintf ("Host_EndGame: %s\n",string);
 
+	PR_SwitchQCVM(NULL);
+
 	if (sv.active)
 		Host_ShutdownServer (false);
 
@@ -154,6 +157,8 @@ void Host_Error (const char *error, ...)
 	if (inerror)
 		Sys_Error ("Host_Error: recursively entered");
 	inerror = true;
+
+	PR_SwitchQCVM(NULL);
 
 	SCR_EndLoadingPlaque ();		// reenable screen updates
 
@@ -261,6 +266,7 @@ void Host_InitLocal (void)
 	Cvar_SetCallback (&host_maxfps, Max_Fps_f);
 	Cvar_RegisterVariable (&host_timescale); //johnfitz
 
+	Cvar_RegisterVariable (&cl_nocsqc);	//spike
 	Cvar_RegisterVariable (&max_edicts); //johnfitz
 	Cvar_SetCallback (&max_edicts, Max_Edicts_f);
 	Cvar_RegisterVariable (&devstats); //johnfitz
@@ -541,11 +547,13 @@ void Host_ShutdownServer(qboolean crash)
 	if (count)
 		Con_Printf("Host_ShutdownServer: NET_SendToAll failed for %u clients\n", count);
 
+	PR_SwitchQCVM(&sv.qcvm);
 	for (i = 0, host_client = svs.clients; i < svs.maxclients; i++, host_client++)
 		if (host_client->active)
 			SV_DropClient(crash);
-
-	sv.worldmodel = NULL;
+	
+	qcvm->worldmodel = NULL;
+	PR_SwitchQCVM(NULL);
 
 //
 // clear structures
@@ -571,7 +579,8 @@ void Host_ClearMemory (void)
 /* host_hunklevel MUST be set at this point */
 	Hunk_FreeToLowMark (host_hunklevel);
 	cls.signon = 0;
-	free(sv.edicts); // ericw -- sv.edicts switched to use malloc()
+	PR_ClearProgs(&sv.qcvm);
+	PR_ClearProgs(&cl.qcvm);
 	free(cl.static_entities);
 	free(sv.static_entities);	//spike -- this is dynamic too, now
 	free(sv.ambientsounds);
@@ -673,14 +682,14 @@ void Host_ServerFrame (void)
 //johnfitz -- devstats
 	if (cls.signon == SIGNONS)
 	{
-		for (i=0, active=0; i<sv.num_edicts; i++)
+		for (i=0, active=0; i<qcvm->num_edicts; i++)
 		{
 			ent = EDICT_NUM(i);
 			if (!ent->free)
 				active++;
 		}
 		if (active > 600 && dev_peakstats.edicts <= 600)
-			Con_DWarning ("%i edicts exceeds standard limit of 600 (max = %d).\n", active, sv.max_edicts);
+			Con_DWarning ("%i edicts exceeds standard limit of 600 (max = %d).\n", active, qcvm->max_edicts);
 		dev_stats.edicts = active;
 		dev_peakstats.edicts = q_max(active, dev_peakstats.edicts);
 	}
@@ -731,6 +740,46 @@ void _Host_Frame (float time)
 	{
 		if (CL_CheckDownloads())
 		{
+			PR_ClearProgs(&cl.qcvm);
+			if (pr_checkextension.value && !cl_nocsqc.value)
+			{	//only try to use csqc if qc extensions are enabled.
+				PR_SwitchQCVM(&cl.qcvm);
+				//try csprogs.dat first, then fall back on progs.dat in case someone tried merging the two.
+				//we only care about it if it actually contains a CSQC_DrawHud, otherwise its either just a (misnamed) ssqc progs or a full csqc progs that would just crash us on 3d stuff.
+				if ((PR_LoadProgs("csprogs.dat", false, pr_csqcbuiltins, pr_csqcnumbuiltins) && qcvm->extfuncs.CSQC_DrawHud)|| 
+					(PR_LoadProgs("progs.dat",   false, pr_csqcbuiltins, pr_csqcnumbuiltins) && qcvm->extfuncs.CSQC_DrawHud))
+				{
+					qcvm->max_edicts = CLAMP (MIN_EDICTS,(int)max_edicts.value,MAX_EDICTS);
+					qcvm->edicts = (edict_t *) malloc (qcvm->max_edicts*qcvm->edict_size);
+					qcvm->num_edicts = qcvm->reserved_edicts = 1;
+					memset(qcvm->edicts, 0, qcvm->num_edicts*qcvm->edict_size);
+
+					//set a few globals, if they exist
+					if (qcvm->extglobals.maxclients)
+						*qcvm->extglobals.maxclients = cl.maxclients;
+					pr_global_struct->time = cl.time;
+					pr_global_struct->mapname = PR_SetEngineString(cl.mapname);
+					pr_global_struct->total_monsters = cl.statsf[STAT_TOTALMONSTERS];
+					pr_global_struct->total_secrets = cl.statsf[STAT_TOTALSECRETS];
+					pr_global_struct->deathmatch = cl.gametype;
+					pr_global_struct->coop = (cl.gametype == GAME_COOP) && cl.maxclients != 1;
+					if (qcvm->extglobals.player_localnum)
+						*qcvm->extglobals.player_localnum = cl.viewentity;	//this is a guess, but is important for scoreboards.
+
+					//and call the init function... if it exists.
+					if (qcvm->extfuncs.CSQC_Init)
+					{
+						G_FLOAT(OFS_PARM0) = 0;
+						G_INT(OFS_PARM1) = PR_SetEngineString("QuakeSpasm-Spiked");
+						G_FLOAT(OFS_PARM2) = QUAKESPASM_VERSION;
+						PR_ExecuteProgram(qcvm->extfuncs.CSQC_Init);
+					}
+				}
+				else
+					PR_ClearProgs(qcvm);
+				PR_SwitchQCVM(NULL);
+			}
+
 			cl.sendprespawn = false;
 			MSG_WriteByte (&cls.message, clc_stringcmd);
 			MSG_WriteString (&cls.message, "prespawn");
@@ -753,7 +802,11 @@ void _Host_Frame (float time)
 	Host_GetConsoleCommands ();
 
 	if (sv.active)
+	{
+		PR_SwitchQCVM(&sv.qcvm);
 		Host_ServerFrame ();
+		PR_SwitchQCVM(NULL);
+	}
 
 //-------------------
 //

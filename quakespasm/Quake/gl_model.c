@@ -472,6 +472,8 @@ static bspx_header_t *bspxheader;
 //unsupported lumps ('documented' elsewhere):
 //BRUSHLIST (because hulls suck)
 //LIGHTINGDIR (.lux)
+//LIGHTING_E5BGR9 (hdr lighting)
+//VERTEXNORMALS (smooth shading with dlights/rtlights)
 static void *Q1BSPX_FindLump(char *lumpname, int *lumpsize)
 {
 	int i;
@@ -3131,6 +3133,10 @@ void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 	mod->type = mod_alias;
 
 	Mod_CalcAliasBounds (pheader); //johnfitz
+
+	//Spike: for setmodel compat with vanilla
+	mod->clipmins[0] = mod->clipmins[1] = mod->clipmins[2] = -16;
+	mod->clipmaxs[0] = mod->clipmaxs[1] = mod->clipmaxs[2] = 16;
 
 	//
 	// build the draw lists

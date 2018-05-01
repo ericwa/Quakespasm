@@ -993,6 +993,49 @@ void Sbar_Draw (void)
 	if (scr_con_current == vid.height)
 		return;		// console is full screen
 
+	if (cl.qcvm.extfuncs.CSQC_DrawHud)
+	{
+		qboolean deathmatchoverlay = false;
+		float s = CLAMP (1.0, scr_sbarscale.value, (float)glwidth / 320.0);
+		sb_updates++;
+		GL_SetCanvas (CANVAS_CSQC); //johnfitz
+		glEnable (GL_BLEND);	//in the finest tradition of glquake, we litter gl state calls all over the place. yay state trackers.
+		glDisable (GL_ALPHA_TEST);	//in the finest tradition of glquake, we litter gl state calls all over the place. yay state trackers.
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		PR_SwitchQCVM(&cl.qcvm);
+		if (qcvm->extglobals.cltime)
+			*qcvm->extglobals.cltime = realtime;
+		if (qcvm->extglobals.player_localentnum)
+			*qcvm->extglobals.player_localentnum = cl.viewentity;
+		pr_global_struct->time = cl.time;
+		Sbar_SortFrags ();
+		G_VECTORSET(OFS_PARM0, vid.width/s, vid.height/s, 0);
+		G_FLOAT(OFS_PARM1) = sb_showscores;
+		PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_DrawHud);
+		if (cl.qcvm.extfuncs.CSQC_DrawScores)
+		{
+			G_VECTORSET(OFS_PARM0, vid.width/s, vid.height/s, 0);
+			G_FLOAT(OFS_PARM1) = sb_showscores;
+			if (key_dest != key_menu)
+				PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_DrawScores);
+		}
+		else
+			deathmatchoverlay = (sb_showscores || cl.stats[STAT_HEALTH] <= 0);
+		PR_SwitchQCVM(NULL);
+		glDisable (GL_BLEND);
+		glEnable (GL_ALPHA_TEST);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);	//back to ignoring vertex colours.
+		glDisable(GL_SCISSOR_TEST);
+		glColor3f (1,1,1);
+
+		if (deathmatchoverlay && cl.gametype == GAME_DEATHMATCH)
+		{
+			GL_SetCanvas (CANVAS_SBAR);
+			Sbar_DeathmatchOverlay ();
+		}
+		return;
+	}
+
 	if (cl.intermission)
 		return; //johnfitz -- never draw sbar during intermission
 
@@ -1346,6 +1389,36 @@ void Sbar_IntermissionOverlay (void)
 	qpic_t	*pic;
 	int	dig;
 	int	num;
+
+	if (cl.qcvm.extfuncs.CSQC_DrawScores)
+	{
+		float s = CLAMP (1.0, scr_sbarscale.value, (float)glwidth / 320.0);
+		GL_SetCanvas (CANVAS_CSQC);
+		glEnable (GL_BLEND);
+		glDisable (GL_ALPHA_TEST);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		PR_SwitchQCVM(&cl.qcvm);
+		if (qcvm->extglobals.cltime)
+			*qcvm->extglobals.cltime = realtime;
+		if (qcvm->extglobals.player_localentnum)
+			*qcvm->extglobals.player_localentnum = cl.viewentity;
+		if (qcvm->extglobals.intermission)
+			*qcvm->extglobals.intermission = cl.intermission;
+		if (qcvm->extglobals.intermission_time)
+			*qcvm->extglobals.intermission_time = cl.completed_time;
+		pr_global_struct->time = cl.time;
+		Sbar_SortFrags ();
+		G_VECTORSET(OFS_PARM0, vid.width/s, vid.height/s, 0);
+		G_FLOAT(OFS_PARM1) = sb_showscores;
+		PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_DrawScores);
+		PR_SwitchQCVM(NULL);
+		glDisable (GL_BLEND);
+		glEnable (GL_ALPHA_TEST);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		glDisable(GL_SCISSOR_TEST);
+		glColor3f (1,1,1);
+		return;
+	}
 
 	if (cl.gametype == GAME_DEATHMATCH)
 	{

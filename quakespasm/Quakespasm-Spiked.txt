@@ -36,6 +36,11 @@ QuakeSpasm-Spiked
   copy of regular QuakeSpasm, you should be able to have both installed in 
   the same game directory without issue - on the condition that they're
   both win32 or both win64, not a mix.
+  Note that advanced users can use the -basedir argument in order to install
+  engines within sub-dirs/where-ever in order to avoid conflicts be they
+  win32 vs win64, qs vs qss, or even qss vs any other engine - this argument
+  should exist in ALL quake engines, and thus it need not be just qss that
+  is given it. However, this will not prevent other sorts of conflicts.
 
   -------------
   3.  New Toys!

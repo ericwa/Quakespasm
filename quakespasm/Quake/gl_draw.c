@@ -121,7 +121,7 @@ typedef struct cachepic_s
 	byte		padding[32];	// for appended glpic
 } cachepic_t;
 
-#define	MAX_CACHED_PICS		128
+#define	MAX_CACHED_PICS		512	//Spike -- increased to avoid csqc issues.
 cachepic_t	menu_cachepics[MAX_CACHED_PICS];
 int			menu_numcachepics;
 
@@ -216,9 +216,20 @@ Draw_PicFromWad
 */
 qpic_t *Draw_PicFromWad (const char *name)
 {
+	int i;
+	cachepic_t *pic;
 	qpic_t	*p;
 	glpic_t	gl;
 	src_offset_t offset; //johnfitz
+
+	//Spike -- added cachepic stuff here, to avoid glitches if the function is called multiple times with the same image.
+	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
+	{
+		if (!strcmp (name, pic->name))
+			return &pic->pic;
+	}
+	if (menu_numcachepics == MAX_CACHED_PICS)
+		Sys_Error ("menu_numcachepics == MAX_CACHED_PICS");
 
 	p = (qpic_t *) W_GetLumpName (name);
 	if (!p) return pic_nul; //johnfitz
@@ -260,9 +271,25 @@ qpic_t *Draw_PicFromWad (const char *name)
 		gl.th = (float)p->height/(float)TexMgr_PadConditional(p->height); //johnfitz
 	}
 
-	memcpy (p->data, &gl, sizeof(glpic_t));
+	menu_numcachepics++;
+	strcpy (pic->name, name);
+	pic->pic = *p;
+	memcpy (pic->pic.data, &gl, sizeof(glpic_t));
 
-	return p;
+	return &pic->pic;
+}
+
+qpic_t	*Draw_GetCachedPic (const char *path)
+{
+	cachepic_t	*pic;
+	int			i;
+
+	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
+	{
+		if (!strcmp (path, pic->name))
+			return &pic->pic;
+	}
+	return NULL;
 }
 
 /*
@@ -270,7 +297,7 @@ qpic_t *Draw_PicFromWad (const char *name)
 Draw_CachePic
 ================
 */
-qpic_t	*Draw_CachePic (const char *path)
+qpic_t	*Draw_TryCachePic (const char *path)
 {
 	cachepic_t	*pic;
 	int			i;
@@ -292,7 +319,7 @@ qpic_t	*Draw_CachePic (const char *path)
 //
 	dat = (qpic_t *)COM_LoadTempFile (path, NULL);
 	if (!dat)
-		Sys_Error ("Draw_CachePic: failed to load %s", path);
+		return NULL;
 	SwapPic (dat);
 
 	// HACK HACK HACK --- we need to keep the bytes for
@@ -313,6 +340,14 @@ qpic_t	*Draw_CachePic (const char *path)
 	memcpy (pic->pic.data, &gl, sizeof(glpic_t));
 
 	return &pic->pic;
+}
+
+qpic_t	*Draw_CachePic (const char *path)
+{
+	qpic_t *pic = Draw_TryCachePic(path);
+	if (!pic)
+		Sys_Error ("Draw_CachePic: failed to load %s", path);
+	return pic;
 }
 
 /*
@@ -523,6 +558,29 @@ void Draw_Pic (int x, int y, qpic_t *pic)
 	glEnd ();
 }
 
+void Draw_SubPic (float x, float y, float w, float h, qpic_t *pic, float s1, float t1, float s2, float t2)
+{
+	glpic_t			*gl;
+
+	s2 += s1;
+	t2 += t1;
+
+	if (scrap_dirty)
+		Scrap_Upload ();
+	gl = (glpic_t *)pic->data;
+	GL_Bind (gl->gltexture);
+	glBegin (GL_QUADS);
+	glTexCoord2f (gl->sl*(1-s1) + s1*gl->sh, gl->tl*(1-t1) + t1*gl->th);
+	glVertex2f (x, y);
+	glTexCoord2f (gl->sl*(1-s2) + s2*gl->sh, gl->tl*(1-t1) + t1*gl->th);
+	glVertex2f (x+w, y);
+	glTexCoord2f (gl->sl*(1-s2) + s2*gl->sh, gl->tl*(1-t2) + t2*gl->th);
+	glVertex2f (x+w, y+h);
+	glTexCoord2f (gl->sl*(1-s1) + s1*gl->sh, gl->tl*(1-t2) + t2*gl->th);
+	glVertex2f (x, y+h);
+	glEnd ();
+}
+
 /*
 =============
 Draw_TransPicTranslate -- johnfitz -- rewritten to use texmgr to do translation
@@ -718,6 +776,11 @@ void GL_SetCanvas (canvastype newcanvas)
 		// ericw -- doubled width to 640 to accommodate long keybindings
 		glOrtho (0, 640, 200, 0, -99999, 99999);
 		glViewport (glx + (glwidth - 320*s) / 2, gly + (glheight - 200*s) / 2, 640*s, 200*s);
+		break;
+	case CANVAS_CSQC:
+		s = CLAMP (1.0, scr_sbarscale.value, (float)glwidth / 320.0);
+		glOrtho (0, glwidth/s, glheight/s, 0, -99999, 99999);
+		glViewport (glx, gly, glwidth, glheight);
 		break;
 	case CANVAS_SBAR:
 		s = CLAMP (1.0, scr_sbarscale.value, (float)glwidth / 320.0);

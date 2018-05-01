@@ -32,6 +32,7 @@ void Draw_Init (void);
 void Draw_Character (int x, int y, int num);
 void Draw_DebugChar (char num);
 void Draw_Pic (int x, int y, qpic_t *pic);
+void Draw_SubPic (float x, float y, float w, float h, qpic_t *pic, float s1, float t1, float s2, float t2);
 void Draw_TransPicTranslate (int x, int y, qpic_t *pic, int top, int bottom); //johnfitz -- more parameters
 void Draw_ConsoleBackground (void); //johnfitz -- removed parameter int lines
 void Draw_TileClear (int x, int y, int w, int h);
@@ -40,6 +41,7 @@ void Draw_FadeScreen (void);
 void Draw_String (int x, int y, const char *str);
 qpic_t *Draw_PicFromWad (const char *name);
 qpic_t *Draw_CachePic (const char *path);
+qpic_t *Draw_TryCachePic (const char *path);
 void Draw_NewGame (void);
 
 void GL_SetCanvas (canvastype newcanvas); //johnfitz

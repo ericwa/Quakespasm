@@ -110,33 +110,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // stats are integers communicated to the client by the server
 //
-#define	MAX_CL_STATS		32
-#define	STAT_HEALTH		0
-#define	STAT_FRAGS		1
-#define	STAT_WEAPON		2
-#define	STAT_AMMO		3
-#define	STAT_ARMOR		4
+#define	MAX_CL_STATS		256
+#define	STAT_HEALTH			0
+//#define	STAT_FRAGS		1
+#define	STAT_WEAPON			2
+#define	STAT_AMMO			3
+#define	STAT_ARMOR			4
 #define	STAT_WEAPONFRAME	5
-#define	STAT_SHELLS		6
-#define	STAT_NAILS		7
+#define	STAT_SHELLS			6
+#define	STAT_NAILS			7
 #define	STAT_ROCKETS		8
-#define	STAT_CELLS		9
+#define	STAT_CELLS			9
 #define	STAT_ACTIVEWEAPON	10
 #define	STAT_TOTALSECRETS	11
 #define	STAT_TOTALMONSTERS	12
 #define	STAT_SECRETS		13	// bumped on client side by svc_foundsecret
 #define	STAT_MONSTERS		14	// bumped by svc_killedmonster
-
 #define STAT_ITEMS			15	//replaces clc_clientdata info
 #define STAT_VIEWHEIGHT		16	//replaces clc_clientdata info
 //#define STAT_TIME			17	//zquake, redundant for nq.
 //#define STAT_MATCHSTARTTIME 18
-//#define STAT_VIEW2			20
+//#define STAT_VIEW2		20
 #define STAT_VIEWZOOM		21 // DP
+//#define STAT_UNUSED3		22 
+//#define STAT_UNUSED2		23 
+//#define STAT_UNUSED1		24
 #define STAT_IDEALPITCH		25	//nq-emu
 #define STAT_PUNCHANGLE_X	26	//nq-emu
 #define STAT_PUNCHANGLE_Y	27	//nq-emu
 #define STAT_PUNCHANGLE_Z	28	//nq-emu
+#define STAT_PUNCHVECTOR_X	29
+#define STAT_PUNCHVECTOR_Y	30
+#define STAT_PUNCHVECTOR_Z	31
 
 // stock defines
 //

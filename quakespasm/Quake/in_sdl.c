@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 static qboolean	textmode;
+extern qboolean	bind_grab;	//from the menu code, so that we regrab the mouse in order to pass inputs through
 
 static cvar_t in_debugkeys = {"in_debugkeys", "0", CVAR_NONE};
 
@@ -198,8 +199,8 @@ static void IN_ReenableOSXMouseAccel (void)
 }
 #endif /* MACOS_X_ACCELERATION_HACK */
 
-
-void IN_Activate (void)
+#if 0
+static void IN_Activate (void)
 {
 	if (no_mouse)
 		return;
@@ -237,7 +238,7 @@ void IN_Activate (void)
 	total_dy = 0;
 }
 
-void IN_Deactivate (qboolean free_cursor)
+static void IN_Deactivate (qboolean free_cursor)
 {
 	if (no_mouse)
 		return;
@@ -269,7 +270,84 @@ void IN_Deactivate (qboolean free_cursor)
 	}
 
 	/* discard all mouse events when input is deactivated */
-	IN_BeginIgnoringMouseEvents();
+	if (cl.qcvm.extfuncs.CSQC_InputEvent && free_cursor)
+		IN_EndIgnoringMouseEvents();
+	else
+		IN_BeginIgnoringMouseEvents();
+}
+#endif
+
+static void IN_UpdateGrabs_Internal(qboolean forecerelease)
+{
+	qboolean wantcursor;	//we're trying to get a cursor here...
+	qboolean freemouse;		//the OS should have a free cursor too...
+	qboolean needevents;	//whether we want to receive events still
+
+	wantcursor = (key_dest == key_console || (key_dest == key_menu&&!bind_grab)) || (key_dest == key_game && cl.csqc_cursorforced);
+	freemouse = wantcursor && (modestate == MS_WINDOWED || key_dest == key_game && cl.csqc_cursorforced);
+	needevents = (!wantcursor) || key_dest == key_game;
+
+	if (forecerelease)
+		needevents = freemouse = wantcursor = true;
+
+#ifdef MACOS_X_ACCELERATION_HACK
+	if (!freemouse)
+	{	/* Save the status of mouse acceleration */
+		if (originalMouseSpeed == -1 && in_disablemacosxmouseaccel.value)
+			IN_DisableOSXMouseAccel();
+	}
+	else if (originalMouseSpeed != -1)
+		IN_ReenableOSXMouseAccel();
+#endif
+
+#if defined(USE_SDL2)
+	if (SDL_SetRelativeMouseMode(freemouse?SDL_FALSE:SDL_TRUE) != 0)
+	{
+		Con_Printf("WARNING: SDL_SetRelativeMouseMode(%s) failed.\n", freemouse?"SDL_FALSE":"SDL_TRUE");
+	}
+#else
+	if (freemouse)
+	{
+		if (SDL_WM_GrabInput(SDL_GRAB_QUERY) != SDL_GRAB_OFF)
+		{
+			SDL_WM_GrabInput(SDL_GRAB_OFF);
+			if (SDL_WM_GrabInput(SDL_GRAB_QUERY) != SDL_GRAB_OFF)
+				Con_Printf("WARNING: SDL_WM_GrabInput(SDL_GRAB_OFF) failed.\n");
+		}
+
+		if (SDL_ShowCursor(SDL_QUERY) != SDL_ENABLE)
+		{
+			SDL_ShowCursor(SDL_ENABLE);
+			if (SDL_ShowCursor(SDL_QUERY) != SDL_ENABLE)
+				Con_Printf("WARNING: SDL_ShowCursor(SDL_ENABLE) failed.\n");
+		}
+	}
+	else
+	{
+		if (SDL_WM_GrabInput(SDL_GRAB_QUERY) != SDL_GRAB_ON)
+		{
+			SDL_WM_GrabInput(SDL_GRAB_ON);
+			if (SDL_WM_GrabInput(SDL_GRAB_QUERY) != SDL_GRAB_ON)
+				Con_Printf("WARNING: SDL_WM_GrabInput(SDL_GRAB_ON) failed.\n");
+		}
+
+		if (SDL_ShowCursor(SDL_QUERY) != SDL_DISABLE)
+		{
+			SDL_ShowCursor(SDL_DISABLE);
+			if (SDL_ShowCursor(SDL_QUERY) != SDL_DISABLE)
+				Con_Printf("WARNING: SDL_ShowCursor(SDL_DISABLE) failed.\n");
+		}
+	}
+#endif
+
+	if (needevents)
+		IN_EndIgnoringMouseEvents();
+	else
+		IN_BeginIgnoringMouseEvents();
+}
+void IN_UpdateGrabs(void)
+{
+	IN_UpdateGrabs_Internal(false);
 }
 
 void IN_StartupJoystick (void)
@@ -373,13 +451,13 @@ void IN_Init (void)
 	Cvar_RegisterVariable(&joy_swapmovelook);
 	Cvar_RegisterVariable(&joy_enable);
 
-	IN_Activate();
+	IN_UpdateGrabs();
 	IN_StartupJoystick();
 }
 
 void IN_Shutdown (void)
 {
-	IN_Deactivate(true);
+	IN_UpdateGrabs();
 	IN_ShutdownJoystick();
 }
 
@@ -387,8 +465,36 @@ extern cvar_t cl_maxpitch; /* johnfitz -- variable pitch clamping */
 extern cvar_t cl_minpitch; /* johnfitz -- variable pitch clamping */
 
 
-void IN_MouseMotion(int dx, int dy)
+void IN_MouseMotion(int dx, int dy, int wx, int wy)
 {
+	if (key_dest != key_game && key_dest != key_message)
+		dx = dy = 0;
+	else if (cl.qcvm.extfuncs.CSQC_InputEvent)
+	{
+		PR_SwitchQCVM(&cl.qcvm);
+		if (cl.csqc_cursorforced)
+		{
+			float s = CLAMP (1.0, scr_sbarscale.value, (float)glwidth / 320.0);
+			wx /= s;
+			wy /= s;
+
+			G_FLOAT(OFS_PARM0) = CSIE_MOUSEABS;
+			G_VECTORSET(OFS_PARM1, wx, wy, 0);	//x
+			G_VECTORSET(OFS_PARM2, wy, 0, 0);	//y
+			G_VECTORSET(OFS_PARM3, 0, 0, 0);	//devid
+		}
+		else
+		{
+			G_FLOAT(OFS_PARM0) = CSIE_MOUSEDELTA;
+			G_VECTORSET(OFS_PARM1, dx, dy, 0);	//x
+			G_VECTORSET(OFS_PARM2, dy, 0, 0);	//y
+			G_VECTORSET(OFS_PARM3, 0, 0, 0);	//devid
+		}
+		PR_ExecuteProgram(cl.qcvm.extfuncs.CSQC_InputEvent);
+		if (G_FLOAT(OFS_RETURN) || cl.csqc_cursorforced)
+			dx = dy = 0;	//if the qc says it handled it, swallow the movement.
+		PR_SwitchQCVM(NULL);
+	}
 	total_dx += dx;
 	total_dy += dy;
 }
@@ -682,8 +788,8 @@ void IN_JoyMove (usercmd_t *cmd)
 	cmd->sidemove += (cl_sidespeed.value * speed * moveEased.x);
 	cmd->forwardmove -= (cl_forwardspeed.value * speed * moveEased.y);
 
-	cl.viewangles[YAW] -= lookEased.x * joy_sensitivity_yaw.value * host_frametime;
-	cl.viewangles[PITCH] += lookEased.y * joy_sensitivity_pitch.value * (joy_invert.value ? -1.0 : 1.0) * host_frametime;
+	cl.viewangles[YAW] -= lookEased.x * joy_sensitivity_yaw.value * host_frametime * cl.csqc_sensitivity;
+	cl.viewangles[PITCH] += lookEased.y * joy_sensitivity_pitch.value * (joy_invert.value ? -1.0 : 1.0) * host_frametime * cl.csqc_sensitivity;
 
 	if (lookEased.x != 0 || lookEased.y != 0)
 		V_StopPitchDrift();
@@ -709,7 +815,7 @@ void IN_MouseMove(usercmd_t *cmd)
 	if ( (in_strafe.state & 1) || (lookstrafe.value && (in_mlook.state & 1) ))
 		cmd->sidemove += m_side.value * dmx;
 	else
-		cl.viewangles[YAW] -= m_yaw.value * dmx;
+		cl.viewangles[YAW] -= m_yaw.value * dmx * cl.csqc_sensitivity;
 
 	if (in_mlook.state & 1)
 	{
@@ -719,7 +825,7 @@ void IN_MouseMove(usercmd_t *cmd)
 
 	if ( (in_mlook.state & 1) && !(in_strafe.state & 1))
 	{
-		cl.viewangles[PITCH] += m_pitch.value * dmy;
+		cl.viewangles[PITCH] += m_pitch.value * dmy * cl.csqc_sensitivity;
 		/* johnfitz -- variable pitch clamping */
 		if (cl.viewangles[PITCH] > cl_maxpitch.value)
 			cl.viewangles[PITCH] = cl_maxpitch.value;
@@ -1002,6 +1108,8 @@ void IN_SendKeyEvents (void)
 	int key;
 	qboolean down;
 
+	IN_UpdateGrabs();
+
 	while (SDL_PollEvent(&event))
 	{
 		switch (event.type)
@@ -1096,7 +1204,7 @@ void IN_SendKeyEvents (void)
 #endif
 
 		case SDL_MOUSEMOTION:
-			IN_MouseMotion(event.motion.xrel, event.motion.yrel);
+			IN_MouseMotion(event.motion.xrel, event.motion.yrel, event.motion.x, event.motion.y);
 			break;
 
 #if defined(USE_SDL2)
