@@ -285,7 +285,7 @@ static void IN_UpdateGrabs_Internal(qboolean forecerelease)
 	qboolean needevents;	//whether we want to receive events still
 
 	wantcursor = (key_dest == key_console || (key_dest == key_menu&&!bind_grab)) || (key_dest == key_game && cl.csqc_cursorforced);
-	freemouse = wantcursor && (modestate == MS_WINDOWED || key_dest == key_game && cl.csqc_cursorforced);
+	freemouse = wantcursor && (modestate == MS_WINDOWED || (key_dest == key_game && cl.csqc_cursorforced));
 	needevents = (!wantcursor) || key_dest == key_game;
 
 	if (forecerelease)

@@ -93,7 +93,7 @@ void PR_Markup_Begin(struct markup_s *mu, const char *text, float *rgb, float al
 	}
 	else
 		mu->mask = 0;
-	mu->txt = text;
+	mu->txt = (const unsigned char *)text;
 	VectorCopy(rgb, mu->tint);
 	mu->tint[3] = alpha;
 	VectorCopy(rgb, mu->colour);
@@ -4563,7 +4563,7 @@ static void PF_cl_drawstring(void)
 	extern gltexture_t *char_texture;
 
 	float *pos	= G_VECTOR(OFS_PARM0);
-	const unsigned char *text = G_STRING (OFS_PARM1);
+	const char *text = G_STRING (OFS_PARM1);
 	float *size	= G_VECTOR(OFS_PARM2);
 	float *rgb	= G_VECTOR(OFS_PARM3);
 	float alpha	= G_FLOAT (OFS_PARM4);
@@ -4591,16 +4591,21 @@ static void PF_cl_drawstring(void)
 static void PF_cl_stringwidth(void)
 {
 	static const float defaultfontsize[] = {8,8};
-	const unsigned char *text = G_STRING (OFS_PARM0);
-	qboolean uscolours = G_FLOAT(OFS_PARM1);
+	const char *text = G_STRING (OFS_PARM0);
+	qboolean usecolours = G_FLOAT(OFS_PARM1);
 	const float *fontsize = (qcvm->argc>2)?G_VECTOR (OFS_PARM2):defaultfontsize;
 	struct markup_s mu;
 	int r = 0;
 
-	PR_Markup_Begin(&mu, text, vec3_origin, 1);
-	while (PR_Markup_Parse(&mu))
+	if (usecolours)
+		r = strlen(text);
+	else
 	{
-		r += 1;
+		PR_Markup_Begin(&mu, text, vec3_origin, 1);
+		while (PR_Markup_Parse(&mu))
+		{
+			r += 1;
+		}
 	}
 
 	//primitive and lame, but hey.
@@ -5352,8 +5357,8 @@ static struct
 	{"search_end",		PF_search_end,		PF_search_end,		445,	"void(searchhandle handle)", ""},
 	{"search_getsize",	PF_search_getsize,	PF_search_getsize,	446,	"float(searchhandle handle)", " Retrieves the number of files that were found."},
 	{"search_getfilename",PF_search_getfilename,PF_search_getfilename,447,"string(searchhandle handle, float num)", "Retrieves name of one of the files that was found by the initial search."},
-//	{"search_getfilesize",PF_search_getfilesize,PF_search_getfilesize,0,"float(searchhandle handle, float num)", "Retrieves the size of one of the files that was found by the initial search."},
-//	{"search_getfilemtime",PF_search_getfilemtime,PF_search_getfilemtime,0,"string(searchhandle handle, float num)", "Retrieves modification time of one of the files in %Y-%m-%d %H:%M:%S format."},
+	{"search_getfilesize",PF_search_getfilesize,PF_search_getfilesize,0,"float(searchhandle handle, float num)", "Retrieves the size of one of the files that was found by the initial search."},
+	{"search_getfilemtime",PF_search_getfilemtime,PF_search_getfilemtime,0,"string(searchhandle handle, float num)", "Retrieves modification time of one of the files in %Y-%m-%d %H:%M:%S format."},
 	{"cvar_string",		PF_cvar_string,		PF_cvar_string,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
 	{"findflags",		PF_findflags,		PF_findflags,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
 	{"findchainflags",	PF_findchainflags,	PF_findchainflags,	450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
