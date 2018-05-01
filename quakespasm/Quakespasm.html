@@ -7,12 +7,11 @@
 <BODY>
 <H1>QuakeSpasm</H1>
 
-<H2></H2>
-<P>
+<H2></H2><P>
 <PRE>
 </PRE>
 </P>
-<P><EM>Page last edited: Aug. 2017</EM></P>
+<P><EM>Page last edited: Feb. 2018</EM></P>
 
 <P>
 <H2><A NAME="toc1">1.</A> <A HREF="Quakespasm.html#s1">About </A></H2>
@@ -42,21 +41,22 @@
 <H2><A NAME="toc6">6.</A> <A HREF="Quakespasm.html#s6">Changes</A></H2>
 
 <UL>
-<LI><A NAME="toc6.1">6.1</A> <A HREF="Quakespasm.html#ss6.1">Changes in 0.93.0</A>
-<LI><A NAME="toc6.2">6.2</A> <A HREF="Quakespasm.html#ss6.2">Changes in 0.92.1</A>
-<LI><A NAME="toc6.3">6.3</A> <A HREF="Quakespasm.html#ss6.3">Changes in 0.92.0</A>
-<LI><A NAME="toc6.4">6.4</A> <A HREF="Quakespasm.html#ss6.4">Changes in 0.91.0</A>
-<LI><A NAME="toc6.5">6.5</A> <A HREF="Quakespasm.html#ss6.5">Changes in 0.90.1</A>
-<LI><A NAME="toc6.6">6.6</A> <A HREF="Quakespasm.html#ss6.6">Changes in 0.90.0</A>
-<LI><A NAME="toc6.7">6.7</A> <A HREF="Quakespasm.html#ss6.7">Changes in 0.85.9</A>
-<LI><A NAME="toc6.8">6.8</A> <A HREF="Quakespasm.html#ss6.8">Changes in 0.85.8</A>
-<LI><A NAME="toc6.9">6.9</A> <A HREF="Quakespasm.html#ss6.9">Changes in 0.85.7</A>
-<LI><A NAME="toc6.10">6.10</A> <A HREF="Quakespasm.html#ss6.10">Changes in 0.85.6</A>
-<LI><A NAME="toc6.11">6.11</A> <A HREF="Quakespasm.html#ss6.11">Changes in 0.85.5</A>
-<LI><A NAME="toc6.12">6.12</A> <A HREF="Quakespasm.html#ss6.12">Changes in 0.85.4</A>
-<LI><A NAME="toc6.13">6.13</A> <A HREF="Quakespasm.html#ss6.13">Changes in 0.85.3</A>
-<LI><A NAME="toc6.14">6.14</A> <A HREF="Quakespasm.html#ss6.14">Changes in 0.85.2</A>
-<LI><A NAME="toc6.15">6.15</A> <A HREF="Quakespasm.html#ss6.15">Changes in 0.85.1</A>
+<LI><A NAME="toc6.1">6.1</A> <A HREF="Quakespasm.html#ss6.1">Changes in 0.93.1</A>
+<LI><A NAME="toc6.2">6.2</A> <A HREF="Quakespasm.html#ss6.2">Changes in 0.93.0</A>
+<LI><A NAME="toc6.3">6.3</A> <A HREF="Quakespasm.html#ss6.3">Changes in 0.92.1</A>
+<LI><A NAME="toc6.4">6.4</A> <A HREF="Quakespasm.html#ss6.4">Changes in 0.92.0</A>
+<LI><A NAME="toc6.5">6.5</A> <A HREF="Quakespasm.html#ss6.5">Changes in 0.91.0</A>
+<LI><A NAME="toc6.6">6.6</A> <A HREF="Quakespasm.html#ss6.6">Changes in 0.90.1</A>
+<LI><A NAME="toc6.7">6.7</A> <A HREF="Quakespasm.html#ss6.7">Changes in 0.90.0</A>
+<LI><A NAME="toc6.8">6.8</A> <A HREF="Quakespasm.html#ss6.8">Changes in 0.85.9</A>
+<LI><A NAME="toc6.9">6.9</A> <A HREF="Quakespasm.html#ss6.9">Changes in 0.85.8</A>
+<LI><A NAME="toc6.10">6.10</A> <A HREF="Quakespasm.html#ss6.10">Changes in 0.85.7</A>
+<LI><A NAME="toc6.11">6.11</A> <A HREF="Quakespasm.html#ss6.11">Changes in 0.85.6</A>
+<LI><A NAME="toc6.12">6.12</A> <A HREF="Quakespasm.html#ss6.12">Changes in 0.85.5</A>
+<LI><A NAME="toc6.13">6.13</A> <A HREF="Quakespasm.html#ss6.13">Changes in 0.85.4</A>
+<LI><A NAME="toc6.14">6.14</A> <A HREF="Quakespasm.html#ss6.14">Changes in 0.85.3</A>
+<LI><A NAME="toc6.15">6.15</A> <A HREF="Quakespasm.html#ss6.15">Changes in 0.85.2</A>
+<LI><A NAME="toc6.16">6.16</A> <A HREF="Quakespasm.html#ss6.16">Changes in 0.85.1</A>
 </UL>
 <P>
 <H2><A NAME="toc7">7.</A> <A HREF="Quakespasm.html#s7">Todo </A></H2>
@@ -245,7 +245,20 @@ these patched libSDL binaries may help.
 
 
 
-<H2><A NAME="ss6.1">6.1</A> <A HREF="#toc6.1">Changes in 0.93.0</A>
+<H2><A NAME="ss6.1">6.1</A> <A HREF="#toc6.1">Changes in 0.93.1</A>
+</H2>
+
+<P>
+<UL>
+<LI> Fixed a fog regression which was introduced in 0.93.0.</LI>
+<LI> Fixed a crash (buffer overflow) with invalid vis data.</LI>
+<LI> Fixed buttons crushing players in 64-bit builds.</LI>
+<LI> Change controller movement to use cubic easing by default; added "joy_exponent_move" cvar.</LI> 
+<LI> config.cfg is no longer written in case of a Sys_Error.</LI> 
+<LI> Update the third-party libraries. Other fixes/cleanups.</LI>
+</UL>
+</P>
+<H2><A NAME="ss6.2">6.2</A> <A HREF="#toc6.2">Changes in 0.93.0</A>
 </H2>
 
 <P>
@@ -262,10 +275,16 @@ these patched libSDL binaries may help.
 <LI> Change "games" / "mods" commands to list all subdirectories.</LI>
 <LI> Restore vid_refreshrate from fitzquake-0.85 for SDL2 builds.</LI>
 <LI> Alpha-masked model support. (MF_HOLEY: 0x4000).</LI>
-<LI> Invalid skin index now draws skin 0 (WinQuake behaviour) instead of blue checkerboard.</LI> 
+<LI> Invalid skin index now draws skin 0 (WinQuake behaviour) instead of blue checkerboard.</LI>
 <LI> Change default screenshot format to png. The 'screenshot' command now supports optional format (tga, png or jpg) and quality (1-100) arguments.</LI>
-<LI> Revert "always run" changes from 0.85.9; move the QuakeSpasm customizations to a new "cl_alwaysrun" cvar. Set to 1 to scale forward/side/up speed by "cl_movespeedkey" (usually 2), and make "speedkey" act as "slowkey".</LI>
-<LI> Change "always run" menu option to offer "off" (cl_alwaysrun 0, cl_forwardspeed 200, cl_backspeed 200), "vanilla" (cl_alwaysrun 0, cl_forwardspeed 400, cl_backspeed 400) and "quakespasm" (cl_alwaysrun 1, cl_forwardspeed 200, cl_backspeed 200).</LI>
+<LI> Revert "always run" changes from 0.85.9 and move the QuakeSpasm customizations to a new "cl_alwaysrun" cvar: Set to 1 in order to scale forward/side/up speed by "cl_movespeedkey" (usually 2), and to make "speedkey" act as "slowkey".</LI>
+<LI> Change the "always run" menu option to offer three choices:
+<UL>
+<LI> off        (cl_alwaysrun 0, cl_forwardspeed 200, cl_backspeed 200)</LI>
+<LI> vanilla    (cl_alwaysrun 0, cl_forwardspeed 400, cl_backspeed 400)</LI>
+<LI> quakespasm (cl_alwaysrun 1, cl_forwardspeed 200, cl_backspeed 200)</LI>
+</UL>
+</LI>
 <LI> New "r_scale" cvar. Set to 2, 3, or 4 to render the view at 1/2, 1/3, or 1/4 resolution.</LI>
 <LI> New "r_viewmodel_quake" cvar. Set to 1 for WinQuake gun position (from MarkV).</LI>
 <LI> New "find" / "apropos" command, searches for commands/cvar names for the given substring (from Spike).</LI>
@@ -282,7 +301,7 @@ these patched libSDL binaries may help.
 <LI> Update the third-party libraries.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.2">6.2</A> <A HREF="#toc6.2">Changes in 0.92.1</A>
+<H2><A NAME="ss6.3">6.3</A> <A HREF="#toc6.3">Changes in 0.92.1</A>
 </H2>
 
 <P>
@@ -292,7 +311,7 @@ these patched libSDL binaries may help.
 <LI> Updated some of the third-party libraries.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.3">6.3</A> <A HREF="#toc6.3">Changes in 0.92.0</A>
+<H2><A NAME="ss6.4">6.4</A> <A HREF="#toc6.4">Changes in 0.92.0</A>
 </H2>
 
 <P>
@@ -312,7 +331,7 @@ these patched libSDL binaries may help.
 <LI> Updated some of the third-party libraries. Other fixes/clean-ups.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.4">6.4</A> <A HREF="#toc6.4">Changes in 0.91.0</A>
+<H2><A NAME="ss6.5">6.5</A> <A HREF="#toc6.5">Changes in 0.91.0</A>
 </H2>
 
 
@@ -372,7 +391,7 @@ these patched libSDL binaries may help.
 <LI> Raised MAX_SFX to 1024 (was 512).</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.5">6.5</A> <A HREF="#toc6.5">Changes in 0.90.1</A>
+<H2><A NAME="ss6.6">6.6</A> <A HREF="#toc6.6">Changes in 0.90.1</A>
 </H2>
 
 
@@ -432,7 +451,7 @@ these patched libSDL binaries may help.
 <LI> Update 3rd-party libraries.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.6">6.6</A> <A HREF="#toc6.6">Changes in 0.90.0</A>
+<H2><A NAME="ss6.7">6.7</A> <A HREF="#toc6.7">Changes in 0.90.0</A>
 </H2>
 
 <P>
@@ -477,7 +496,7 @@ these patched libSDL binaries may help.
 <LI> Other fixes and clean-ups.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.7">6.7</A> <A HREF="#toc6.7">Changes in 0.85.9</A>
+<H2><A NAME="ss6.8">6.8</A> <A HREF="#toc6.8">Changes in 0.85.9</A>
 </H2>
 
 <P>
@@ -501,7 +520,7 @@ these patched libSDL binaries may help.
 <LI> Several other minor fixes/cleanups.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.8">6.8</A> <A HREF="#toc6.8">Changes in 0.85.8</A>
+<H2><A NAME="ss6.9">6.9</A> <A HREF="#toc6.9">Changes in 0.85.8</A>
 </H2>
 
 <P>
@@ -526,7 +545,7 @@ these patched libSDL binaries may help.
 <LI> Miscellaneous source code cleanups.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.9">6.9</A> <A HREF="#toc6.9">Changes in 0.85.7</A>
+<H2><A NAME="ss6.10">6.10</A> <A HREF="#toc6.10">Changes in 0.85.7</A>
 </H2>
 
 <P>
@@ -544,7 +563,7 @@ these patched libSDL binaries may help.
 <LI> Several other small changes mostly invisible to the end-user</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.10">6.10</A> <A HREF="#toc6.10">Changes in 0.85.6</A>
+<H2><A NAME="ss6.11">6.11</A> <A HREF="#toc6.11">Changes in 0.85.6</A>
 </H2>
 
 <P>
@@ -555,7 +574,7 @@ these patched libSDL binaries may help.
 <LI> Minor SDL video fixes.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.11">6.11</A> <A HREF="#toc6.11">Changes in 0.85.5</A>
+<H2><A NAME="ss6.12">6.12</A> <A HREF="#toc6.12">Changes in 0.85.5</A>
 </H2>
 
 <P>
@@ -574,7 +593,7 @@ these patched libSDL binaries may help.
 <LI> Several code updates from uHexen2 project, several code cleanups.</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.12">6.12</A> <A HREF="#toc6.12">Changes in 0.85.4</A>
+<H2><A NAME="ss6.13">6.13</A> <A HREF="#toc6.13">Changes in 0.85.4</A>
 </H2>
 
 <P>
@@ -592,7 +611,7 @@ these patched libSDL binaries may help.
 <LI> Other minor sound and cdaudio updates</LI>
 </UL>
 </P>
-<H2><A NAME="ss6.13">6.13</A> <A HREF="#toc6.13">Changes in 0.85.3</A>
+<H2><A NAME="ss6.14">6.14</A> <A HREF="#toc6.14">Changes in 0.85.3</A>
 </H2>
 
 <P>
@@ -615,7 +634,7 @@ these patched libSDL binaries may help.
 </UL>
 </P>
 
-<H2><A NAME="ss6.14">6.14</A> <A HREF="#toc6.14">Changes in 0.85.2</A>
+<H2><A NAME="ss6.15">6.15</A> <A HREF="#toc6.15">Changes in 0.85.2</A>
 </H2>
 
 <P>
@@ -634,7 +653,7 @@ these patched libSDL binaries may help.
 </UL>
 </P>
 
-<H2><A NAME="ss6.15">6.15</A> <A HREF="#toc6.15">Changes in 0.85.1</A>
+<H2><A NAME="ss6.16">6.16</A> <A HREF="#toc6.16">Changes in 0.85.1</A>
 </H2>
 
 <P>
