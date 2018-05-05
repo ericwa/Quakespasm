@@ -422,6 +422,7 @@ void Draw_NewGame (void)
 	Draw_LoadPics ();
 	SCR_LoadPics ();
 	Sbar_LoadPics ();
+	PR_ReloadPics(false);
 
 	// empty lmp cache
 	for (pic = menu_cachepics, i = 0; i < menu_numcachepics; pic++, i++)

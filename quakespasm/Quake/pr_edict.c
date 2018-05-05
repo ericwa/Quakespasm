@@ -785,6 +785,8 @@ qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s)
 		break;
 
 	case ev_entity:
+		if (!strncmp(s, "entity ", 7))	//Spike: putentityfieldstring/etc should be able to cope with etos's weirdness.
+			s += 7;
 		*(int *)d = EDICT_TO_PROG(EDICT_NUM(atoi (s)));
 		break;
 

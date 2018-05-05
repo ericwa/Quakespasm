@@ -3322,6 +3322,8 @@ void Mod_LoadSpriteModel (qmodel_t *mod, void *buffer)
 	mod->maxs[0] = mod->maxs[1] = psprite->maxwidth/2;
 	mod->mins[2] = -psprite->maxheight/2;
 	mod->maxs[2] = psprite->maxheight/2;
+	VectorCopy(mod->mins, mod->clipmins);
+	VectorCopy(mod->maxs, mod->clipmaxs);
 
 //
 // load the frames

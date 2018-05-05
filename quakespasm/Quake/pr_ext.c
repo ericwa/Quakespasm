@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //one funky way is to allocate a single large buffer and just concatenate it for more tempstring space. don't forget to resize (dp).
 //alternatively, just allocate them persistently and purge them only when there appear to be no more references to it (fte). makes strzone redundant.
 
+extern cvar_t sv_gameplayfix_setmodelrealbox;
 cvar_t pr_checkextension = {"pr_checkextension", "1", CVAR_NONE};	//spike - enables qc extensions. if 0 then they're ALL BLOCKED! MWAHAHAHA! *cough* *splutter*
 int pr_ext_warned_particleeffectnum;	//so these only spam once per map
 
@@ -1735,7 +1736,7 @@ static void PF_sv_setmodelindex(void)
 	if (mod)
 	//johnfitz -- correct physics cullboxes for bmodels
 	{
-		if (mod->type == mod_brush)
+		if (mod->type == mod_brush || !sv_gameplayfix_setmodelrealbox.value)
 			SetMinMaxSize (e, mod->clipmins, mod->clipmaxs, true);
 		else
 			SetMinMaxSize (e, mod->mins, mod->maxs, true);
@@ -1755,7 +1756,7 @@ static void PF_cl_setmodelindex(void)
 	if (mod)
 	//johnfitz -- correct physics cullboxes for bmodels
 	{
-		if (mod->type == mod_brush)
+		if (mod->type == mod_brush || !sv_gameplayfix_setmodelrealbox.value)
 			SetMinMaxSize (e, mod->clipmins, mod->clipmaxs, true);
 		else
 			SetMinMaxSize (e, mod->mins, mod->maxs, true);
@@ -3034,6 +3035,7 @@ static void PF_buf_shutdown(void)
 			Z_Free(strbuflist[bufno].strings[i]);
 		Z_Free(strbuflist[bufno].strings);
 
+		strbuflist[bufno].owningvm = NULL;
 		strbuflist[bufno].strings = NULL;
 		strbuflist[bufno].used = 0;
 		strbuflist[bufno].allocated = 0;
@@ -3084,7 +3086,10 @@ static void PF_buf_del(void)
 		return;
 
 	for (i = 0; i < strbuflist[bufno].used; i++)
-		Z_Free(strbuflist[bufno].strings[i]);
+	{
+		if (strbuflist[bufno].strings[i])
+			Z_Free(strbuflist[bufno].strings[i]);
+	}
 	Z_Free(strbuflist[bufno].strings);
 
 	strbuflist[bufno].strings = NULL;
@@ -3125,7 +3130,8 @@ static void PF_buf_copy(void)
 
 	//obliterate any and all existing data.
 	for (i = 0; i < strbuflist[bufto].used; i++)
-		Z_Free(strbuflist[bufto].strings[i]);
+		if (strbuflist[bufto].strings[i])
+			Z_Free(strbuflist[bufto].strings[i]);
 	Z_Free(strbuflist[bufto].strings);
 
 	//copy new data over.
@@ -3263,9 +3269,14 @@ static void PF_bufstr_get(void)
 		return;
 	}
 
-	ret = PR_GetTempString();
-	q_strlcpy(ret, strbuflist[bufno].strings[index], STRINGTEMP_LENGTH);
-	G_INT(OFS_RETURN) = PR_SetEngineString(ret);
+	if (strbuflist[bufno].strings[index])
+	{
+		ret = PR_GetTempString();
+		q_strlcpy(ret, strbuflist[bufno].strings[index], STRINGTEMP_LENGTH);
+		G_INT(OFS_RETURN) = PR_SetEngineString(ret);
+	}
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 // #447 void(float bufhandle, float string_index, string str) bufstr_set (DP_QC_STRINGBUFFERS)
 static void PF_bufstr_set(void)
@@ -3515,6 +3526,7 @@ static void PF_findchain(void)
 
 	f = G_INT(OFS_PARM0);
 	s = G_STRING(OFS_PARM1);
+	//FIXME: cfld = G_INT(OFS_PARM2);
 
 	ent = NEXT_EDICT(qcvm->edicts);
 	for (i = 1; i < qcvm->num_edicts; i++, ent = NEXT_EDICT(ent))
@@ -3566,6 +3578,7 @@ static void PF_findchainfloat(void)
 
 	f = G_INT(OFS_PARM0);
 	s = G_FLOAT(OFS_PARM1);
+	//FIXME: cfld = G_INT(OFS_PARM2);
 
 	ent = NEXT_EDICT(qcvm->edicts);
 	for (i = 1; i < qcvm->num_edicts; i++, ent = NEXT_EDICT(ent))
@@ -3617,6 +3630,7 @@ static void PF_findchainflags(void)
 
 	f = G_INT(OFS_PARM0);
 	s = G_FLOAT(OFS_PARM1);
+	//FIXME: cfld = G_INT(OFS_PARM2);
 
 	ent = NEXT_EDICT(qcvm->edicts);
 	for (i = 1; i < qcvm->num_edicts; i++, ent = NEXT_EDICT(ent))
@@ -3664,9 +3678,9 @@ static void PF_entityfieldtype(void)
 {
 	unsigned int fldidx = G_FLOAT(OFS_PARM0);
 	if (fldidx >= (unsigned int)qcvm->progs->numfielddefs)
-		G_INT(OFS_RETURN) = ev_void;
+		G_FLOAT(OFS_RETURN) = ev_void;
 	else
-		G_INT(OFS_RETURN) = qcvm->fielddefs[fldidx].type;
+		G_FLOAT(OFS_RETURN) = qcvm->fielddefs[fldidx].type;
 }
 static void PF_getentfldstr(void)
 {
@@ -4483,13 +4497,25 @@ struct
 } *qcpics;
 size_t numqcpics;
 size_t maxqcpics;
+void PR_ReloadPics(qboolean purge)
+{
+	numqcpics = 0;
+
+	free(qcpics);
+	qcpics = NULL;
+	maxqcpics = 0;
+}
 static qpic_t *DrawQC_CachePic(const char *picname, int cachetype)
 {	//okay, so this is silly. we've ended up with 3 different cache levels. qcpics, pics, and images.
 	size_t i;
 	for (i = 0; i < numqcpics; i++)
 	{	//binary search? something more sane?
 		if (!strcmp(picname, qcpics[i].name))
-			return qcpics[i].pic;
+		{
+			if (qcpics[i].pic)
+				return qcpics[i].pic;
+			break;
+		}
 	}
 
 	if (strlen(picname) >= MAX_QPATH)
@@ -4498,28 +4524,31 @@ static qpic_t *DrawQC_CachePic(const char *picname, int cachetype)
 	if (cachetype < 0)
 		return NULL;	//its a query, not actually needed.
 
-	if (numqcpics+1 > maxqcpics)
+	if (i+1 > maxqcpics)
 	{
-		maxqcpics = numqcpics + 32;
+		maxqcpics = i + 32;
 		qcpics = realloc(qcpics, maxqcpics * sizeof(*qcpics));
 	}
 
-	strcpy(qcpics[numqcpics].name, picname);
-	qcpics[numqcpics].type = cachetype;
-	qcpics[numqcpics].pic = NULL;
+	strcpy(qcpics[i].name, picname);
+	qcpics[i].type = cachetype;
+	qcpics[i].pic = NULL;
 
 	//try to load it from a wad if applicable.
 	//the extra gfx/ crap is because DP insists on it for wad images. and its a nightmare to get things working in all engines if we don't accept that quirk too.
 	if (cachetype == 1)
-		qcpics[numqcpics].pic = Draw_PicFromWad(picname + (strncmp(picname, "gfx/", 4)?0:4));
+		qcpics[i].pic = Draw_PicFromWad(picname + (strncmp(picname, "gfx/", 4)?0:4));
 	else if (!strncmp(picname, "gfx/", 4) && !strchr(picname+4, '.'))
-		qcpics[numqcpics].pic = Draw_PicFromWad(picname+4);
+		qcpics[i].pic = Draw_PicFromWad(picname+4);
 
 	//okay, not a wad pic, try and load a lmp/tga/etc
-	if (!qcpics[numqcpics].pic)
-		qcpics[numqcpics].pic = Draw_TryCachePic(picname);
+	if (!qcpics[i].pic)
+		qcpics[i].pic = Draw_TryCachePic(picname);
 
-	return qcpics[numqcpics++].pic;
+	if (i == numqcpics)
+		numqcpics++;
+
+	return qcpics[i].pic;
 }
 static void DrawQC_CharacterQuad (float x, float y, int num, float w, float h)
 {
@@ -5649,6 +5678,8 @@ void PR_ShutdownExtensions(void)
 	PF_search_shutdown();
 	PF_buf_shutdown();
 	tokenize_flush();
+	if (qcvm == &cl.qcvm)
+		PR_ReloadPics(true);
 
 	pr_ext_warned_particleeffectnum = 0;
 }
@@ -5997,6 +6028,16 @@ void PR_DumpPlatform_f(void)
 //		fprintf(f, "const float STAT_PUNCHVECTOR_Z = 31;\n");
 	}
 	fprintf(f, "const float STAT_USER = 32;			/* Custom user stats start here (lower values are reserved for engine use). */\n");
+	//these can be used for both custom stats and for reflection
+	fprintf(f, "const float EV_VOID = %i;\n", ev_void);
+	fprintf(f, "const float EV_STRING = %i;\n", ev_string);
+	fprintf(f, "const float EV_FLOAT = %i;\n", ev_float);
+	fprintf(f, "const float EV_VECTOR = %i;\n", ev_vector);
+	fprintf(f, "const float EV_ENTITY = %i;\n", ev_entity);
+	fprintf(f, "const float EV_FIELD = %i;\n", ev_field);
+	fprintf(f, "const float EV_FUNCTION = %i;\n", ev_function);
+	fprintf(f, "const float EV_POINTER = %i;\n", ev_pointer);
+	fprintf(f, "const float EV_INTEGER = %i;\n", ev_ext_integer);
 
 	if (targs & 1)
 	{
