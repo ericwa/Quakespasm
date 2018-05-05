@@ -1299,8 +1299,6 @@ void Key_Event (int key, qboolean down)
 			if (key_dest == key_game && !con_forcedup)
 				return; // ignore autorepeats in game mode
 		}
-		else if (key >= 200 && !keybindings[key])
-			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString(key));
 	}
 	else if (!keydown[key])
 		return; // ignore stray key up events
@@ -1396,6 +1394,8 @@ void Key_Event (int key, qboolean down)
 				Cbuf_AddText ("\n");
 			}
 		}
+		else if (key >= 200)
+			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString(key));
 		return;
 	}
 
