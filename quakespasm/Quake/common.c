@@ -1221,7 +1221,7 @@ qboolean COM_DownloadNameOkay(const char *filename)
 		q_strcasecmp(filename, "bsp") &&
 		q_strcasecmp(filename, "mdl") &&
 		q_strcasecmp(filename, "iqm") &&	//in case we ever support these later
-		q_strcasecmp(filename, "md3") &&	//in case we ever support these later
+		q_strcasecmp(filename, "md3") &&
 		q_strcasecmp(filename, "spr") &&
 		q_strcasecmp(filename, "spr32") &&
 		//audio formats

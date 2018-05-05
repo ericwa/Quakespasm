@@ -10,7 +10,7 @@ QuakeSpasm-Spiked
 
   It includes networking fixes and improvements, which means you can
   actually stand a chance of being able to use this thing as a server.
-  It also includes a whole load of (serverside) QuakeC extensions so that
+  It also includes a whole load of QuakeC extensions so that
   modders are no longer limited to what is essentially crippleware.
   If the way I explain that grates on you, then you're probably part of
   the reason why I got annoyed enough to spend my time on this.
@@ -95,6 +95,9 @@ QuakeSpasm-Spiked
   ----------------------
   3.2.  Modding features
 
+  o  Support for custom huds (or even menus) via Simple CSQC.
+     Check the devkit for an example.
+
   o  Supports md3 (no shaders, no tags).
 
   o  Raised limits for the mdl format (much rewritten, vertex limit is somewhere north of 32k, which should be enough...).
@@ -139,12 +142,14 @@ QuakeSpasm-Spiked
   3.3.  Mapping features
 
   o  Raised limits:
-     Static Entities   (limit removed)
-     Static Sounds     (limit destroyed)
-     Baseline Limits   (limit annihilated)
-     Visible Entities  (limit nuked from orbit)
-     Lightmap Data     (limit obliterated)
-     Max Lightstyles   (now 255 - bsp2 format limit).
+     Static Entities     (limit removed)
+     Static Sounds       (limit destroyed)
+     Baseline Limits     (limit annihilated)
+     Visible Entities    (limit nuked from orbit)
+     Lightmap Data       (limit obliterated)
+     Max Lightmaps       (limit amputated)
+     Max Lightstyles     (now 255 - bsp2 format limit).
+     Lightmap Dimensions (now 256, for surface dimensions up to 4080qu)
 
   o  BSPX support.
      Lits can be embedded now, for fewer files to distribute.
@@ -183,8 +188,6 @@ QuakeSpasm-Spiked
   o  remove hull size limitation.
 
   o  maybe menuqc. otherwise known as cvar hell, so mods can avoid quake's clunky nightmare.
-
-  o  maybe basic csqc. primarily for huds.
 
   -----------
   5.  Copyright
