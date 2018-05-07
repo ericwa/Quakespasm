@@ -187,10 +187,12 @@ QuakeSpasm-Spiked
 
   o  remove hull size limitation.
 
-  o  maybe menuqc. otherwise known as cvar hell, so mods can avoid quake's clunky nightmare.
+  o  either menuqc or disconnected-csqc (for menus). otherwise known as cvar hell, so mods can avoid quake's clunky nightmare.
+
+  o  rgb9e5 lighting.
 
   -----------
-  5.  Copyright
+  5.  Copyright And License
 
   o  Quake and Quakespasm are released under the GNU GENERAL PUBLIC
      LICENSE Version 2: http://www.gnu.org/licenses/gpl-2.0.html

@@ -5863,6 +5863,8 @@ void PR_DumpPlatform_f(void)
 		Con_Printf("%s: Couldn't write %s\n", Cmd_Argv(0), name);
 		return;
 	}
+	Con_Printf("%s: Writing %s\n", Cmd_Argv(0), name);
+
 	fprintf(f,
 		"/*\n"
 		"Extensions file for "ENGINE_NAME_AND_VER"\n"
@@ -5966,8 +5968,8 @@ void PR_DumpPlatform_f(void)
 	{
 		fprintf(f, "void(float apilevel, string enginename, float engineversion) CSQC_Init;\n");
 		fprintf(f, "float(string cmdstr) CSQC_ConsoleCommand;\n");
-		fprintf(f, "void(vector virtmin, vector virtsize, float showscores) CSQC_DrawHud;\n");
-		fprintf(f, "void(vector virtmin, vector virtsize, float showscores) CSQC_DrawScores;\n");
+		fprintf(f, "void(vector virtsize, float showscores) CSQC_DrawHud;\n");
+		fprintf(f, "void(vector virtsize, float showscores) CSQC_DrawScores;\n");
 		fprintf(f, "float(float evtype, float scanx, float chary, float devid) CSQC_InputEvent;\n");
 		fprintf(f, "void() CSQC_Parse_Event;\n");
 		fprintf(f, "float(float save, float take, vector dir) CSQC_Parse_Damage;\n");
