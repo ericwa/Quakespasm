@@ -682,6 +682,14 @@ void Host_ServerFrame (void)
 	SV_SendClientMessages ();
 }
 
+//used for cl.qcvm.GetModel (so ssqc+csqc can share builtins)
+qmodel_t *CL_ModelForIndex(int index)
+{
+	if (index < 0 || index >= MAX_MODELS)
+		return NULL;
+	return cl.model_precache[index];
+}
+
 /*
 ==================
 Host_Frame

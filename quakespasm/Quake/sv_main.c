@@ -2938,6 +2938,13 @@ void SV_SaveSpawnparms (void)
 	}
 }
 
+//used for sv.qcvm.GetModel (so ssqc+csqc can share builtins)
+qmodel_t *SV_ModelForIndex(int index)
+{
+	if (index < 0 || index >= MAX_MODELS)
+		return NULL;
+	return sv.models[index];
+}
 
 /*
 ================
@@ -3050,6 +3057,7 @@ void SV_SpawnServer (const char *server)
 		return;
 	}
 	sv.models[1] = qcvm->worldmodel;
+	qcvm->GetModel = SV_ModelForIndex;
 
 //
 // clear world interaction links
