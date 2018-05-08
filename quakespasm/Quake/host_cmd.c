@@ -1134,6 +1134,8 @@ void Host_Savegame_f (void)
 		return;
 	}
 
+	PR_SwitchQCVM(&sv.qcvm);
+
 	fprintf (f, "%i\n", SAVEGAME_VERSION);
 	Host_SavegameComment (comment);
 	fprintf (f, "%s\n", comment);
@@ -1193,6 +1195,7 @@ void Host_Savegame_f (void)
 
 	fclose (f);
 	Con_Printf ("done.\n");
+	PR_SwitchQCVM(NULL);
 }
 
 
