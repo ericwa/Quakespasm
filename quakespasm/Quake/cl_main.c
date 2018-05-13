@@ -67,6 +67,7 @@ int				cl_maxvisedicts;
 entity_t		**cl_visedicts;
 
 extern cvar_t	r_lerpmodels, r_lerpmove; //johnfitz
+extern float	host_netinterval;	//Spike
 
 void CL_ClearTrailStates(void)
 {
@@ -413,7 +414,7 @@ float	CL_LerpPoint (void)
 
 	f = cl.mtime[0] - cl.mtime[1];
 
-	if (!f || cls.timedemo || sv.active)
+	if (!f || cls.timedemo || (sv.active && !host_netinterval))
 	{
 		cl.time = cl.mtime[0];
 		return 1;
@@ -1121,6 +1122,25 @@ int CL_ReadFromServer (void)
 
 /*
 =================
+CL_UpdateViewAngles
+
+Spike: split from CL_SendCmd, to do clientside viewangle changes separately from outgoing packets.
+=================
+*/
+void CL_AccumulateCmd (void)
+{
+	if (cls.signon == SIGNONS)
+	{
+		//basic keyboard looking
+		CL_AdjustAngles ();
+
+		//accumulate movement from other devices
+		IN_Move (&cl.pendingcmd);
+	}
+}
+
+/*
+=================
 CL_SendCmd
 =================
 */
@@ -1137,13 +1157,16 @@ void CL_SendCmd (void)
 		CL_BaseMove (&cmd);
 
 	// allow mice or other external controllers to add to the move
-		IN_Move (&cmd);
+		cmd.forwardmove	+= cl.pendingcmd.forwardmove;
+		cmd.sidemove	+= cl.pendingcmd.sidemove;
+		cmd.upmove		+= cl.pendingcmd.upmove;
 
 	// send the unreliable message
 		CL_SendMove (&cmd);
 	}
 	else
 		CL_SendMove (NULL);
+	memset(&cl.pendingcmd, 0, sizeof(cl.pendingcmd));
 
 	if (cls.demoplayback)
 	{
