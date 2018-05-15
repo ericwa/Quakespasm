@@ -49,6 +49,13 @@ QuakeSpasm-Spiked
   ----------------------
   3.1.  Protocol Changes
 
+  o  host_maxfps now caps all networking to 72 automatically.
+     This means that you can FINALLY uncap framerates without flooding servers
+     and without physics glitches.
+     Note that to uncap framerates, set host_maxfps to 0.
+     You may wish to disable sys_throttle too, if you care more about framerates 
+     or benchmarking than electricity.
+
   o  VOIP. Yes, voip is a thing.
      +voip or cl_voip_send 1 to use.
      cl_voip_test 1 will let you listen to yourself (*sigh*) to
@@ -181,7 +188,7 @@ QuakeSpasm-Spiked
 
   o  opus voip encoder library
 
-  o  properish dev kit, with proper docs (ahahaha!).
+  o  improve dev kit, with proper docs (ahahaha!).
 
   o  IQM, maybe, some time (mdl sucks).
 
