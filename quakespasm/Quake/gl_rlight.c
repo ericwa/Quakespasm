@@ -166,7 +166,7 @@ DYNAMIC LIGHTS
 R_MarkLights -- johnfitz -- rewritten to use LordHavoc's lighting speedup
 =============
 */
-void R_MarkLights (dlight_t *light, int num, mnode_t *node)
+void R_MarkLights (dlight_t *light, vec3_t lightorg, int num, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	msurface_t	*surf;
@@ -182,9 +182,9 @@ start:
 
 	splitplane = node->plane;
 	if (splitplane->type < 3)
-		dist = light->origin[splitplane->type] - splitplane->dist;
+		dist = lightorg[splitplane->type] - splitplane->dist;
 	else
-		dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
+		dist = DotProduct (lightorg, splitplane->normal) - splitplane->dist;
 
 	if (dist > light->radius)
 	{
@@ -203,7 +203,7 @@ start:
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
 		for (j=0 ; j<3 ; j++)
-			impact[j] = light->origin[j] - surf->plane->normal[j]*dist;
+			impact[j] = lightorg[j] - surf->plane->normal[j]*dist;
 		// clamp center of light to corner and check brightness
 		l = DotProduct (impact, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3] - surf->texturemins[0];
 		s = l+0.5;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
@@ -225,9 +225,9 @@ start:
 	}
 
 	if (node->children[0]->contents >= 0)
-		R_MarkLights (light, num, node->children[0]);
+		R_MarkLights (light, lightorg, num, node->children[0]);
 	if (node->children[1]->contents >= 0)
-		R_MarkLights (light, num, node->children[1]);
+		R_MarkLights (light, lightorg, num, node->children[1]);
 }
 
 /*
@@ -251,7 +251,7 @@ void R_PushDlights (void)
 	{
 		if (l->die < cl.time || !l->radius)
 			continue;
-		R_MarkLights (l, i, cl.worldmodel->nodes);
+		R_MarkLights (l, l->origin, i, cl.worldmodel->nodes);
 	}
 }
 

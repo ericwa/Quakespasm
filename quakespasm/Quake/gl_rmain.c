@@ -917,6 +917,8 @@ R_RenderScene
 */
 void R_RenderScene (void)
 {
+	static entity_t r_worldentity;	//so we can make sure currententity is valid
+	currententity = &r_worldentity;
 	R_SetupScene (); //johnfitz -- this does everything that should be done once per call to RenderScene
 
 	Fog_EnableGFog (); //johnfitz
@@ -924,6 +926,7 @@ void R_RenderScene (void)
 	Sky_DrawSky (); //johnfitz
 
 	R_DrawWorld ();
+	currententity = NULL;
 
 	S_ExtraUpdate (); // don't let sound get messed up if going slow
 

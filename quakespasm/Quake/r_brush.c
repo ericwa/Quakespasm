@@ -505,6 +505,7 @@ void R_DrawBrushModel (entity_t *e)
 	float		dot;
 	mplane_t	*pplane;
 	qmodel_t	*clmodel;
+	vec3_t		lightorg;
 
 	if (R_CullModelForEntity(e))
 		return;
@@ -537,7 +538,8 @@ void R_DrawBrushModel (entity_t *e)
 				(!cl_dlights[k].radius))
 				continue;
 
-			R_MarkLights (&cl_dlights[k], k,
+			VectorSubtract(cl_dlights[k].origin, e->origin, lightorg);
+			R_MarkLights (&cl_dlights[k], lightorg, k,
 				clmodel->nodes + clmodel->hulls[0].firstclipnode);
 		}
 	}
@@ -1055,6 +1057,7 @@ void R_AddDynamicLights (msurface_t *surf)
 	float		cred, cgreen, cblue, brightness;
 	unsigned	*bl;
 	//johnfitz
+	vec3_t		lightofs;	//Spike: light surfaces based upon where they are now instead of their default position.
 	int			lmscale;
 
 	smax = (surf->extents[0]>>surf->lmshift)+1;
@@ -1068,8 +1071,8 @@ void R_AddDynamicLights (msurface_t *surf)
 			continue;		// not lit by this light
 
 		rad = cl_dlights[lnum].radius;
-		dist = DotProduct (cl_dlights[lnum].origin, surf->plane->normal) -
-				surf->plane->dist;
+		VectorSubtract(cl_dlights[lnum].origin, currententity->origin, lightofs);
+		dist = DotProduct (lightofs, surf->plane->normal) - surf->plane->dist;
 		rad -= fabs(dist);
 		minlight = cl_dlights[lnum].minlight;
 		if (rad < minlight)
@@ -1078,7 +1081,7 @@ void R_AddDynamicLights (msurface_t *surf)
 
 		for (i=0 ; i<3 ; i++)
 		{
-			impact[i] = cl_dlights[lnum].origin[i] -
+			impact[i] = lightofs[i] -
 					surf->plane->normal[i]*dist;
 		}
 
