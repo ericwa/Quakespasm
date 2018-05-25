@@ -595,8 +595,6 @@ static void CL_EntitiesDeltaed(void)
 			ent->lerpflags &= ~LERP_MOVESTEP;
 
 		ent->alpha = ent->netstate.alpha;
-		if (ent->alpha == 255)
-			ent->alpha = 0;	//allows it to use r_wateralpha etc if its a water brush.
 /*		if (bits & U_LERPFINISH)
 		{
 			ent->lerpfinish = ent->msgtime + ((float)(MSG_ReadByte()) / 255);
@@ -935,7 +933,7 @@ static void CLDP_ReadDelta(unsigned int entnum, entity_state_t *s, const entity_
 			s->effects = MSG_ReadByte();
 	}
 	if (bits & E5_ALPHA)
-		s->alpha = MSG_ReadByte()+1;
+		s->alpha = (MSG_ReadByte()+1)&0xff;
 	if (bits & E5_SCALE)
 		s->scale = MSG_ReadByte();
 	if (bits & E5_COLORMAP)
