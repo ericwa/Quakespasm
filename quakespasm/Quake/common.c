@@ -27,8 +27,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <errno.h>
 
 #ifndef _WIN32
-#include <dirent.h>
-#include <fnmatch.h>
+	#include <dirent.h>
+	#include <fnmatch.h>
+	#ifndef FNM_CASEFOLD
+		#define FNM_CASEFOLD 0	//not available. I guess we're not on gnu/linux
+	#endif
 #endif
 
 static char	*largv[MAX_NUM_ARGVS + 1];

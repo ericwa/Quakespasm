@@ -208,6 +208,19 @@ QuakeSpasm-Spiked
 
   o  Additional code and binaries are released under the same license.
 
+  o  The public linux build statically links against various common libraries
+     in order to reduce version conflicts (compiled on a Debian 8/Jessie system).
+     For system integration, it still requires the SDL 1.2 package from your distro.
+
+     . libjpeg 9b
+     . libz 1.2.11
+     . libpng 1.6.34
+     . lobogg 1.3.3
+     . libvorbis[file] 1.3.5
+     . libopus 1.3-beta
+     . libopusfile 0.9
+     . libmad 0.15.1b
+
   -------------------
   6.  Links / Contact
 

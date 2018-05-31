@@ -18,7 +18,7 @@ USE_CODEC_WAVE=1
 USE_CODEC_FLAC=0
 USE_CODEC_MP3=1
 USE_CODEC_VORBIS=1
-USE_CODEC_OPUS=0
+USE_CODEC_OPUS=1
 # either mikmod or xmp
 USE_CODEC_MIKMOD=0
 USE_CODEC_XMP=0
@@ -74,6 +74,8 @@ define do_strip
 endef
 endif
 
+CFLAGS += $(QSS_CFLAGS)
+LDFLAGS += $(QSS_LDFLAGS)
 ifeq ($(DO_USERDIRS),1)
 CFLAGS += -DDO_USERDIRS=1
 endif
@@ -158,6 +160,7 @@ ifeq ($(USE_CODEC_OPUS),1)
 CFLAGS+= -DUSE_CODEC_OPUS
 CFLAGS+= $(shell pkg-config --cflags opusfile)
 CODECLIBS+= $(shell pkg-config --libs   opusfile)
+CODECLIBS+= $(shell pkg-config --libs   opus)
 endif
 ifeq ($(USE_CODEC_VORBIS),1)
 CFLAGS+= -DUSE_CODEC_VORBIS $(cpp_vorbisdec)

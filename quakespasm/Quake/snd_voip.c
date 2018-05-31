@@ -1320,7 +1320,7 @@ static struct
 #define OPUS_SET_BITRATE_REQUEST			4002
 #define OPUS_RESET_STATE					4028
 #ifdef OPUS_STATIC
-#include <opus/opus.h>
+#include <opus.h>
 #define qopus_encoder_create	opus_encoder_create
 #define qopus_encoder_destroy	opus_encoder_destroy
 #define qopus_encoder_ctl		opus_encoder_ctl
