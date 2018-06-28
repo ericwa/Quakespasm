@@ -171,6 +171,8 @@ void Host_Error (const char *error, ...)
 		Sys_Error ("Host_Error: recursively entered");
 	inerror = true;
 
+	if (cl.qcvm.progs)
+		glDisable(GL_SCISSOR_TEST);	//equivelent to drawresetcliparea, to reset any damage if we crashed in csqc.
 	PR_SwitchQCVM(NULL);
 
 	SCR_EndLoadingPlaque ();		// reenable screen updates
@@ -776,6 +778,8 @@ void _Host_Frame (double time)
 						*qcvm->extglobals.player_localnum = cl.viewentity;	//this is a guess, but is important for scoreboards.
 
 					//and call the init function... if it exists.
+					qcvm->worldmodel = cl.worldmodel;
+					SV_ClearWorld();
 					if (qcvm->extfuncs.CSQC_Init)
 					{
 						G_FLOAT(OFS_PARM0) = 0;
