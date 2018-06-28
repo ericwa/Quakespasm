@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // snd_mem.c: sound caching
 
 #include "quakedef.h"
+#include "snd_codec.h"
 
 /*
 ================
@@ -133,6 +134,42 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 // load it in
 	q_strlcpy(namebuffer, "sound/", sizeof(namebuffer));
 	q_strlcat(namebuffer, s->name, sizeof(namebuffer));
+
+	if (strcmp("wav", COM_FileGetExtension(s->name)))
+	{	//if its an ogg (or even an mp3) then decode it now. our mixer doesn't support streaming anything but music.
+		//FIXME: I hate depending on extensions for this sort of thing. Its not a very quakey thing to do.
+		snd_stream_t *stream = S_CodecOpenStreamExt(namebuffer);
+		if (!stream)
+			stream = S_CodecOpenStreamExt(s->name);
+		if (stream)
+		{
+			size_t decodedsize = 1024*1024*16;
+			void *decoded = malloc(decodedsize);
+			int res = S_CodecReadStream(stream, decodedsize, decoded);
+			int len;
+			S_CodecCloseStream(stream);
+
+			res /= stream->info.width*stream->info.channels;
+
+			stepscale = (float)stream->info.rate / shm->speed;
+			len = res / stepscale;
+			len = len * stream->info.width;// * info.channels;
+
+			sc = (sfxcache_t *) Cache_Alloc ( &s->cache, res + sizeof(sfxcache_t), s->name);
+			if (!sc)
+				return NULL;
+
+			sc->length = res / stream->info.channels;
+			sc->loopstart = -1;
+			sc->speed = stream->info.rate;
+			sc->width = stream->info.width;
+			sc->stereo = stream->info.channels-1;
+
+			ResampleSfx (s, sc->speed, sc->width, decoded);
+			free(decoded);
+			return sc;
+		}
+	}
 
 //	Con_Printf ("loading %s\n",namebuffer);
 
