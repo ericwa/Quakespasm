@@ -1267,7 +1267,10 @@ void CalcSurfaceExtents (msurface_t *s)
 		s->extents[i] = (bmaxs[i] - bmins[i]) * lmscale;
 
 		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > maxextent) //johnfitz -- was 512 in glquake, 256 in winquake
-			Sys_Error ("Bad surface extents");
+		{
+			s->extents[i] = 1;
+//			Sys_Error ("Bad surface extents");
+		}
 	}
 }
 

@@ -314,6 +314,24 @@ qpic_t	*Draw_TryCachePic (const char *path)
 	menu_numcachepics++;
 	strcpy (pic->name, path);
 
+	if (strcmp("lmp", COM_FileGetExtension(path)))
+	{
+		char npath[MAX_QPATH];
+		COM_StripExtension(path, npath, sizeof(npath));
+		gl.gltexture = TexMgr_LoadImage (NULL, npath, 0, 0, SRC_EXTERNAL, NULL, npath, 0, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP);
+
+		pic->pic.width = gl.gltexture->width;
+		pic->pic.height = gl.gltexture->height;
+
+		gl.sl = 0;
+		gl.sh = (float)pic->pic.width/(float)TexMgr_PadConditional(pic->pic.width); //johnfitz
+		gl.tl = 0;
+		gl.th = (float)pic->pic.height/(float)TexMgr_PadConditional(pic->pic.height); //johnfitz
+		memcpy (pic->pic.data, &gl, sizeof(glpic_t));
+
+		return &pic->pic;
+	}
+
 //
 // load the pic from disk
 //
@@ -579,6 +597,26 @@ void Draw_SubPic (float x, float y, float w, float h, qpic_t *pic, float s1, flo
 	glVertex2f (x+w, y+h);
 	glTexCoord2f (gl->sl*(1-s1) + s1*gl->sh, gl->tl*(1-t2) + t2*gl->th);
 	glVertex2f (x, y+h);
+	glEnd ();
+}
+
+//Spike -- this is for CSQC to do fancy drawing.
+void Draw_PicPolygon(qpic_t *pic, unsigned int numverts, polygonvert_t *verts)
+{
+	glpic_t			*gl;
+
+	if (scrap_dirty)
+		Scrap_Upload ();
+	gl = (glpic_t *)pic->data;
+	GL_Bind (gl->gltexture);
+	glBegin (GL_TRIANGLE_FAN);
+	while (numverts --> 0)
+	{
+		glColor4fv(verts->rgba);
+		glTexCoord2f (gl->sl*(1-verts->st[0]) + verts->st[0]*gl->sh, gl->tl*(1-verts->st[1]) + verts->st[1]*gl->th);
+		glVertex2f(verts->xy[0], verts->xy[1]);
+		verts++;
+	}
 	glEnd ();
 }
 

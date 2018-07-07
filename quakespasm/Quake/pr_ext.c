@@ -476,6 +476,7 @@ static void PF_strzone(void)
 	size_t l[8];
 	int i;
 	size_t id;
+
 	for (i = 0; i < qcvm->argc; i++)
 	{
 		s[i] = G_STRING(OFS_PARM0+i*3);
@@ -494,7 +495,6 @@ static void PF_strzone(void)
 	}
 	qcvm->knownzone[id>>3] |= 1u<<(id&7);
 
-	len = 0;
 	for (i = 0; i < qcvm->argc; i++)
 	{
 		memcpy(buf, s[i], l[i]);
@@ -506,6 +506,7 @@ static void PF_strunzone(void)
 {
 	size_t id;
 	const char *foo = G_STRING(OFS_PARM0);
+
 	if (!G_INT(OFS_PARM0))
 		return;	//don't bug out if they gave a null string
 	id = -1-G_INT(OFS_PARM0);
@@ -2100,10 +2101,18 @@ static void PF_getsurfacepointattribute(void)
 }
 static void PF_sv_getlight(void)
 {
+	qmodel_t *om = cl.worldmodel;
 	float *point = G_VECTOR(OFS_PARM0);
+
+	cl.worldmodel = qcvm->worldmodel;	//R_LightPoint is really clientside, so if its called from ssqc then try to make things work regardless
+										//FIXME: d_lightstylevalue isn't set on dedicated servers
+
 	//FIXME: seems like quakespasm doesn't do lits for model lighting, so we won't either.
 	G_FLOAT(OFS_RETURN+0) = G_FLOAT(OFS_RETURN+1) = G_FLOAT(OFS_RETURN+2) = R_LightPoint(point) / 255.0;
+
+	cl.worldmodel = om;
 }
+#define PF_cl_getlight PF_sv_getlight
 
 //server/client stuff
 static void PF_checkcommand(void)
@@ -2560,6 +2569,27 @@ static void PF_sv_pointsound(void)
 	float attenuation = G_FLOAT(OFS_PARM3);
 	SV_StartSound (qcvm->edicts, origin, 0, sample, volume, attenuation);
 }
+static void PF_cl_pointsound(void)
+{
+	float *origin = G_VECTOR(OFS_PARM0);
+	const char *sample = G_STRING(OFS_PARM1);
+	float volume = G_FLOAT(OFS_PARM2);
+	float attenuation = G_FLOAT(OFS_PARM3);
+	S_StartSound(0, 0, S_PrecacheSound(sample), origin, volume, attenuation);
+}
+static void PF_cl_soundlength(void)
+{
+	const char *sample = G_STRING(OFS_PARM0);
+	sfx_t *sfx = S_PrecacheSound(sample);
+	sfxcache_t *sc;
+	G_FLOAT(OFS_RETURN) = 0;
+	if (sfx)
+	{
+		sc = S_LoadSound (sfx);
+		if (sc)
+			G_FLOAT(OFS_RETURN) = (double)sc->length / sc->speed;
+	}
+}
 
 //file stuff
 
@@ -2612,7 +2642,7 @@ static void PF_fopen(void)
 	const char *fallback;
 	FILE *file;
 	size_t i;
-	char name[MAX_OSPATH];
+	char name[MAX_OSPATH], *sl;
 	int filesize = 0;
 
 	G_FLOAT(OFS_RETURN) = -1;	//assume failure
@@ -2642,7 +2672,17 @@ static void PF_fopen(void)
 		break;
 	case 2: //write
 		q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, fname);
-		Sys_mkdir (name);
+		sl = name;
+		while (*sl)
+		{
+			if (*sl == '/')
+			{
+				*sl = 0;
+				Sys_mkdir (name);	//make sure each part of the path exists.
+				*sl = '/';
+			}
+			*sl++;
+		}
 		file = fopen(name, "wb");
 		break;
 	}
@@ -4587,6 +4627,33 @@ static void PF_cl_drawcharacter(void)
 	glEnd ();
 }
 
+static void PF_cl_drawrawstring(void)
+{
+	extern gltexture_t *char_texture;
+
+	float *pos	= G_VECTOR(OFS_PARM0);
+	const char *text = G_STRING (OFS_PARM1);
+	float *size	= G_VECTOR(OFS_PARM2);
+	float *rgb	= G_VECTOR(OFS_PARM3);
+	float alpha	= G_FLOAT (OFS_PARM4);
+//	int flags	= G_FLOAT (OFS_PARM5);
+
+	float x = pos[0];
+	int c;
+
+	if (!*text)
+		return; //don't waste time on spaces
+
+	GL_Bind (char_texture);
+	glColor4f (rgb[0], rgb[1], rgb[2], alpha);
+	glBegin (GL_QUADS);
+	while ((c = *text++))
+	{
+		DrawQC_CharacterQuad (x, pos[1], c, size[0], size[1]);
+		x += size[0];
+	}
+	glEnd ();
+}
 static void PF_cl_drawstring(void)
 {
 	extern gltexture_t *char_texture;
@@ -4742,6 +4809,46 @@ static void PF_cl_drawfill(void)
 	glEnable (GL_TEXTURE_2D);
 }
 
+
+static qpic_t *polygon_pic;
+#define MAX_POLYVERTS
+polygonvert_t polygon_verts[256];
+unsigned int polygon_numverts;
+static void PF_R_PolygonBegin(void)
+{
+	qpic_t *pic	= DrawQC_CachePic(G_STRING(OFS_PARM0), false);
+	int flags = (qcvm->argc>1)?G_FLOAT(OFS_PARM1):0;
+	int is2d = (qcvm->argc>2)?G_FLOAT(OFS_PARM2):0;
+
+	if (!is2d)
+		PR_RunError ("PF_R_PolygonBegin: scene polygons are not supported");
+
+	polygon_pic = pic;
+	polygon_numverts = 0;
+}
+static void PF_R_PolygonVertex(void)
+{
+	polygonvert_t *v = &polygon_verts[polygon_numverts];
+	if (polygon_numverts == countof(polygon_verts))
+		return;	//panic!
+	polygon_numverts++;
+
+	v->xy[0] = G_FLOAT(OFS_PARM0+0);
+	v->xy[1] = G_FLOAT(OFS_PARM0+1);
+	v->st[0] = G_FLOAT(OFS_PARM1+0);
+	v->st[1] = G_FLOAT(OFS_PARM1+1);
+	v->rgba[0] = G_FLOAT(OFS_PARM2+0);
+	v->rgba[1] = G_FLOAT(OFS_PARM2+1);
+	v->rgba[2] = G_FLOAT(OFS_PARM2+2);
+	v->rgba[3] = G_FLOAT(OFS_PARM3);
+}
+static void PF_R_PolygonEnd(void)
+{
+	if (polygon_pic)
+		Draw_PicPolygon(polygon_pic, polygon_numverts, polygon_verts);
+	polygon_numverts = 0;
+}
+
 static void PF_cl_cprint(void)
 {
 	const char *str = PF_VarString(0);
@@ -4764,18 +4871,50 @@ static void PF_cl_stringtokeynum(void)
 static void PF_cl_getkeybind(void)
 {
 	int keynum = Key_QCToNative(G_FLOAT(OFS_PARM0));
-
+	int bindmap = (qcvm->argc<=1)?0:G_FLOAT(OFS_PARM1);
 	char *s = PR_GetTempString();
-	if (keynum >= 0 && keynum < MAX_KEYS)
-		Q_strncpy(s, keybindings[keynum], STRINGTEMP_LENGTH);
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		bindmap = 0;
+	if (keynum >= 0 && keynum < MAX_KEYS && keybindings[bindmap][keynum])
+		Q_strncpy(s, keybindings[bindmap][keynum], STRINGTEMP_LENGTH);
 	else
 		Q_strncpy(s, "", STRINGTEMP_LENGTH);
 	G_INT(OFS_RETURN) = PR_SetEngineString(s);
 }
+static void PF_cl_setkeybind(void)
+{
+	int keynum = Key_QCToNative(G_FLOAT(OFS_PARM0));
+	const char *binding = G_STRING(OFS_PARM1);
+	int bindmap = (qcvm->argc<=1)?0:G_FLOAT(OFS_PARM2);
+	char *s = PR_GetTempString();
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		bindmap = 0;
+	if (keynum >= 0 && keynum < MAX_KEYS)
+		Key_SetBinding(keynum, binding, bindmap);
+}
+static void PF_cl_getbindmaps(void)
+{
+	G_FLOAT(OFS_RETURN+0) = key_bindmap[0];
+	G_FLOAT(OFS_RETURN+1) = key_bindmap[1];
+	G_FLOAT(OFS_RETURN+2) = 0;
+}
+static void PF_cl_setbindmaps(void)
+{
+	float *bm = G_VECTOR(OFS_PARM0);
+	key_bindmap[0] = bm[0];
+	key_bindmap[1] = bm[1];
+
+	if (key_bindmap[0] < 0 || key_bindmap[0] >= MAX_BINDMAPS)
+		key_bindmap[0] = 0;
+	if (key_bindmap[1] < 0 || key_bindmap[1] >= MAX_BINDMAPS)
+		key_bindmap[1] = 0;
+
+	G_FLOAT(OFS_RETURN) = false;
+}
 static void PF_cl_findkeysforcommand(void)
 {
 	const char *command = G_STRING(OFS_PARM0);
-//	float bindmap = G_FLOAT(OFS_PARM1);
+	int bindmap = G_FLOAT(OFS_PARM1);
 	int keys[5];
 	char gah[64];
 	char *s = PR_GetTempString();
@@ -4783,10 +4922,12 @@ static void PF_cl_findkeysforcommand(void)
 	int		j;
 	int		l = strlen(command);
 	const char	*b;
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		bindmap = 0;
 
 	for (j = 0; j < MAX_KEYS; j++)
 	{
-		b = keybindings[j];
+		b = keybindings[bindmap][j];
 		if (!b)
 			continue;
 		if (!strncmp (b, command, l) && (!b[l] || (!strchr(command, ' ') && (b[l] == ' ' || b[l] == '\t'))))
@@ -4817,17 +4958,19 @@ static void PF_cl_findkeysforcommand(void)
 static void PF_cl_findkeysforcommandex(void)
 {
 	const char *command = G_STRING(OFS_PARM0);
-//	float bindmap = G_FLOAT(OFS_PARM1);
+	int bindmap = G_FLOAT(OFS_PARM1);
 	int keys[16];
 	char *s = PR_GetTempString();
 	int		count = 0;
 	int		j;
 	int		l = strlen(command);
 	const char	*b;
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		bindmap = 0;
 
 	for (j = 0; j < MAX_KEYS; j++)
 	{
-		b = keybindings[j];
+		b = keybindings[bindmap][j];
 		if (!b)
 			continue;
 		if (!strncmp (b, command, l) && (!b[l] || (!strchr(command, ' ') && (b[l] == ' ' || b[l] == '\t'))))
@@ -4857,13 +5000,43 @@ static void PF_cl_setcursormode(void)
 //	float *hotspot = (qcvm->argc<=2)?NULL:G_VECTOR(OFS_PARM2);
 //	float cursorscale = (qcvm->argc<=3)?1:G_FLOAT(OFS_PARM3);
 
+/*	if (absmode)
+	{
+		int mark = Hunk_LowMark();
+		int width, height;
+		qboolean malloced;
+		byte *imagedata = Image_LoadImage(cursorname, &width, &height, &malloced);
+		//TODO: rescale image by cursorscale
+		SDL_Surface *surf = !imagedata?NULL:SDL_CreateRGBSurfaceFrom(imagedata, width, height, 32, width*4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+		Hunk_FreeToLowMark(mark);
+		if (malloced)
+			free(imagedata);
+		if (surf)
+		{
+			cursor = SDL_CreateColorCursor(surf, hotspot[0], hotspot[1]);
+			SDL_FreeSurface(surf);
+			SDL_SetCursor(cursor);
+		}
+		else
+		{
+			SDL_SetCursor(SDL_GetDefaultCursor());
+			cursor = NULL;
+		}
+		if (oldcursor)
+			SDL_FreeCursor(oldcursor);
+		oldcursor = cursor;
+	}*/
+
 	cl.csqc_cursorforced = absmode;
 }
 static void PF_cl_getcursormode(void)
 {
-//	qboolean effectivemode = (qcvm->argc==0)?false:G_FLOAT(OFS_PARM0);
+	qboolean effectivemode = (qcvm->argc==0)?false:G_FLOAT(OFS_PARM0);
 
-	G_FLOAT(OFS_RETURN) = cl.csqc_cursorforced;
+//	if (effectivemode)
+//		G_FLOAT(OFS_RETURN) = cl.csqc_cursorforced;
+//	else
+		G_FLOAT(OFS_RETURN) = cl.csqc_cursorforced;
 }
 static void PF_cl_setsensitivity(void)
 {
@@ -5111,9 +5284,9 @@ static struct
 	{"stof",			PF_stof,			PF_stof,			81,	"float(string)"},	//81
 	{"multicast",		PF_multicast,		PF_NoCSQC,			82,	D("#define unicast(pl,reli) do{msg_entity = pl; multicast('0 0 0', reli?MULITCAST_ONE_R:MULTICAST_ONE);}while(0)\n"
 																		"void(vector where, float set)", "Once the MSG_MULTICAST network message buffer has been filled with data, this builtin is used to dispatch it to the given target, filtering by pvs for reduced network bandwidth.")},	//82
-	{"tracebox",		PF_tracebox,		NULL,				90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},
+	{"tracebox",		PF_tracebox,		PF_tracebox,		90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},
 	{"randomvec",		PF_randomvector,	PF_randomvector,	91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
-	{"getlight",		PF_sv_getlight,		NULL,				92, "vector(vector org)"},// (DP_QC_GETLIGHT),
+	{"getlight",		PF_sv_getlight,		PF_cl_getlight,		92, "vector(vector org)"},// (DP_QC_GETLIGHT),
 	{"registercvar",	PF_registercvar,	PF_registercvar,	93,	D("float(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
 	{"min",				PF_min,				PF_min,				94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)
 	{"max",				PF_max,				PF_max,				95,	D("float(float a, float b, ...)", "Returns the highest value of its arguments.")},// (DP_QC_MINMAXBOUND)
@@ -5246,9 +5419,9 @@ static struct
 //	{"setproperty",		PF_NoSSQC,			PF_FullCSQCOnly,	303,	D("#define setviewprop setproperty\nfloat(float property, ...)", "Allows you to override default view properties like viewport, fov, and whether the engine hud will be drawn. Different VF_ values have slightly different arguments, some are vectors, some floats.")},// (EXT_CSQC)
 //	{"renderscene",		PF_NoSSQC,			PF_FullCSQCOnly,	304,	D("void()", "Draws all entities, polygons, and particles on the rentity list (which were added via addentities or addentity), using the various view properties set via setproperty. There is no ordering dependancy.\nThe scene must generally be cleared again before more entities are added, as entities will persist even over to the next frame.\nYou may call this builtin multiple times per frame, but should only be called from CSQC_UpdateView.")},// (EXT_CSQC)
 //	{"dynamiclight_add",PF_NoSSQC,			PF_FullCSQCOnly,	305,	D("float(vector org, float radius, vector lightcolours, optional float style, optional string cubemapname, optional float pflags)", "Adds a temporary dlight, ready to be drawn via addscene. Cubemap orientation will be read from v_forward/v_right/v_up.")},// (EXT_CSQC)
-//	{"R_BeginPolygon",	PF_NoSSQC,			PF_R_PolygonBegin,	306,	D("void(string texturename, optional float flags, optional float is2d)", "Specifies the shader to use for the following polygons, along with optional flags.\nIf is2d, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects.")},// (EXT_CSQC_???)
-//	{"R_PolygonVertex",	PF_NoSSQC,			PF_R_PolygonVertex,	307,	D("void(vector org, vector texcoords, vector rgb, float alpha)", "Specifies a polygon vertex with its various properties.")},// (EXT_CSQC_???)
-//	{"R_EndPolygon",	PF_NoSSQC,			PF_R_PolygonEnd,	308,	D("void()", "Ends the current polygon. At least 3 verticies must have been specified. You do not need to call beginpolygon if you wish to draw another polygon with the same shader.")},
+	{"R_BeginPolygon",	PF_NoSSQC,			PF_R_PolygonBegin,	306,	D("void(string texturename, optional float flags, optional float is2d)", "Specifies the shader to use for the following polygons, along with optional flags.\nIf is2d, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects.")},// (EXT_CSQC_???)
+	{"R_PolygonVertex",	PF_NoSSQC,			PF_R_PolygonVertex,	307,	D("void(vector org, vector texcoords, vector rgb, float alpha)", "Specifies a polygon vertex with its various properties.")},// (EXT_CSQC_???)
+	{"R_EndPolygon",	PF_NoSSQC,			PF_R_PolygonEnd,	308,	D("void()", "Ends the current polygon. At least 3 verticies must have been specified. You do not need to call beginpolygon if you wish to draw another polygon with the same shader.")},
 //	{"getproperty",		PF_NoSSQC,			PF_FullCSQCOnly,	309,	D("#define getviewprop getproperty\n__variant(float property)", "Retrieve a currently-set (typically view) property, allowing you to read the current viewport or other things. Due to cheat protection, certain values may be unretrievable.")},// (EXT_CSQC_1)
 //	{"unproject",		PF_NoSSQC,			PF_FullCSQCOnly,	310,	D("vector (vector v)", "Transform a 2d screen-space point (with depth) into a 3d world-space point, according the various origin+angle+fov etc settings set via setproperty.")},// (EXT_CSQC)
 //	{"project",			PF_NoSSQC,			PF_FullCSQCOnly,	311,	D("vector (vector v)", "Transform a 3d world-space point into a 2d screen-space point, according the various origin+angle+fov etc settings set via setproperty.")},// (EXT_CSQC)
@@ -5261,7 +5434,7 @@ static struct
 	{"drawgetimagesize",PF_NoSSQC,			PF_cl_getimagesize,	318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
 //	{"freepic",			PF_NoSSQC,			PF_FullCSQCOnly,	319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
 	{"drawcharacter",	PF_NoSSQC,			PF_cl_drawcharacter,320,	D("float(vector position, float character, vector size, vector rgb, float alpha, optional float drawflag)", "Draw the given quake character at the given position.\nIf flag&4, the function will consider the char to be a unicode char instead (or display as a ? if outside the 32-127 range).\nsize should normally be something like '8 8 0'.\nrgb should normally be '1 1 1'\nalpha normally 1.\nSoftware engines may assume the named defaults.\nNote that ALL text may be rescaled on the X axis due to variable width fonts. The X axis may even be ignored completely.")},// (EXT_CSQC, [EXT_CSQC_???])
-//	{"drawrawstring",	PF_NoSSQC,			PF_FullCSQCOnly,	321,	D("float(vector position, string text, vector size, vector rgb, float alpha, optional float drawflag)", "Draws the specified string without using any markup at all, even in engines that support it.\nIf UTF-8 is globally enabled in the engine, then that encoding is used (without additional markup), otherwise it is raw quake chars.\nSoftware engines may assume a size of '8 8 0', rgb='1 1 1', alpha=1, flag&3=0, but it is not an error to draw out of the screen.")},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",	PF_NoSSQC,			PF_cl_drawrawstring,321,	D("float(vector position, string text, vector size, vector rgb, float alpha, optional float drawflag)", "Draws the specified string without using any markup at all, even in engines that support it.\nIf UTF-8 is globally enabled in the engine, then that encoding is used (without additional markup), otherwise it is raw quake chars.\nSoftware engines may assume a size of '8 8 0', rgb='1 1 1', alpha=1, flag&3=0, but it is not an error to draw out of the screen.")},// (EXT_CSQC, [EXT_CSQC_???])
 	{"drawpic",			PF_NoSSQC,			PF_cl_drawpic,		322,	D("float(vector position, string pic, vector size, vector rgb, float alpha, optional float drawflag)", "Draws an shader within the given 2d screen box. Software engines may omit support for rgb+alpha, but must support rescaling, and must clip to the screen without crashing.")},// (EXT_CSQC, [EXT_CSQC_???])
 	{"drawfill",		PF_NoSSQC,			PF_cl_drawfill,		323,	D("float(vector position, vector size, vector rgb, float alpha, optional float drawflag)", "Draws a solid block over the given 2d box, with given colour, alpha, and blend mode (specified via flags).\nflags&3=0 simple blend.\nflags&3=1 additive blend")},// (EXT_CSQC, [EXT_CSQC_???])
 	{"drawsetcliparea",	PF_NoSSQC,			PF_cl_drawsetclip,	324,	D("void(float x, float y, float width, float height)", "Specifies a 2d clipping region (aka: scissor test). 2d draw calls will all be clipped to this 2d box, the area outside will not be modified by any 2d draw call (even 2d polygons).")},// (EXT_CSQC_???)
@@ -5419,7 +5592,7 @@ static struct
 	{"strtolower",		PF_strtolower,		PF_strtolower,		480,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
 	{"strtoupper",		PF_strtoupper,		PF_strtoupper,		481,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
 	{"cvar_defstring",	PF_cvar_defstring,	PF_cvar_defstring,	482,	"string(string s)"},	//DP_QC_CVAR_DEFSTRING
-	{"pointsound",		PF_sv_pointsound,	NULL,				483,	"void(vector origin, string sample, float volume, float attenuation)"},//DP_SV_POINTSOUND
+	{"pointsound",		PF_sv_pointsound,	PF_cl_pointsound,	483,	"void(vector origin, string sample, float volume, float attenuation)"},//DP_SV_POINTSOUND
 	{"strreplace",		PF_strreplace,		PF_strreplace,		484,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"strireplace",		PF_strireplace,		PF_strireplace,		485,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"getsurfacepointattribute",PF_getsurfacepointattribute,PF_getsurfacepointattribute,				486,	"vector(entity e, float s, float n, float a)"},//DP_QC_GETSURFACEPOINTATTRIBUTE
@@ -5448,8 +5621,9 @@ static struct
 //	{"loadfromdata",	PF_loadfromdata,	PF_loadfromdata,	529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 //	{"loadfromfile",	PF_loadfromfile,	PF_loadfromfile,	530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"log",				PF_Logarithm,		PF_Logarithm,		532,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
-	{"buf_loadfile",	PF_buf_loadfile,	NULL,				535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
-	{"buf_writefile",	PF_buf_writefile,	NULL,				536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
+	{"soundlength",		PF_NoSSQC,			PF_cl_soundlength,	534,	D("float(string sample)", "Provides a way to query the duration of a sound sample, allowing you to set up a timer to chain samples.")},
+	{"buf_loadfile",	PF_buf_loadfile,	PF_buf_loadfile,	535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
+	{"buf_writefile",	PF_buf_writefile,	PF_buf_writefile,	536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
 	{"callfunction",	PF_callfunction,	PF_callfunction,	605,	D("void(.../*, string funcname*/)", "Invokes the named function. The function name is always passed as the last parameter and must always be present. The others are passed to the named function as-is")},
 	{"isfunction",		PF_isfunction,		PF_isfunction,		607,	D("float(string s)", "Returns true if the named function exists and can be called with the callfunction builtin.")},
 	{"parseentitydata",	PF_parseentitydata, NULL,				613,	D("float(entity e, string s, optional float offset)", "Reads a single entity's fields into an already-spawned entity. s should contain field pairs like in a saved game: {\"foo1\" \"bar\" \"foo2\" \"5\"}. Returns <=0 on failure, otherwise returns the offset in the string that was read to.")},
@@ -5457,6 +5631,8 @@ static struct
 	{"sprintf",			PF_sprintf,			PF_sprintf,			627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,PF_getsurfacenumtriangles,628,"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,PF_getsurfacetriangle,629,"vector(entity e, float s, float n)"},
+	{"getbindmaps",		PF_NoSSQC,			PF_cl_getbindmaps,	631,	"vector()", "stub."},
+	{"setbindmaps",		PF_NoSSQC,			PF_cl_setbindmaps,	632,	"float(vector bm)", "stub."},
 //	{"digest_hex",		PF_digest_hex,		PF_digest_hex,		639,	"string(string digest, string data, ...)"},
 };
 

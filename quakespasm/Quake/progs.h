@@ -154,7 +154,7 @@ sizebuf_t *WriteDest (void);
 char *PR_GetTempString (void);
 int PR_MakeTempString (const char *val);
 char *PF_VarString (int	first);
-#define	STRINGTEMP_BUFFERS		16
+#define	STRINGTEMP_BUFFERS		1024
 #define	STRINGTEMP_LENGTH		1024
 void PF_Fixme(void);	//the 'unimplemented' builtin. woot.
 

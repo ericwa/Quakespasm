@@ -205,6 +205,7 @@ void S_Init (void)
 	Con_Printf("\nSound Initialization\n");
 
 	Cmd_AddCommand("play", S_Play);
+	Cmd_AddCommand("play2", S_Play);	//Spike -- a version with attenuation 0.
 	Cmd_AddCommand("playvol", S_PlayVol);
 	Cmd_AddCommand("stopsound", S_StopAllSoundsC);
 	Cmd_AddCommand("soundlist", S_SoundList);
@@ -1000,6 +1001,7 @@ static void S_Play (void)
 	int		i;
 	char	name[256];
 	sfx_t	*sfx;
+	float	attenuation = !strcmp(Cmd_Argv(0), "play2")?0:1.0;
 
 	i = 1;
 	while (i < Cmd_Argc())
@@ -1010,7 +1012,7 @@ static void S_Play (void)
 			q_strlcat(name, ".wav", sizeof(name));
 		}
 		sfx = S_PrecacheSound(name);
-		S_StartSound(hash++, 0, sfx, listener_origin, 1.0, 1.0);
+		S_StartSound(hash++, 0, sfx, listener_origin, 1.0, attenuation);
 		i++;
 	}
 }

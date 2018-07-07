@@ -44,6 +44,15 @@ qpic_t *Draw_CachePic (const char *path);
 qpic_t *Draw_TryCachePic (const char *path);
 void Draw_NewGame (void);
 
+//Spike -- this is for csqc
+typedef struct
+{
+	vec_t xy[2];
+	vec_t st[2];
+	vec4_t rgba;
+} polygonvert_t;
+void Draw_PicPolygon(qpic_t *pic, unsigned int numverts, polygonvert_t *verts);
+
 void GL_SetCanvas (canvastype newcanvas); //johnfitz
 
 #endif	/* _QUAKE_DRAW_H */

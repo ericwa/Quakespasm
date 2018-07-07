@@ -370,7 +370,7 @@ void PR_ExecuteProgram (func_t fnum)
     {
 	st++;	/* next statement */
 
-	if (++profile > 10000000)	//spike -- was 100000
+	if (++profile > 0x10000000)	//spike -- was decimal 100000
 	{
 		qcvm->xstatement = st - qcvm->statements;
 		PR_RunError("runaway loop error");

@@ -22,8 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#define	STRINGTEMP_BUFFERS		16
-#define	STRINGTEMP_LENGTH		1024
+//#define	STRINGTEMP_BUFFERS		16
+//#define	STRINGTEMP_LENGTH		1024
 static	char	pr_string_temp[STRINGTEMP_BUFFERS][STRINGTEMP_LENGTH];
 static	byte	pr_string_tempindex = 0;
 
@@ -1826,6 +1826,137 @@ builtin_t pr_ssqcbuiltins[] =
 };
 int pr_ssqcnumbuiltins = sizeof(pr_ssqcbuiltins)/sizeof(pr_ssqcbuiltins[0]);
 
+
+
+
+static void PF_cl_sound (void)
+{
+	const char	*sample;
+	int		channel;
+	edict_t		*entity;
+	int		volume;
+	float	attenuation;
+	int entnum;
+
+	entity = G_EDICT(OFS_PARM0);
+	channel = G_FLOAT(OFS_PARM1);
+	sample = G_STRING(OFS_PARM2);
+	volume = G_FLOAT(OFS_PARM3) * 255;
+	attenuation = G_FLOAT(OFS_PARM4);
+
+	entnum = NUM_FOR_EDICT(entity);
+	//fullcsqc fixme: if (entity->v->entnum)  
+	entnum *= -1;
+
+	S_StartSound(entnum, channel, S_PrecacheSound(sample), entity->v.origin, volume, attenuation);
+}
+
+static void PF_cl_precache_sound (void)
+{
+	const char	*s;
+
+	s = G_STRING(OFS_PARM0);
+	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+	PR_CheckEmptyString (s);
+
+	//precache sounds are optional in quake's sound system. NULL is a valid response so don't check.
+	S_PrecacheSound(s);
+}
+
+int CL_Precache_Model(const char *name)
+{
+	int		i;
+	if (!*name)
+		return 0;
+
+	//if the server precached the model then we don't need to do anything.
+	for (i = 1; i < MAX_MODELS; i++)
+	{
+		if (!*cl.model_name[i])
+			break;	//no more
+		if (!strcmp(cl.model_name[i], name))
+			return i;
+	}
+	PR_RunError ("CL_Precache_Model: implementme");
+	return 0;
+}
+static void PF_cl_precache_model (void)
+{
+	const char	*s;
+	int		i;
+
+	s = G_STRING(OFS_PARM0);
+	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+	PR_CheckEmptyString (s);
+
+	//if the server precached the model then we don't need to do anything.
+	for (i = 1; i < MAX_MODELS; i++)
+	{
+		if (!*cl.model_name[i])
+			break;	//no more
+		if (!strcmp(cl.model_name[i], s))
+			return;
+	}
+	PR_RunError ("PF_cl_precache_model: implementme");
+}
+static void PF_cl_setmodel (void)
+{
+	int		i;
+	const char	*m;
+	qmodel_t	*mod;
+	edict_t		*e;
+
+	e = G_EDICT(OFS_PARM0);
+	m = G_STRING(OFS_PARM1);
+
+	i = CL_Precache_Model(m);
+
+	mod = qcvm->GetModel(i);
+	e->v.model = mod?PR_SetEngineString(mod->name):0;	//I believe this to be safe in QS.
+	e->v.modelindex = i;
+	if (mod)
+	//johnfitz -- correct physics cullboxes for bmodels
+	/*	Spike -- THIS IS A HUGE CLUSTERFUCK.
+		the mins/maxs sizes of models in vanilla was always set to xyz -16/+16.
+		    which causes issues with clientside culling.
+		many engines fixed that, but not here.
+			which means that setmodel-without-setsize is now fucked.
+		the qc will usually do a setsize after setmodel anyway, so applying that fix here will do nothing.
+			you'd need to apply the serverside version of the cull fix in SV_LinkEdict instead, which is where the pvs is calculated.
+		tracebox is limited to specific hull sizes. the traces are biased such that they're aligned to the mins point of the box, rather than the center of the trace.
+			so vanilla's '-16 -16 -16'/'16 16 16' is wrong for Z (which is usually corrected for with gravity anyway), but X+Y will be correctly aligned for the resulting hull.
+			but traceboxes using models with -12 or -20 or whatever will be biased/offcenter in the X+Y axis (as well as Z, but that's still mostly unimportant)
+		deciding whether to replicate the vanilla behaviour based upon model type sucks.
+
+		vanilla:
+			brush - always the models size
+			mdl - always [-16, -16, -16], [16, 16, 16]
+		quakespasm:
+			brush - always the models size
+			mdl - always the models size
+		quakeworld:
+			*.bsp - always the models size (matched by extension rather than type)
+			other - model isn't even loaded, setmodel does not do setsize at all.
+		fte default (with nq mod):
+			*.bsp (or sv_gameplayfix_setmodelrealbox) - always the models size (matched by extension rather than type)
+			other - always [-16, -16, -16], [16, 16, 16]
+
+		fte's behaviour means:
+			a) dedicated servers don't have to bother loading non-mdls.
+			b) nq mods still work fine, where extensions are adhered to in the original qc.
+			c) when replacement models are used for bsp models, things still work without them reverting to +/- 16.
+	*/
+	{
+		if (mod->type == mod_brush || !sv_gameplayfix_setmodelrealbox.value)
+			SetMinMaxSize (e, mod->clipmins, mod->clipmaxs, true);
+		else
+			SetMinMaxSize (e, mod->mins, mod->maxs, true);
+	}
+	//johnfitz
+	else
+		SetMinMaxSize (e, vec3_origin, vec3_origin, true);
+}
+
 #define PF_NoCSQC PF_Fixme
 #define PF_CSQCToDo PF_Fixme
 builtin_t pr_csqcbuiltins[] =
@@ -1833,12 +1964,12 @@ builtin_t pr_csqcbuiltins[] =
 	PF_Fixme,
 	PF_makevectors,		// void(entity e) makevectors		= #1
 	PF_setorigin,		// void(entity e, vector o) setorigin	= #2
-	PF_CSQCToDo,//PF_setmodel,		// void(entity e, string m) setmodel	= #3
+	PF_cl_setmodel,		// void(entity e, string m) setmodel	= #3
 	PF_setsize,		// void(entity e, vector min, vector max) setsize	= #4
 	PF_Fixme,		// void(entity e, vector min, vector max) setabssize	= #5
 	PF_break,		// void() break				= #6
 	PF_random,		// float() random			= #7
-	PF_sound,		// void(entity e, float chan, string samp) sound	= #8
+	PF_cl_sound,		// void(entity e, float chan, string samp) sound	= #8
 	PF_normalize,		// vector(vector v) normalize		= #9
 	PF_error,		// void(string e) error			= #10
 	PF_objerror,		// void(string e) objerror		= #11
@@ -1849,8 +1980,8 @@ builtin_t pr_csqcbuiltins[] =
 	PF_traceline,		// float(vector v1, vector v2, float tryents) traceline	= #16
 	PF_NoCSQC,		// entity() checkclient (was: clientlist, apparently)			= #17
 	PF_Find,		// entity(entity start, .string fld, string match) find	= #18
-	PF_CSQCToDo,//PF_cl_precache_sound,	// void(string s) precache_sound	= #19
-	PF_CSQCToDo,//PF_cl_precache_model,	// void(string s) precache_model	= #20
+	PF_cl_precache_sound,	// void(string s) precache_sound	= #19
+	PF_cl_precache_model,	// void(string s) precache_model	= #20
 	PF_NoCSQC,		// void(entity client, string s)stuffcmd	= #21
 	PF_findradius,		// entity(vector org, float rad) findradius	= #22
 	PF_NoCSQC,		// void(string s) bprint		= #23
@@ -1912,8 +2043,8 @@ builtin_t pr_csqcbuiltins[] =
 
 	PF_CSQCToDo,//PF_ambientsound,
 
-	PF_CSQCToDo,//PF_cl_precache_model,
-	PF_CSQCToDo,//PF_cl_precache_sound,	// precache_sound2 is different only for qcc
+	PF_cl_precache_model,
+	PF_cl_precache_sound,
 	PF_precache_file,
 
 	PF_NoCSQC,//PF_setspawnparms

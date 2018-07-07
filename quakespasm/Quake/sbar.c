@@ -1003,6 +1003,7 @@ void Sbar_Draw (void)
 		glDisable (GL_ALPHA_TEST);	//in the finest tradition of glquake, we litter gl state calls all over the place. yay state trackers.
 		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		PR_SwitchQCVM(&cl.qcvm);
+		pr_global_struct->frametime = host_frametime;
 		if (qcvm->extglobals.cltime)
 			*qcvm->extglobals.cltime = realtime;
 		if (qcvm->extglobals.player_localentnum)

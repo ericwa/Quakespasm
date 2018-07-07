@@ -1123,7 +1123,7 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal, builtin_t *builtins
 			Host_Error ("%s has wrong version number (%i should be %i)", filename, qcvm->progs->version, PROG_VERSION);
 		else
 		{
-			Con_Printf("%s ABI set not supported", filename);
+			Con_Printf("%s ABI set not supported\n", filename);
 			qcvm->progs = NULL;
 			return false;
 		}
@@ -1134,7 +1134,33 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal, builtin_t *builtins
 			Host_Error ("%s system vars have been modified, progdefs.h is out of date", filename);
 		else
 		{
-			Con_Printf("%s system vars are not supported", filename);
+			switch(qcvm->progs->crc)
+			{
+			case 22390:	//full csqc
+				Con_Printf("%s - full csqc is not supported\n", filename);
+				break;
+			case 52195:	//dp csqc
+				Con_Printf("%s - obsolete csqc is not supported\n", filename);
+				break;
+			case 54730:	//quakeworld
+				Con_Printf("%s - quakeworld gamecode is not supported\n", filename);
+				break;
+			case 26940:	//prerelease
+				Con_Printf("%s - prerelease gamecode is not supported\n", filename);
+				break;
+			case 32401:	//tenebrae
+				Con_Printf("%s - tenebrae gamecode is not supported\n", filename);
+				break;
+			case 38488:	//hexen2 release
+			case 26905:	//hexen2 mission pack
+			case 14046: //hexen2 demo
+				Con_Printf("%s - hexen2 gamecode is not supported\n", filename);
+				break;
+			//case 5927: //nq PROGHEADER_CRC as above. shouldn't happen, obviously.
+			default:
+				Con_Printf("%s system vars are not supported\n", filename);
+				break;
+			}
 			qcvm->progs = NULL;
 			return false;
 		}

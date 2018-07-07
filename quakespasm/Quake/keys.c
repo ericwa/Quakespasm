@@ -39,7 +39,8 @@ int		history_line = 0;
 
 keydest_t	key_dest;
 
-char		*keybindings[MAX_KEYS];
+int			key_bindmap[2] = {0,1};
+char		*keybindings[MAX_BINDMAPS][MAX_KEYS];
 qboolean	consolekeys[MAX_KEYS];	// if true, can't be rebound while in console
 qboolean	menubound[MAX_KEYS];	// if true, can't be rebound while in menu
 qboolean	keydown[MAX_KEYS];
@@ -919,21 +920,23 @@ const char *Key_KeynumToString (int keynum)
 Key_SetBinding
 ===================
 */
-void Key_SetBinding (int keynum, const char *binding)
+void Key_SetBinding (int keynum, const char *binding, int bindmap)
 {
 	if (keynum == -1)
 		return;
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		return;
 
 // free old bindings
-	if (keybindings[keynum])
+	if (keybindings[bindmap][keynum])
 	{
-		Z_Free (keybindings[keynum]);
-		keybindings[keynum] = NULL;
+		Z_Free (keybindings[bindmap][keynum]);
+		keybindings[bindmap][keynum] = NULL;
 	}
 
 // allocate memory for new binding
 	if (binding)
-		keybindings[keynum] = Z_Strdup(binding);
+		keybindings[bindmap][keynum] = Z_Strdup(binding);
 }
 
 /*
@@ -944,31 +947,38 @@ Key_Unbind_f
 void Key_Unbind_f (void)
 {
 	int	b;
+	int keyarg = !strcmp(Cmd_Argv(0), "in_bind")?2:1;
+	int bindmap = keyarg==2?atoi(Cmd_Argv(1)):0;
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		bindmap = 0;
 
-	if (Cmd_Argc() != 2)
+	if (Cmd_Argc() != keyarg+1)
 	{
 		Con_Printf ("unbind <key> : remove commands from a key\n");
 		return;
 	}
 
-	b = Key_StringToKeynum (Cmd_Argv(1));
+	b = Key_StringToKeynum (Cmd_Argv(keyarg));
 	if (b == -1)
 	{
 		Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
 	}
 
-	Key_SetBinding (b, NULL);
+	Key_SetBinding (b, NULL, bindmap);
 }
 
 void Key_Unbindall_f (void)
 {
-	int	i;
+	int	i, b;
 
-	for (i = 0; i < MAX_KEYS; i++)
+	for (b = 0; b < MAX_BINDMAPS; b++)
 	{
-		if (keybindings[i])
-			Key_SetBinding (i, NULL);
+		for (i = 0; i < MAX_KEYS; i++)
+		{
+			if (keybindings[b][i])
+				Key_SetBinding (i, NULL, b);
+		}
 	}
 }
 
@@ -980,13 +990,14 @@ Key_Bindlist_f -- johnfitz
 void Key_Bindlist_f (void)
 {
 	int	i, count;
+	int bindmap = 0;
 
 	count = 0;
 	for (i = 0; i < MAX_KEYS; i++)
 	{
-		if (keybindings[i] && *keybindings[i])
+		if (keybindings[bindmap][i] && *keybindings[bindmap][i])
 		{
-			Con_SafePrintf ("   %s \"%s\"\n", Key_KeynumToString(i), keybindings[i]);
+			Con_SafePrintf ("   %s \"%s\"\n", Key_KeynumToString(i), keybindings[bindmap][i]);
 			count++;
 		}
 	}
@@ -1002,40 +1013,45 @@ void Key_Bind_f (void)
 {
 	int	i, c, b;
 	char	cmd[1024];
+	int keyarg = !strcmp(Cmd_Argv(0), "in_bind")?2:1;
+	int bindmap = keyarg==2?atoi(Cmd_Argv(1)):0;
+	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
+		bindmap = 0;
 
 	c = Cmd_Argc();
 
-	if (c != 2 && c != 3)
+	if (c < keyarg+1 )
 	{
 		Con_Printf ("bind <key> [command] : attach a command to a key\n");
 		return;
 	}
-	b = Key_StringToKeynum (Cmd_Argv(1));
+
+	b = Key_StringToKeynum (Cmd_Argv(keyarg));
 	if (b == -1)
 	{
-		Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
+		Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(keyarg));
 		return;
 	}
 
-	if (c == 2)
+	if (c == keyarg+1)
 	{
-		if (keybindings[b])
-			Con_Printf ("\"%s\" = \"%s\"\n", Cmd_Argv(1), keybindings[b] );
+		if (keybindings[bindmap][b])
+			Con_Printf ("\"%s\" = \"%s\"\n", Cmd_Argv(keyarg), keybindings[bindmap][b] );
 		else
-			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
+			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(keyarg) );
 		return;
 	}
 
 // copy the rest of the command line
 	cmd[0] = 0;
-	for (i = 2; i < c; i++)
+	for (i = keyarg+1; i < c; i++)
 	{
 		q_strlcat (cmd, Cmd_Argv(i), sizeof(cmd));
 		if (i != (c-1))
 			q_strlcat (cmd, " ", sizeof(cmd));
 	}
 
-	Key_SetBinding (b, cmd);
+	Key_SetBinding (b, cmd, bindmap);
 }
 
 /*
@@ -1048,14 +1064,23 @@ Writes lines containing "bind key value"
 void Key_WriteBindings (FILE *f)
 {
 	int	i;
+	int bindmap;
 
 	// unbindall before loading stored bindings:
 	if (cfg_unbindall.value)
 		fprintf (f, "unbindall\n");
-	for (i = 0; i < MAX_KEYS; i++)
+	for (bindmap = 0; bindmap < MAX_BINDMAPS; bindmap++)
 	{
-		if (keybindings[i] && *keybindings[i])
-			fprintf (f, "bind \"%s\" \"%s\"\n", Key_KeynumToString(i), keybindings[i]);
+		for (i = 0; i < MAX_KEYS; i++)
+		{
+			if (keybindings[bindmap][i] && *keybindings[bindmap][i])
+			{
+				if (bindmap)
+					fprintf (f, "in_bind %i \"%s\" \"%s\"\n", bindmap, Key_KeynumToString(i), keybindings[bindmap][i]);
+				else
+					fprintf (f, "bind \"%s\" \"%s\"\n", Key_KeynumToString(i), keybindings[bindmap][i]);
+			}
+		}
 	}
 }
 
@@ -1200,6 +1225,9 @@ void Key_Init (void)
 	Cmd_AddCommand ("bind",Key_Bind_f);
 	Cmd_AddCommand ("unbind",Key_Unbind_f);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
+
+	Cmd_AddCommand ("in_bind",Key_Bind_f);	//spike -- purely for dp compat.
+	Cmd_AddCommand ("in_unbind",Key_Unbind_f);	//spike -- purely for dp compat.
 }
 
 static struct {
@@ -1359,7 +1387,9 @@ void Key_Event (int key, qboolean down)
 // downs can be matched with ups
 	if (!down)
 	{
-		kb = keybindings[key];
+		kb = keybindings[key_bindmap[0]][key];
+		if (!kb)
+			kb = keybindings[key_bindmap[1]][key];	//FIXME: if the qc changes the bindmap while a key is held then things will break. this is consistent with DP.
 		if (kb && kb[0] == '+')
 		{
 			sprintf (cmd, "-%s %i\n", kb+1, key);
@@ -1380,7 +1410,9 @@ void Key_Event (int key, qboolean down)
 	    (key_dest == key_console && !consolekeys[key]) ||
 	    (key_dest == key_game && (!con_forcedup || !consolekeys[key])))
 	{
-		kb = keybindings[key];
+		kb = keybindings[key_bindmap[0]][key];
+		if (!kb)
+			kb = keybindings[key_bindmap[1]][key];
 		if (kb)
 		{
 			if (kb[0] == '+')
