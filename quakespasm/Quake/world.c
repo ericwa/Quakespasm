@@ -582,50 +582,72 @@ LINE TESTING IN HULLS
 ===============================================================================
 */
 
+enum
+{
+	rht_solid,
+	rht_empty,
+	rht_impact
+};
+struct rhtctx_s
+{
+	vec3_t start, end;
+	mclipnode_t	*clipnodes;
+	mplane_t	*planes;
+};
+#define VectorNegate(a,b)		((b)[0]=-(a)[0],(b)[1]=-(a)[1],(b)[2]=-(a)[2])
+#define FloatInterpolate(a, bness, b, c) ((c) = (a) + (b - a)*bness)
+#define VectorInterpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1]),FloatInterpolate((a)[2], bness, (b)[2], (c)[2])
+
 /*
 ==================
-SV_RecursiveHullCheck
+Q1BSP_RecursiveHullTrace
 
-Spike -- note that the pointcontents in this function are completely redundant.
-This function should instead return the state of the contents of the mid position.
-This would avoid all redundant recursion.
+This does the core traceline/tracebox logic.
+This version is from FTE and attempts to be more numerically stable than vanilla.
+This is achieved by recursing at the actual decision points instead of vanilla's habit of vanilla's habit of using points that are outside of the child's volume.
+It also uses itself to test solidity on the other side of the node, which ensures consistent precision.
+The actual collision point is (still) biased by an epsilon, so the end point shouldn't be inside walls either way.
+FTE's version 'should' be more compatible with vanilla than DP's (which doesn't take care with allsolid).
+ezQuake also has a version of this logic, but I trust mine more.
 ==================
 */
-qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+static int Q1BSP_RecursiveHullTrace (struct rhtctx_s *ctx, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
-	mclipnode_t	*node; //johnfitz -- was dclipnode_t
+	mclipnode_t	*node;
 	mplane_t	*plane;
 	float		t1, t2;
-	float		frac;
-	int			i;
 	vec3_t		mid;
 	int			side;
 	float		midf;
+	int rht;
 
-// check for empty
+reenter:
+
 	if (num < 0)
 	{
-		if (num != CONTENTS_SOLID)
+		/*hit a leaf*/
+		if (num == CONTENTS_SOLID)
+		{
+			if (trace->allsolid)
+				trace->startsolid = true;
+			return rht_solid;
+		}
+		else
 		{
 			trace->allsolid = false;
 			if (num == CONTENTS_EMPTY)
 				trace->inopen = true;
 			else
 				trace->inwater = true;
+			return rht_empty;
 		}
-		else
-			trace->startsolid = true;
-		return true;		// empty
 	}
 
-	if (num < hull->firstclipnode || num > hull->lastclipnode)
-		Sys_Error ("SV_RecursiveHullCheck: bad node number");
+	/*its a node*/
 
-//
-// find the point distances
-//
-	node = hull->clipnodes + num;
-	plane = hull->planes + node->planenum;
+	/*get the node info*/
+	node = ctx->clipnodes + num;
+	plane = ctx->planes + node->planenum;
 
 	if (plane->type < 3)
 	{
@@ -634,95 +656,114 @@ qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec
 	}
 	else
 	{
-		t1 = DoublePrecisionDotProduct (plane->normal, p1) - plane->dist;
-		t2 = DoublePrecisionDotProduct (plane->normal, p2) - plane->dist;
+		t1 = DotProduct (plane->normal, p1) - plane->dist;
+		t2 = DotProduct (plane->normal, p2) - plane->dist;
 	}
 
-#if 1
+	/*if its completely on one side, resume on that side*/
 	if (t1 >= 0 && t2 >= 0)
-		return SV_RecursiveHullCheck (hull, node->children[0], p1f, p2f, p1, p2, trace);
+	{
+		//return Q1BSP_RecursiveHullTrace (hull, node->children[0], p1f, p2f, p1, p2, trace);
+		num = node->children[0];
+		goto reenter;
+	}
 	if (t1 < 0 && t2 < 0)
-		return SV_RecursiveHullCheck (hull, node->children[1], p1f, p2f, p1, p2, trace);
-#else
-	if ( (t1 >= DIST_EPSILON && t2 >= DIST_EPSILON) || (t2 > t1 && t1 >= 0) )
-		return SV_RecursiveHullCheck (hull, node->children[0], p1f, p2f, p1, p2, trace);
-	if ( (t1 <= -DIST_EPSILON && t2 <= -DIST_EPSILON) || (t2 < t1 && t1 <= 0) )
-		return SV_RecursiveHullCheck (hull, node->children[1], p1f, p2f, p1, p2, trace);
-#endif
-
-// put the crosspoint DIST_EPSILON pixels on the near side
-	if (t1 < 0)
-		frac = (t1 + DIST_EPSILON)/(t1-t2);
-	else
-		frac = (t1 - DIST_EPSILON)/(t1-t2);
-	if (frac < 0)
-		frac = 0;
-	if (frac > 1)
-		frac = 1;
-
-	midf = p1f + (p2f - p1f)*frac;
-	for (i=0 ; i<3 ; i++)
-		mid[i] = p1[i] + frac*(p2[i] - p1[i]);
-
-	side = (t1 < 0);
-
-// move up to the node
-	if (!SV_RecursiveHullCheck (hull, node->children[side], p1f, midf, p1, mid, trace) )
-		return false;
-
-#ifdef PARANOID
-	if (SV_HullPointContents (sv_hullmodel, mid, node->children[side])
-	== CONTENTS_SOLID)
 	{
-		Con_Printf ("mid PointInHullSolid\n");
-		return false;
+		//return Q1BSP_RecursiveHullTrace (hull, node->children[1], p1f, p2f, p1, p2, trace);
+		num = node->children[1];
+		goto reenter;
 	}
-#endif
 
-	if (SV_HullPointContents (hull, node->children[side^1], mid)
-	!= CONTENTS_SOLID)
-// go past the node
-		return SV_RecursiveHullCheck (hull, node->children[side^1], midf, p2f, mid, p2, trace);
-
-	if (trace->allsolid)
-		return false;		// never got out of the solid area
-
-//==================
-// the other side of the node is solid, this is the impact point
-//==================
-	if (!side)
+	if (plane->type < 3)
 	{
-		VectorCopy (plane->normal, trace->plane.normal);
-		trace->plane.dist = plane->dist;
+		t1 = ctx->start[plane->type] - plane->dist;
+		t2 = ctx->end[plane->type] - plane->dist;
 	}
 	else
 	{
-		VectorSubtract (vec3_origin, plane->normal, trace->plane.normal);
+		t1 = DotProduct (plane->normal, ctx->start) - plane->dist;
+		t2 = DotProduct (plane->normal, ctx->end) - plane->dist;
+	}
+
+	side = t1 < 0;
+
+	midf = t1 / (t1 - t2);
+	if (midf < p1f) midf = p1f;
+	if (midf > p2f) midf = p2f;
+	VectorInterpolate(ctx->start, midf, ctx->end, mid);
+
+	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side], p1f, midf, p1, mid, trace);
+	if (rht != rht_empty && !trace->allsolid)
+		return rht;
+	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side^1], midf, p2f, mid, p2, trace);
+	if (rht != rht_solid)
+		return rht;
+
+	if (side)
+	{
+		/*we impacted the back of the node, so flip the plane*/
 		trace->plane.dist = -plane->dist;
+		VectorNegate(plane->normal, trace->plane.normal);
+		midf = (t1 + DIST_EPSILON) / (t1 - t2);
+	}
+	else
+	{
+		/*we impacted the front of the node*/
+		trace->plane.dist = plane->dist;
+		VectorCopy(plane->normal, trace->plane.normal);
+		midf = (t1 - DIST_EPSILON) / (t1 - t2);
 	}
 
-	while (SV_HullPointContents (hull, hull->firstclipnode, mid)
-	== CONTENTS_SOLID)
-	{ // shouldn't really happen, but does occasionally
-		frac -= 0.1;
-		if (frac < 0)
-		{
-			trace->fraction = midf;
-			VectorCopy (mid, trace->endpos);
-			Con_DPrintf ("backup past 0\n");
-			return false;
-		}
-		midf = p1f + (p2f - p1f)*frac;
-		for (i=0 ; i<3 ; i++)
-			mid[i] = p1[i] + frac*(p2[i] - p1[i]);
-	}
+	t1 = DotProduct (trace->plane.normal, ctx->start) - trace->plane.dist;
+	t2 = DotProduct (trace->plane.normal, ctx->end) - trace->plane.dist;
+	midf = (t1 - DIST_EPSILON) / (t1 - t2);
 
+	midf = CLAMP(0, midf, 1);
 	trace->fraction = midf;
 	VectorCopy (mid, trace->endpos);
+	VectorInterpolate(ctx->start, midf, ctx->end, trace->endpos);
 
-	return false;
+	return rht_impact;
 }
 
+/*
+==================
+SV_RecursiveHullCheck
+
+Decides if its a simple point test, or does a slightly more expensive check.
+==================
+*/
+qboolean SV_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+{
+	if (p1[0]==p2[0] && p1[1]==p2[1] && p1[2]==p2[2])
+	{
+		/*points cannot cross planes, so do it faster*/
+		switch(SV_HullPointContents(hull, num, p1))
+		{
+		case CONTENTS_SOLID:
+			trace->startsolid = true;
+			break;
+		case CONTENTS_EMPTY:
+			trace->allsolid = false;
+			trace->inopen = true;
+			break;
+		default:
+			trace->allsolid = false;
+			trace->inwater = true;
+			break;
+		}
+		return true;
+	}
+	else
+	{
+		struct rhtctx_s ctx;
+		VectorCopy(p1, ctx.start);
+		VectorCopy(p2, ctx.end);
+		ctx.clipnodes = hull->clipnodes;
+		ctx.planes = hull->planes;
+		return Q1BSP_RecursiveHullTrace(&ctx, num, p1f, p2f, p1, p2, trace) != rht_impact;
+	}
+}
 
 /*
 ==================
