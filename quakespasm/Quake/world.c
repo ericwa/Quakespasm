@@ -656,8 +656,8 @@ reenter:
 	}
 	else
 	{
-		t1 = DotProduct (plane->normal, p1) - plane->dist;
-		t2 = DotProduct (plane->normal, p2) - plane->dist;
+		t1 = DoublePrecisionDotProduct (plane->normal, p1) - plane->dist;
+		t2 = DoublePrecisionDotProduct (plane->normal, p2) - plane->dist;
 	}
 
 	/*if its completely on one side, resume on that side*/
@@ -714,8 +714,8 @@ reenter:
 		midf = (t1 - DIST_EPSILON) / (t1 - t2);
 	}
 
-	t1 = DotProduct (trace->plane.normal, ctx->start) - trace->plane.dist;
-	t2 = DotProduct (trace->plane.normal, ctx->end) - trace->plane.dist;
+	t1 = DoublePrecisionDotProduct (trace->plane.normal, ctx->start) - trace->plane.dist;
+	t2 = DoublePrecisionDotProduct (trace->plane.normal, ctx->end) - trace->plane.dist;
 	midf = (t1 - DIST_EPSILON) / (t1 - t2);
 
 	midf = CLAMP(0, midf, 1);
