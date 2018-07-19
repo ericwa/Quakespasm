@@ -807,15 +807,17 @@ void _Host_Frame (double time)
 	if (accumtime >= host_netinterval)
 	{
 		float realframetime = host_frametime;
-		accumtime -= host_netinterval;
 		if (host_netinterval)
 		{
-			host_frametime = host_netinterval;
+			host_frametime = q_max(accumtime, host_netinterval);
+			accumtime -= host_frametime;
 			if (host_timescale.value > 0)
 				host_frametime *= host_timescale.value;
 			else if (host_framerate.value)
 				host_frametime = host_framerate.value;
 		}
+		else
+			accumtime -= host_netinterval;
 		CL_SendCmd ();
 		if (sv.active)
 		{
