@@ -1108,7 +1108,7 @@ void MSG_WriteStaticOrBaseLine(sizebuf_t *buf, int idx, entity_state_t *state, u
 		}
 		else
 		{
-			if (protocol == PROTOCOL_FITZQUAKE) //still want to send baseline in PROTOCOL_NETQUAKE, so reset these values
+			if (protocol == PROTOCOL_FITZQUAKE || protocol == PROTOCOL_RMQ) //still want to send baseline in PROTOCOL_NETQUAKE, so reset these values
 			{
 				if (state->modelindex & 0xFF00)
 					bits |= B_LARGEMODEL;
