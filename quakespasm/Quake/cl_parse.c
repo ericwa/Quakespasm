@@ -1430,7 +1430,7 @@ static void CL_ParseUpdate (int bits)
 {
 	int		i;
 	qmodel_t	*model;
-	int		modnum;
+	unsigned int	modnum;
 	qboolean	forcelink;
 	entity_t	*ent;
 	int		num;
@@ -1575,7 +1575,11 @@ static void CL_ParseUpdate (int bits)
 		if (bits & U_FRAME2)
 			ent->frame = (ent->frame & 0x00FF) | (MSG_ReadByte() << 8);
 		if (bits & U_MODEL2)
+		{
 			modnum = (modnum & 0x00FF) | (MSG_ReadByte() << 8);
+			if (modnum >= MAX_MODELS)
+				Host_Error ("CL_ParseModel: bad modnum");
+		}
 		if (bits & U_LERPFINISH)
 		{
 			ent->lerpfinish = ent->msgtime + ((float)(MSG_ReadByte()) / 255);
