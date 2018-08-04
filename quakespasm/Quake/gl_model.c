@@ -509,13 +509,13 @@ static void Q1BSPX_Setup(qmodel_t *mod, char *filebase, unsigned int filelen, lu
 
 	for (i = 0; i < numlumps; i++, lumps++)
 	{
-		if (lumps->fileofs & 3)
+		if ((lumps->fileofs & 3) && i != LUMP_ENTITIES)
 			misaligned = true;
 		if (offs < lumps->fileofs + lumps->filelen)
 			offs = lumps->fileofs + lumps->filelen;
 	}
 	if (misaligned)
-		Con_Warning("%s contains misaligned lumps\n", mod->name);
+		Con_DWarning("%s contains misaligned lumps\n", mod->name);
 	offs = (offs + 3) & ~3;
 	if (offs + sizeof(*bspxheader) > filelen)
 		return; /*no space for it*/
@@ -533,7 +533,7 @@ static void Q1BSPX_Setup(qmodel_t *mod, char *filebase, unsigned int filelen, lu
 		h->lumps[i].fileofs = LittleLong(h->lumps[i].fileofs);
 		h->lumps[i].filelen = LittleLong(h->lumps[i].filelen);
 		if (h->lumps[i].fileofs & 3)
-			Con_Warning("%s contains misaligned bspx limp %s\n", mod->name, h->lumps[i].lumpname);
+			Con_DWarning("%s contains misaligned bspx limp %s\n", mod->name, h->lumps[i].lumpname);
 		if ((unsigned int)h->lumps[i].fileofs + (unsigned int)h->lumps[i].filelen > filelen)
 			return;
 	}
