@@ -288,6 +288,9 @@ static void IN_UpdateGrabs_Internal(qboolean forecerelease)
 	freemouse = wantcursor && (modestate == MS_WINDOWED || (key_dest == key_game && cl.csqc_cursorforced));
 	needevents = (!wantcursor) || key_dest == key_game;
 
+	if (isDedicated)
+		return;
+
 	if (forecerelease)
 		needevents = freemouse = wantcursor = true;
 
