@@ -36,7 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define PROTOCOL_VERSION_BJP1	10000
 //#define PROTOCOL_VERSION_BJP2	10001
 #define PROTOCOL_VERSION_BJP3	10002	//spike, note that this protocol is intentionally flawed to work around mods+writebytes - svc_staticsound is limited to 8bit indexes.
-//#define PROTOCOL_FTE_PEXT1		(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions, provides extensions to the underlying base protocol (like 666 or even 15).
+#define PROTOCOL_FTE_PEXT1		(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions, provides extensions to the underlying base protocol (like 666 or even 15).
 #define PROTOCOL_FTE_PEXT2		(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions, provides extensions to the underlying base protocol (like 666 or even 15).
 
 // PROTOCOL_RMQ protocol flags
@@ -50,18 +50,30 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PRFL_MOREFLAGS		(1 << 31)	// not supported
 
 // PROTOCOL_FTE_PEXT(1) flags
-//mostly uninteresting, mostly superseeded by PEXT2_REPLACEMENTDELTAS...
-#define PEXT_CSQC				0x40000000	//csqc additions
+//mostly uninteresting, any superseeded by PEXT2_REPLACEMENTDELTAS (and thus QW-only) are not listed.
+//#define PEXT_LIGHTSTYLECOL		0x00000004
+#define PEXT1_HLBSP					0x00000200	//hint to server to avoid messy error messages
+#define PEXT1_Q2BSP					0x00020000	//hint to server to avoid messy error messages
+#define PEXT1_Q3BSP					0x00040000	//hint to server to avoid messy error messages
+//#define PEXT1_CUSTOMTEMPEFFECTS	0x00800000
+//#define PEXT1_SPLITSCREEN			0x00100000
+//#define PEXT1_SHOWPIC				0x04000000
+//#define PEXT1_CHUNKEDDOWNLOADS		0x20000000
+#define PEXT1_CSQC					0x40000000	//(full)csqc additions, required for csqc ents+events.
+#define PEXT1_ACCEPTED_CLIENT		(/*PEXT1_SUPPORTED_CLIENT|*/PEXT1_CSQC|PEXT1_Q3BSP|PEXT1_Q2BSP|PEXT1_HLBSP)	//pext1 flags that we can accept from a server (aka: partial support)
+//#define PEXT1_SUPPORTED_CLIENT		(0)	//pext1 flags that we advertise to servers (aka: full support)
+//#define PEXT1_SUPPORTED_SERVER		(0)	//pext1 flags that we accept from clients.
 
 // PROTOCOL_FTE_PEXT2 flags
-#define PEXT2_PRYDONCURSOR		0x00000001	//a mouse cursor exposed to ssqc
+#define PEXT2_PRYDONCURSOR			0x00000001	//a mouse cursor exposed to ssqc
 #define PEXT2_VOICECHAT				0x00000002	//+voip or cl_voip_send 1; requires opus dll, and others to also have that same dll.
 #define PEXT2_SETANGLEDELTA			0x00000004	//less annoying when teleporting.
 #define PEXT2_REPLACEMENTDELTAS		0x00000008	//more compact entity deltas (can also be split across multiple packets)
 #define PEXT2_MAXPLAYERS			0x00000010	//up to 255 player slots
 #define PEXT2_PREDINFO				0x00000020	//provides input acks and reworks stats such that clc_clientdata becomes redundant.
 #define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding, for more precise bboxes.
-#define PEXT2_ACCEPTED_CLIENT		(PEXT2_SUPPORTED_CLIENT|PEXT2_NEWSIZEENCODING|PEXT2_PRYDONCURSOR)	//pext2 flags that we can parse, but don't want to advertise
+#define PEXT2_INFOBLOBS				0x00000080	//unbounded userinfo
+#define PEXT2_ACCEPTED_CLIENT		(PEXT2_SUPPORTED_CLIENT|PEXT2_NEWSIZEENCODING|PEXT2_PRYDONCURSOR|PEXT2_INFOBLOBS)	//pext2 flags that we can parse, but don't want to advertise
 #define PEXT2_SUPPORTED_CLIENT		(PEXT2_SETANGLEDELTA|PEXT2_VOICECHAT|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO)	//pext2 flags that we understand+support
 #define PEXT2_SUPPORTED_SERVER		(                    PEXT2_VOICECHAT|PEXT2_REPLACEMENTDELTAS                 |PEXT2_PREDINFO)
 

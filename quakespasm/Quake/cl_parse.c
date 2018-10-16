@@ -643,7 +643,7 @@ static void CLFTE_ParseEntitiesUpdate(void)
 	float newtime;
 
 	//so the server can know when we got it, and guess which frames we didn't get
-	if (cl.ackframes_count < sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
+	if (cls.netcon && cl.ackframes_count < sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
 		cl.ackframes[cl.ackframes_count++] = NET_QSocketGetSequenceIn(cls.netcon);
 
 	if (cl.protocol_pext2 & PEXT2_PREDINFO)
@@ -790,7 +790,7 @@ void CLFTE_ParseCSQCEntitiesUpdate(void)
 		}
 	}
 	else*/
-		Host_Error ("Received svcdp_csqcentities but unable to parse");
+		Host_Error ("Received svc_csqcentities but unable to parse");
 }
 
 
@@ -1227,11 +1227,18 @@ static void CL_ParseServerInfo (void)
 	for(;;)
 	{
 		i = MSG_ReadLong ();
+		if (i == PROTOCOL_FTE_PEXT1)
+		{
+			i = MSG_ReadLong();
+			if (i & ~PEXT1_ACCEPTED_CLIENT)
+				Host_Error ("Server returned FTE1 protocol extensions that are not supported (%#x)", i);
+			continue;
+		}
 		if (i == PROTOCOL_FTE_PEXT2)
 		{
 			cl.protocol_pext2 = MSG_ReadLong();
-			if (cl.protocol_pext2 & ~PEXT2_SUPPORTED_CLIENT)
-				Host_Error ("Server returned FTE protocol extensions that are not supported (%#x)", cl.protocol_pext2 & ~PEXT2_SUPPORTED_CLIENT);
+			if (cl.protocol_pext2 & ~PEXT2_ACCEPTED_CLIENT)
+				Host_Error ("Server returned FTE2 protocol extensions that are not supported (%#x)", cl.protocol_pext2 & ~PEXT2_SUPPORTED_CLIENT);
 			continue;
 		}
 		break;
@@ -1616,7 +1623,7 @@ static void CL_ParseUpdate (int bits)
 	else
 		ent->alpha = ent->baseline.alpha;
 	//johnfitz
-
+	
 	//johnfitz -- moved here from above
 	model = cl.model_precache[modnum];
 	if (model != ent->model)

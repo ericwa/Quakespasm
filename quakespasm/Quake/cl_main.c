@@ -160,6 +160,7 @@ void CL_Disconnect (void)
 		NET_SendUnreliableMessage (cls.netcon, &cls.message);
 		SZ_Clear (&cls.message);
 		NET_Close (cls.netcon);
+		cls.netcon = NULL;
 
 		cls.state = ca_disconnected;
 		if (sv.active)
