@@ -523,7 +523,7 @@ static void Q1BSPX_Setup(qmodel_t *mod, char *filebase, unsigned int filelen, lu
 
 	i = LittleLong(h->numlumps);
 	/*verify the header*/
-	if (!strncmp(h->id, "BSPX", 4) ||
+	if (strncmp(h->id, "BSPX", 4) ||
 		i < 0 ||
 		offs + sizeof(*h) + sizeof(h->lumps[0])*(i-1) > filelen)
 		return;
@@ -924,16 +924,42 @@ void Mod_LoadLighting (lump_t *l)
 		Con_DPrintf("bspx lighting loaded\n");
 	else
 	{
-		loadmodel->lightdata = (byte *) Hunk_AllocName ( l->filelen*3, litfilename);
-		in = loadmodel->lightdata + l->filelen*2; // place the file at the end, so it will not be overwritten until the very last write
-		out = loadmodel->lightdata;
-		memcpy (in, mod_base + l->fileofs, l->filelen);
-		for (i = 0;i < l->filelen;i++)
+		in = Q1BSPX_FindLump("LIGHTING_E5BGR9", &bspxsize);
+		if (in && bspxsize == l->filelen*4)
+		{	//we don't really support hdr lighting, but we downgrade it to ldr whenever there's no rgb data.
+			//FIXME: don't convert this stuff here. upload the data to the gpu with GL_EXT_shared_exponent (core in gl3)
+			loadmodel->lightdata = (byte *) Hunk_AllocName ( l->filelen*3, litfilename);
+			out = loadmodel->lightdata;
+			Con_DPrintf("bspx hdr->ldr lighting loaded\n");
+			for (i = 0;i < l->filelen;i++, in+=4)
+			{
+				static const float rgb9e5tab[32] = {	//multipliers for the 9-bit mantissa, according to the biased mantissa
+					//aka: pow(2, biasedexponent - bias-bits) where bias is 15 and bits is 9
+					1.0/(1<<24),	1.0/(1<<23),	1.0/(1<<22),	1.0/(1<<21),	1.0/(1<<20),	1.0/(1<<19),	1.0/(1<<18),	1.0/(1<<17),
+					1.0/(1<<16),	1.0/(1<<15),	1.0/(1<<14),	1.0/(1<<13),	1.0/(1<<12),	1.0/(1<<11),	1.0/(1<<10),	1.0/(1<<9),
+					1.0/(1<<8),		1.0/(1<<7),		1.0/(1<<6),		1.0/(1<<5),		1.0/(1<<4),		1.0/(1<<3),		1.0/(1<<2),		1.0/(1<<1),
+					1.0,			1.0*(1<<1),		1.0*(1<<2),		1.0*(1<<3),		1.0*(1<<4),		1.0*(1<<5),		1.0*(1<<6),		1.0*(1<<7),
+				};
+				unsigned int e5bgr9 = *(unsigned int*)in;
+				float e = rgb9e5tab[e5bgr9>>27] * (1<<7);	//we're converting to a scale that holds overbrights, so 1->128, its 2->255ish
+				*out++ = q_min(255, e*((e5bgr9>> 0)&0x1ff));	//red
+				*out++ = q_min(255, e*((e5bgr9>> 9)&0x1ff));	//green
+				*out++ = q_min(255, e*((e5bgr9>>18)&0x1ff));	//blue
+			}
+		}
+		else
 		{
-			d = *in++;
-			*out++ = d;
-			*out++ = d;
-			*out++ = d;
+			loadmodel->lightdata = (byte *) Hunk_AllocName ( l->filelen*3, litfilename);
+			in = loadmodel->lightdata + l->filelen*2; // place the file at the end, so it will not be overwritten until the very last write
+			out = loadmodel->lightdata;
+			memcpy (in, mod_base + l->fileofs, l->filelen);
+			for (i = 0;i < l->filelen;i++)
+			{
+				d = *in++;
+				*out++ = d;
+				*out++ = d;
+				*out++ = d;
+			}
 		}
 	}
 }
