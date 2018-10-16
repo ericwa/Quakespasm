@@ -8,7 +8,7 @@
 DO_USERDIRS=0
 
 ### Enable/Disable SDL2
-USE_SDL2=0
+USE_SDL2=1
 
 ### Enable the use of zlib, for compressed pk3s.
 USE_ZLIB=1
