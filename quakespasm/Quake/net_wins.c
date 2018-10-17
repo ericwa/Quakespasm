@@ -47,6 +47,7 @@ static in_addr6_t	myAddrv6, bindAddrv6;
 //we don't use hybrid sockets, so things are a little easier when it comes to xp vs vista.
 //we don't detect the win2k ipv6 tech preview thing. it has different sized addresses, so lets hope microsoft's code handles that if it ever comes up.
 int (WSAAPI *qgetaddrinfo)(const char *nodename, const char *servname, const struct addrinfo *hints, struct addrinfo **res);
+void (WSAAPI *qfreeaddrinfo)(const struct addrinfo *ai);
 
 
 #include "net_wins.h"
@@ -580,6 +581,65 @@ int WINIPv4_GetNameFromAddr (struct qsockaddr *addr, char *name)
 	return 0;
 }
 
+int	WINIPv4_GetAddresses (qhostaddr_t *addresses, int maxaddresses)
+{
+	int result = 0, b;
+	struct hostent *h;
+
+	if (bindAddrv4 == INADDR_ANY)
+	{
+		//on windows, we can just do a dns lookup on our own hostname and expect an ipv4 result
+		char		hostname[64];
+		u_long		addr;
+		gethostname(hostname, sizeof(hostname));
+
+		h = gethostbyname(hostname);
+		if(h && h->h_addrtype == AF_INET)
+		{
+			for (b = 0; h->h_addr_list[b] && result < maxaddresses; b++)
+			{
+				addr = ntohl(*(in_addr_t *)h->h_addr_list[b]);
+				q_snprintf(addresses[result++], sizeof(addresses[0]), "%ld.%ld.%ld.%ld", (addr >> 24) & 0xff, (addr >> 16) & 0xff, (addr >> 8) & 0xff, addr & 0xff);
+			}
+		}
+	}
+
+	if (!result)
+		q_strlcpy(addresses[result++], my_ipv4_address, sizeof(addresses[0])); 
+	return result;
+}
+int	WINIPv6_GetAddresses (qhostaddr_t *addresses, int maxaddresses)
+{
+	int result = 0;
+
+//	if (bindAddrv6 == IN6ADDR_ANY_INIT)
+	{
+		//on windows, we can just do a dns lookup on our own hostname and expect an ipv4 result
+		struct addrinfo hints, *addrlist, *itr;
+		char		hostname[64];
+		memset(&hints, 0, sizeof(struct addrinfo));
+		hints.ai_family = AF_INET6;    /* Allow IPv4 or IPv6 */
+		hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+		hints.ai_flags = 0;
+		hints.ai_protocol = 0;          /* Any protocol */
+
+		gethostname(hostname, sizeof(hostname));
+		if (qgetaddrinfo(hostname, NULL, &hints, &addrlist) == 0)
+		{
+			for (itr = addrlist; itr && result < maxaddresses; itr = itr->ai_next)
+			{
+				if (itr->ai_addr->sa_family == AF_INET6)
+					q_strlcpy(addresses[result++], WINS_AddrToString((struct qsockaddr*)itr->ai_addr, false), sizeof(addresses[0]));
+			}
+			freeaddrinfo(addrlist);
+		}
+	}
+
+	if (!result)
+		q_strlcpy(addresses[result++], my_ipv6_address, sizeof(addresses[0])); 
+	return result;
+}
+
 //=============================================================================
 
 int WINIPv4_GetAddrFromName (const char *name, struct qsockaddr *addr)
@@ -718,7 +778,7 @@ static void WINIPv6_GetLocalAddress (void)
 		l = strlen(my_ipv6_address);
 		if (l > 2 && !strcmp(my_ipv6_address+l-2, ":0"))
 			my_ipv6_address[l-2] = 0;
-		freeaddrinfo(local);
+		qfreeaddrinfo(local);
 	}
 	err = WSAGetLastError();
 #ifndef _USE_WINSOCK2
@@ -742,8 +802,11 @@ sys_socket_t WINIPv6_Init (void)
 		return -1;
 
 	qgetaddrinfo = (void*)GetProcAddress(GetModuleHandle("ws2_32.dll"), "getaddrinfo");
-	if (!qgetaddrinfo)
+	qfreeaddrinfo = (void*)GetProcAddress(GetModuleHandle("ws2_32.dll"), "freeaddrinfo");
+	if (!qgetaddrinfo || !qfreeaddrinfo)
 	{
+		qgetaddrinfo = NULL;
+		qfreeaddrinfo = NULL;
 		Con_SafePrintf("Winsock lacks getaddrinfo, ipv6 support is unavailable.\n");
 		return INVALID_SOCKET;
 	}

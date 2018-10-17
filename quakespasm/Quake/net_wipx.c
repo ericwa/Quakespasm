@@ -108,6 +108,14 @@ sys_socket_t WIPX_Init (void)
 	return net_controlsocket;
 }
 
+int	WIPX_GetAddresses (qhostaddr_t *addresses, int maxaddresses)
+{
+	int result = 0;
+	if (ipxAvailable)
+		q_strlcpy(addresses[result++], my_ipx_address, sizeof(addresses[0])); 
+	return result;
+}
+
 //=============================================================================
 
 void WIPX_Shutdown (void)

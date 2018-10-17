@@ -649,6 +649,22 @@ qsocket_t *NET_GetServerMessage(void)
 	return NULL;
 }
 
+/*
+Spike: This function is for the menus+status command
+Just queries each driver's public addresses (which often requires system-specific calls)
+*/
+int NET_ListAddresses(qhostaddr_t *addresses, int maxaddresses)
+{
+	int result = 0;
+	for (net_driverlevel = 0; net_driverlevel < net_numdrivers; net_driverlevel++)
+	{
+		if (!net_drivers[net_driverlevel].initialized)
+			continue;
+		if (net_drivers[net_driverlevel].QueryAddresses)
+			result += net_drivers[net_driverlevel].QueryAddresses(addresses+result, maxaddresses-result);
+	}
+	return result;
+}
 
 /*
 ==================

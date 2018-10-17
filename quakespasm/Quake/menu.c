@@ -1826,7 +1826,6 @@ void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 /* LAN CONFIG MENU */
 
 int		lanConfig_cursor = -1;
-int		lanConfig_cursor_table [] = {72, 92, 100, 132};
 #define NUM_LANCONFIG_CMDS	4
 
 int 	lanConfig_port;
@@ -1860,6 +1859,9 @@ void M_LanConfig_Draw (void)
 {
 	qpic_t	*p;
 	int		basex;
+	int		y;
+	int		numaddresses, i;
+	qhostaddr_t addresses[16];
 	const char	*startJoin;
 	const char	*protocol;
 
@@ -1879,50 +1881,88 @@ void M_LanConfig_Draw (void)
 	M_Print (basex, 32, va ("%s - %s", startJoin, protocol));
 	basex += 8;
 
-	M_Print (basex, 52, "Address:");
+	y = 52;
+	M_Print (basex, y, "Address:");
+#if 1
+	numaddresses = NET_ListAddresses(addresses, sizeof(addresses)/sizeof(addresses[0]));
+	if (!numaddresses)
+	{
+		M_Print (basex+9*8, y, "NONE KNOWN");
+		y += 8;
+	}
+	else for (i = 0; i < numaddresses; i++)
+	{
+		M_Print (basex+9*8, y, addresses[i]);
+		y += 8;
+	}
+#else
 	if (IPXConfig)
-		M_Print (basex+9*8, 52, my_ipx_address);
+	{
+		M_Print (basex+9*8, y, my_ipx_address);
+		y+=8;
+	}
 	else
 	{
 		if (ipv4Available && ipv6Available)
 		{
-			M_Print (basex+9*8, 52-4, my_ipv4_address);
-			M_Print (basex+9*8, 52+4, my_ipv6_address);
+			M_Print (basex+9*8, y, my_ipv4_address);
+			y+=8;
+			M_Print (basex+9*8, y, my_ipv6_address);
+			y+=8;
 		}
 		else
 		{
 			if (ipv4Available)
-				M_Print (basex+9*8, 52, my_ipv4_address);
+				M_Print (basex+9*8, y, my_ipv4_address);
 			if (ipv6Available)
-				M_Print (basex+9*8, 52, my_ipv6_address);
+				M_Print (basex+9*8, y, my_ipv6_address);
+			y+=8;
 		}
 	}
+#endif
 
-	M_Print (basex, lanConfig_cursor_table[0], "Port");
-	M_DrawTextBox (basex+8*8, lanConfig_cursor_table[0]-8, 6, 1);
-	M_Print (basex+9*8, lanConfig_cursor_table[0], lanConfig_portname);
+	y+=8;	//for the port's box
+	M_Print (basex, y, "Port");
+	M_DrawTextBox (basex+8*8, y-8, 6, 1);
+	M_Print (basex+9*8, y, lanConfig_portname);
+	if (lanConfig_cursor == 0)
+	{
+		M_DrawCharacter (basex+9*8 + 8*strlen(lanConfig_portname), y, 10+((int)(realtime*4)&1));
+		M_DrawCharacter (basex-8, y, 12+((int)(realtime*4)&1));
+	}
+	y += 20;
 
 	if (JoiningGame)
 	{
-		M_Print (basex, lanConfig_cursor_table[1], "Search for local games...");
-		M_Print (basex, lanConfig_cursor_table[2], "Search for public games...");
-		M_Print (basex, 108, "Join game at:");
-		M_DrawTextBox (basex+8, lanConfig_cursor_table[3]-8, 22, 1);
-		M_Print (basex+16, lanConfig_cursor_table[3], lanConfig_joinname);
+		M_Print (basex, y, "Search for local games...");
+		if (lanConfig_cursor == 1)
+			M_DrawCharacter (basex-8, y, 12+((int)(realtime*4)&1));
+		y+=8;
+
+		M_Print (basex, y, "Search for public games...");
+		if (lanConfig_cursor == 2)
+			M_DrawCharacter (basex-8, y, 12+((int)(realtime*4)&1));
+		y+=8;
+
+		M_Print (basex, y, "Join game at:");
+		y+=24;
+		M_DrawTextBox (basex+8, y-8, 22, 1);
+		M_Print (basex+16, y, lanConfig_joinname);
+		if (lanConfig_cursor == 3)
+		{
+			M_DrawCharacter (basex+16 + 8*strlen(lanConfig_joinname), y, 10+((int)(realtime*4)&1));
+			M_DrawCharacter (basex-8, y, 12+((int)(realtime*4)&1));
+		}
+		y += 16;
 	}
 	else
 	{
-		M_DrawTextBox (basex, lanConfig_cursor_table[1]-8, 2, 1);
-		M_Print (basex+8, lanConfig_cursor_table[1], "OK");
+		M_DrawTextBox (basex, y-8, 2, 1);
+		M_Print (basex+8, y, "OK");
+		if (lanConfig_cursor == 1)
+			M_DrawCharacter (basex-8, y, 12+((int)(realtime*4)&1));
+		y += 16;
 	}
-
-	M_DrawCharacter (basex-8, lanConfig_cursor_table [lanConfig_cursor], 12+((int)(realtime*4)&1));
-
-	if (lanConfig_cursor == 0)
-		M_DrawCharacter (basex+9*8 + 8*strlen(lanConfig_portname), lanConfig_cursor_table [0], 10+((int)(realtime*4)&1));
-
-	if (lanConfig_cursor == 3)
-		M_DrawCharacter (basex+16 + 8*strlen(lanConfig_joinname), lanConfig_cursor_table [3], 10+((int)(realtime*4)&1));
 
 	if (*m_return_reason)
 		M_PrintWhite (basex, 148, m_return_reason);

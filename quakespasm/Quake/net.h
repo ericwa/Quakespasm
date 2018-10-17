@@ -45,6 +45,8 @@ extern	double		net_time;
 extern	sizebuf_t	net_message;
 extern	int		net_activeconnections;
 
+typedef char qhostaddr_t[NET_NAMELEN];
+
 
 void	NET_Init (void);
 void	NET_Shutdown (void);
@@ -69,6 +71,9 @@ qboolean NET_CanSendMessage (struct qsocket_s *sock);
 
 struct qsocket_s *NET_GetServerMessage(void);
 //returns data in net_message, qsocket says which client its from
+
+int NET_ListAddresses(qhostaddr_t *addresses, int maxaddresses);
+//gets a list of public addresses.
 
 int	NET_GetMessage (struct qsocket_s *sock);
 // returns data in net_message sizebuf

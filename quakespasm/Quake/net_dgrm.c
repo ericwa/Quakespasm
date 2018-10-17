@@ -2279,3 +2279,20 @@ qsocket_t *Datagram_Connect (const char *host)
 	return ret;
 }
 
+/*
+Spike: added this to list more than one ipv4 address (many people are still multi-homed)
+*/
+int Datagram_QueryAddresses(qhostaddr_t *addresses, int maxaddresses)
+{
+	int result = 0;
+	for (net_landriverlevel = 0; net_landriverlevel < net_numlandrivers; net_landriverlevel++)
+	{
+		if (!net_landrivers[net_landriverlevel].initialized)
+			continue;
+		if (result == maxaddresses)
+			break;
+		if (net_landrivers[net_landriverlevel].QueryAddresses)
+			result += net_landrivers[net_landriverlevel].QueryAddresses(addresses+result, maxaddresses-result);
+	}
+	return result;
+}

@@ -178,6 +178,7 @@ typedef struct
 	sys_socket_t	(*Init) (void);
 	void		(*Shutdown) (void);
 	sys_socket_t	(*Listen) (qboolean state);
+	int		(*QueryAddresses) (qhostaddr_t *addresses, int maxaddresses);
 	sys_socket_t	(*Open_Socket) (int port);
 	int		(*Close_Socket) (sys_socket_t socketid);
 	int		(*Connect) (sys_socket_t socketid, struct qsockaddr *addr);
@@ -207,6 +208,7 @@ typedef struct
 	qboolean	initialized;
 	int		(*Init) (void);
 	void		(*Listen) (qboolean state);
+	int			(*QueryAddresses) (qhostaddr_t *addresses, int maxaddresses);
 	qboolean	(*SearchForHosts) (qboolean xmit);
 	qsocket_t	*(*Connect) (const char *host);
 	qsocket_t	*(*CheckNewConnections) (void);
