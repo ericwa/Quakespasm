@@ -45,7 +45,7 @@ static struct in6_addr	myAddrv6;
 sys_socket_t UDP4_Init (void)
 {
 	int	err;
-	char	*colon;
+	char	*tst;
 	char	buff[MAXHOSTNAMELEN];
 	struct hostent		*local;
 	struct qsockaddr	addr;
@@ -64,18 +64,18 @@ sys_socket_t UDP4_Init (void)
 	else
 	{
 		buff[MAXHOSTNAMELEN - 1] = 0;
-		
+#ifdef PLATFORM_OSX
 		// ericw -- if our hostname ends in ".local" (a macOS thing),
 		// don't bother calling gethostbyname(), because it blocks for a few seconds
 		// and then fails (on my system anyway.)
-		if (strstr(buff, ".local") == (buff + strlen(buff) - 6))
+		tst = strstr(buff, ".local");
+		if (tst && tst[6] == '\0')
 		{
 			Con_SafePrintf("UDP_Init: skipping gethostbyname for %s\n", buff);
-			goto skip_gethostbyname;
 		}
-		
-		local = gethostbyname(buff);
-		if (local == NULL)
+		else
+#endif
+		if (!(local = gethostbyname(buff)))
 		{
 			Con_SafePrintf("UDP4_Init: gethostbyname failed (%s)\n",
 							hstrerror(h_errno));
@@ -90,7 +90,6 @@ sys_socket_t UDP4_Init (void)
 		}
 	}
 
-skip_gethostbyname:
 	if ((net_controlsocket4 = UDP4_OpenSocket(0)) == INVALID_SOCKET)
 	{
 		Con_SafePrintf("UDP4_Init: Unable to open control socket, UDP disabled\n");
@@ -103,9 +102,8 @@ skip_gethostbyname:
 
 	UDP_GetSocketAddr (net_controlsocket4, &addr);
 	strcpy(my_ipv4_address, UDP_AddrToString (&addr, false));
-	colon = strrchr (my_ipv4_address, ':');
-	if (colon)
-		*colon = 0;
+	tst = strrchr (my_ipv4_address, ':');
+	if (tst) *tst = 0;
 
 	Con_SafePrintf("UDP4 Initialized\n");
 	ipv4Available = true;
