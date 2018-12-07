@@ -1,3 +1,4 @@
+/* vim: set tabstop=4: */
 /*
 Copyright (C) 1996-1997 Id Software, Inc.
 Copyright (C) 2016      Spike
@@ -2681,7 +2682,7 @@ static void PF_fopen(void)
 				Sys_mkdir (name);	//make sure each part of the path exists.
 				*sl = '/';
 			}
-			*sl++;
+			sl++;
 		}
 		file = fopen(name, "wb");
 		break;
@@ -4817,7 +4818,7 @@ unsigned int polygon_numverts;
 static void PF_R_PolygonBegin(void)
 {
 	qpic_t *pic	= DrawQC_CachePic(G_STRING(OFS_PARM0), false);
-	int flags = (qcvm->argc>1)?G_FLOAT(OFS_PARM1):0;
+//	int flags = (qcvm->argc>1)?G_FLOAT(OFS_PARM1):0;
 	int is2d = (qcvm->argc>2)?G_FLOAT(OFS_PARM2):0;
 
 	if (!is2d)
@@ -4886,7 +4887,6 @@ static void PF_cl_setkeybind(void)
 	int keynum = Key_QCToNative(G_FLOAT(OFS_PARM0));
 	const char *binding = G_STRING(OFS_PARM1);
 	int bindmap = (qcvm->argc<=1)?0:G_FLOAT(OFS_PARM2);
-	char *s = PR_GetTempString();
 	if (bindmap < 0 || bindmap >= MAX_BINDMAPS)
 		bindmap = 0;
 	if (keynum >= 0 && keynum < MAX_KEYS)
@@ -5031,7 +5031,7 @@ static void PF_cl_setcursormode(void)
 }
 static void PF_cl_getcursormode(void)
 {
-	qboolean effectivemode = (qcvm->argc==0)?false:G_FLOAT(OFS_PARM0);
+//	qboolean effectivemode = (qcvm->argc==0)?false:G_FLOAT(OFS_PARM0);
 
 //	if (effectivemode)
 //		G_FLOAT(OFS_RETURN) = cl.csqc_cursorforced;
@@ -5631,6 +5631,7 @@ static struct
 	{"sprintf",			PF_sprintf,			PF_sprintf,			627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,PF_getsurfacenumtriangles,628,"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,PF_getsurfacetriangle,629,"vector(entity e, float s, float n)"},
+	{"setkeybind",  	PF_NoSSQC, 			PF_cl_setkeybind,	630,	"float(float key, string bind, optional float bindmap)"},
 	{"getbindmaps",		PF_NoSSQC,			PF_cl_getbindmaps,	631,	"vector()", "stub."},
 	{"setbindmaps",		PF_NoSSQC,			PF_cl_setbindmaps,	632,	"float(vector bm)", "stub."},
 //	{"digest_hex",		PF_digest_hex,		PF_digest_hex,		639,	"string(string digest, string data, ...)"},
