@@ -841,3 +841,50 @@ int UDP6_GetAddrFromName (const char *name, struct qsockaddr *addr)
 
 //=============================================================================
 
+#ifdef __linux__ //sadly there is no posix standard for querying all ipv4+ipv6 addresses.
+#include <ifaddrs.h>
+static struct ifaddrs *iflist;
+double iftime; //requery sometimes.
+static int UDP_GetAddresses(qhostaddr_t *addresses, int maxaddresses, int fam)
+{
+	struct ifaddrs *ifa;
+	int result = 0;
+	double time = Sys_DoubleTime();
+	if (time - iftime > 1 && iflist)
+	{
+		freeifaddrs(iflist);
+		iflist = NULL;
+	}
+	if (!iflist)
+	{
+		iftime = time;
+		getifaddrs(&iflist);
+	}
+
+	for (ifa = iflist; ifa && result < maxaddresses; ifa = ifa->ifa_next)
+	{
+		//can happen if the interface is not bound.
+		if (ifa->ifa_addr == NULL)
+			continue;
+		if (fam == ifa->ifa_addr->sa_family)
+			q_strlcpy(addresses[result++], UDP_AddrToString((struct qsockaddr*)ifa->ifa_addr, false), sizeof(addresses[0]));
+	}
+	return result;
+}
+#else
+//for other systems, like macs, where we don't know how to query this stuff properly.
+//FIXME: there is a posix standard for ipv4 at least.
+static int UDP_GetAddresses(qhostaddr_t *addresses, int maxaddresses, int fam)
+{
+	return 0;
+}
+#endif
+int     UDP4_GetAddresses (qhostaddr_t *addresses, int maxaddresses)
+{
+	return UDP_GetAddresses(addresses, maxaddresses, AF_INET);
+}
+int     UDP6_GetAddresses (qhostaddr_t *addresses, int maxaddresses)
+{
+	return UDP_GetAddresses(addresses, maxaddresses, AF_INET6);
+}
+

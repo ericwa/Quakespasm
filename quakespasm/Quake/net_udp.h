@@ -40,6 +40,8 @@ int  UDP4_GetAddrFromName (const char *name, struct qsockaddr *addr);
 int  UDP_AddrCompare (struct qsockaddr *addr1, struct qsockaddr *addr2);
 int  UDP_GetSocketPort (struct qsockaddr *addr);
 int  UDP_SetSocketPort (struct qsockaddr *addr, int port);
+int  UDP4_GetAddresses (qhostaddr_t *addresses, int maxaddresses);
+
 
 sys_socket_t  UDP6_Init (void);
 void UDP6_Shutdown (void);
@@ -59,6 +61,7 @@ int  UDP6_GetAddrFromName (const char *name, struct qsockaddr *addr);
 int  UDP_AddrCompare (struct qsockaddr *addr1, struct qsockaddr *addr2);
 int  UDP_GetSocketPort (struct qsockaddr *addr);
 int  UDP_SetSocketPort (struct qsockaddr *addr, int port);
+int  UDP6_GetAddresses (qhostaddr_t *addresses, int maxaddresses);
 
 #endif	/* __net_udp_h */
 

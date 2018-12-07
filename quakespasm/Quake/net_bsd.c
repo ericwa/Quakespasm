@@ -34,7 +34,7 @@ net_driver_t net_drivers[] =
 		false,
 		Loop_Init,
 		Loop_Listen,
-		Loop_QueryAddresses
+		Loop_QueryAddresses,
 		Loop_SearchForHosts,
 		Loop_Connect,
 		Loop_CheckNewConnections,
