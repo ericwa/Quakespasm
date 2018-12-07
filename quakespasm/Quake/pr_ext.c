@@ -4818,11 +4818,13 @@ unsigned int polygon_numverts;
 static void PF_R_PolygonBegin(void)
 {
 	qpic_t *pic	= DrawQC_CachePic(G_STRING(OFS_PARM0), false);
-//	int flags = (qcvm->argc>1)?G_FLOAT(OFS_PARM1):0;
+	int flags = (qcvm->argc>1)?G_FLOAT(OFS_PARM1):0;
 	int is2d = (qcvm->argc>2)?G_FLOAT(OFS_PARM2):0;
 
 	if (!is2d)
 		PR_RunError ("PF_R_PolygonBegin: scene polygons are not supported");
+	if (flags)
+		PR_RunError ("PF_R_PolygonBegin: modifier flags are not supported");
 
 	polygon_pic = pic;
 	polygon_numverts = 0;
@@ -5631,7 +5633,7 @@ static struct
 	{"sprintf",			PF_sprintf,			PF_sprintf,			627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,PF_getsurfacenumtriangles,628,"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,PF_getsurfacetriangle,629,"vector(entity e, float s, float n)"},
-	{"setkeybind",  	PF_NoSSQC, 			PF_cl_setkeybind,	630,	"float(float key, string bind, optional float bindmap)"},
+	{"setkeybind",		PF_NoSSQC,			PF_cl_setkeybind,	631,	"float(float key, string bind, optional float bindmap)", "Changes a key binding."},
 	{"getbindmaps",		PF_NoSSQC,			PF_cl_getbindmaps,	631,	"vector()", "stub."},
 	{"setbindmaps",		PF_NoSSQC,			PF_cl_setbindmaps,	632,	"float(vector bm)", "stub."},
 //	{"digest_hex",		PF_digest_hex,		PF_digest_hex,		639,	"string(string digest, string data, ...)"},
