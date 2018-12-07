@@ -170,6 +170,7 @@ void CL_Disconnect (void)
 	cls.demoplayback = cls.timedemo = false;
 	cls.demopaused = false;
 	cls.signon = 0;
+	cls.netcon = NULL;
 	if (cls.download.file)
 		fclose(cls.download.file);
 	memset(&cls.download, 0, sizeof(cls.download));
