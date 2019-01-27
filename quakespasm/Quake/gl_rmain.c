@@ -742,6 +742,7 @@ void R_ShowBoundingBoxes (void)
 	vec3_t		mins,maxs;
 	edict_t		*ed;
 	int			i;
+	qcvm_t 		*oldvm;	//in case we ever draw a scene from within csqc.
 
 	if (!r_showbboxes.value || cl.maxclients > 1 || !r_drawentities.value || !sv.active)
 		return;
@@ -753,6 +754,8 @@ void R_ShowBoundingBoxes (void)
 	glDisable (GL_CULL_FACE);
 	glColor3f (1,1,1);
 
+	oldvm = qcvm;
+	PR_SwitchQCVM(&sv.qcvm);
 	for (i=0, ed=NEXT_EDICT(qcvm->edicts) ; i<qcvm->num_edicts ; i++, ed=NEXT_EDICT(ed))
 	{
 		if (ed == sv_player)
@@ -775,6 +778,7 @@ void R_ShowBoundingBoxes (void)
 			R_EmitWireBox (mins, maxs);
 		}
 	}
+	PR_SwitchQCVM(oldvm);
 
 	glColor3f (1,1,1);
 	glEnable (GL_TEXTURE_2D);
