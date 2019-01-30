@@ -139,15 +139,18 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 // decide which clipping hull to use, based on the size
 	if (ent->v.solid == SOLID_BSP)
 	{	// explicit hulls in the BSP model
-		if (ent->v.movetype != MOVETYPE_PUSH)
-			Host_Error ("SOLID_BSP without MOVETYPE_PUSH (%s at %f %f %f)",
+		if (ent->v.movetype != MOVETYPE_PUSH && !pr_checkextension.value)
+			Con_Warning ("SOLID_BSP without MOVETYPE_PUSH (%s at %f %f %f)",
 				    PR_GetString(ent->v.classname), ent->v.origin[0], ent->v.origin[1], ent->v.origin[2]);
 
 		model = sv.models[ (int)ent->v.modelindex ];
 
 		if (!model || model->type != mod_brush)
-			Host_Error ("SOLID_BSP with a non bsp model (%s at %f %f %f)",
+		{
+			Con_Warning ("SOLID_BSP with a non bsp model (%s at %f %f %f)",
 				    PR_GetString(ent->v.classname), ent->v.origin[0], ent->v.origin[1], ent->v.origin[2]);
+			goto nohitmeshsupport;
+		}
 
 		VectorSubtract (maxs, mins, size);
 		if (size[0] < 3)
@@ -163,7 +166,7 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 	}
 	else
 	{	// create a temp hull from bounding box sizes
-
+nohitmeshsupport:
 		VectorSubtract (ent->v.mins, maxs, hullmins);
 		VectorSubtract (ent->v.maxs, mins, hullmaxs);
 		hull = SV_HullForBox (hullmins, hullmaxs);
