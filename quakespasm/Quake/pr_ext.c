@@ -5933,14 +5933,14 @@ void PR_EnableExtensions(ddef_t *pr_globaldefs)
 	unsigned int i, j;
 	unsigned int numautocvars = 0;
 
+	for (i = qcvm->numbuiltins; i < countof(qcvm->builtins); i++)
+		qcvm->builtins[i] = PF_Fixme;
+	qcvm->numbuiltins = i;
 	if (!pr_checkextension.value)
 	{
 		Con_DPrintf("not enabling qc extensions\n");
 		return;
 	}
-	for (i = qcvm->numbuiltins; i < countof(qcvm->builtins); i++)
-		qcvm->builtins[i] = PF_Fixme;
-	qcvm->numbuiltins = i;
 
 	qcvm->builtins[51] = PF_ext_vectoangles;	//swap it with a two-arg version.
 
