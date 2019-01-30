@@ -514,6 +514,10 @@ static qboolean CL_AttachEntity(entity_t *ent, float frac)
 		if (runaway++==10 || tagent >= (unsigned int)cl.num_entities)
 			return false;	//parent isn't valid
 		parent = &cl.entities[tagent];
+
+		if (tagent == cl.viewentity)
+			ent->eflags |= EFLAGS_EXTERIORMODEL;
+
 		if (!parent->model)
 			return false;
 		if (0)//tagent < ent-cl_entities)
@@ -562,6 +566,8 @@ static qboolean CL_AttachEntity(entity_t *ent, float frac)
 		VectorAngles(fwd, up, ent->angles);
 		if (ent->model && ent->model->type == mod_alias)
 			ent->angles[0] *= -1;
+
+		ent->eflags |= parent->netstate.eflags & (EFLAGS_VIEWMODEL|EFLAGS_EXTERIORMODEL);
 	}
 }
 
@@ -632,6 +638,7 @@ void CL_RelinkEntities (void)
 			//	R_RemoveEfrags (ent);	// just became empty
 			continue;
 		}
+		ent->eflags = ent->netstate.eflags;
 
 // if the object wasn't included in the last packet, remove it
 		if (ent->msgtime != cl.mtime[0])

@@ -79,6 +79,7 @@ typedef struct entity_s
 											//  that splits bmodel, or NULL if
 											//  not split
 
+	byte					eflags;			//spike -- mostly a mirror of netstate, but handles tag inheritance (eww!)
 	byte					alpha;			//johnfitz -- alpha
 	byte					lerpflags;		//johnfitz -- lerping
 	float					lerpstart;		//johnfitz -- animation lerping

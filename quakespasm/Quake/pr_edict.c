@@ -1233,6 +1233,7 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal, builtin_t *builtins
 	qcvm->extfields.traileffectnum = ED_FindFieldOffset("traileffectnum");
 	qcvm->extfields.emiteffectnum = ED_FindFieldOffset("emiteffectnum");
 	qcvm->extfields.viewmodelforclient = ED_FindFieldOffset("viewmodelforclient");
+	qcvm->extfields.exteriormodeltoclient = ED_FindFieldOffset("exteriormodeltoclient");
 	qcvm->extfields.scale = ED_FindFieldOffset("scale");
 	qcvm->extfields.colormod = ED_FindFieldOffset("colormod");
 	qcvm->extfields.tag_entity = ED_FindFieldOffset("tag_entity");

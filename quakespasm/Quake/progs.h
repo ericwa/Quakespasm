@@ -202,6 +202,7 @@ struct pr_extfields_s
 	int		alpha;				//float
 	int		movement;			//vector
 	int		viewmodelforclient;	//entity
+	int		exteriormodeltoclient;	//entity
 	int		traileffectnum;		//float
 	int		emiteffectnum;		//float
 	int		scale;				//float

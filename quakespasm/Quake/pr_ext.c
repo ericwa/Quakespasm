@@ -6230,6 +6230,7 @@ void PR_DumpPlatform_f(void)
 		fprintf(f, ".float emiteffectnum;		/*can also be set with 'traileffect' from a map editor*/\n");
 		fprintf(f, ".vector movement;			/*describes which forward/right/up keys the player is holidng*/\n");
 		fprintf(f, ".entity viewmodelforclient;	/*attaches this entity to the specified player's view. invisible to other players*/\n");
+		fprintf(f, ".entity exteriormodeltoclient;/*hides the entity in the specified player's main view. it will remain visible in mirrors etc.*/\n");
 		fprintf(f, ".float scale;				/*rescales the etntiy*/\n");
 		fprintf(f, ".float alpha;				/*entity opacity*/\n");		//entity alpha. woot.
 		fprintf(f, ".vector colormod;			/*tints the entity's colours*/\n");

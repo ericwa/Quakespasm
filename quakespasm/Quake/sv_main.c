@@ -1062,9 +1062,9 @@ static void SVFTE_BuildSnapshotForClient (client_t *client)
 		}
 		else if (ent->alpha == ENTALPHA_ZERO && !ent->v.effects)	//don't send invisible entities unless they have effects
 			continue;
-//		val = GetEdictFieldValue(ent, pr_extfields.exteriormodelforclient);
-//		if (val && val->edict == proged)
-//			eflags |= EFLAGS_EXTERIORMODEL;
+		val = GetEdictFieldValue(ent, qcvm->extfields.exteriormodeltoclient);
+		if (val && val->edict == proged)
+			eflags |= EFLAGS_EXTERIORMODEL;
 		//EFLAGS_VIEWMODEL was handled above
 		ents[numents].state.eflags |= eflags;
 

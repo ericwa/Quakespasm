@@ -643,6 +643,10 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 			currententity->angles[0] *= 0.3;
 		//johnfitz
 
+		//spike -- this would be more efficient elsewhere, but its more correct here.
+		if (currententity->eflags & EFLAGS_EXTERIORMODEL)
+			continue;
+
 		switch (currententity->model->type)
 		{
 			case mod_alias:

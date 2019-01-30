@@ -1946,6 +1946,7 @@ static void CL_ParseStatic (int version) //johnfitz -- added a parameter
 // copy it to the current state
 
 	ent->netstate = ent->baseline;
+	ent->eflags = ent->netstate.eflags; //spike -- annoying and probably not used anyway, but w/e
 
 	ent->trailstate = NULL;
 	ent->emitstate = NULL;

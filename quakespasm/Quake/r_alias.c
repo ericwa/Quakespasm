@@ -673,7 +673,7 @@ void R_SetupAliasLighting (entity_t	*e)
 	float		radiansangle;
 	float		*origin = e->origin;
 
-	if (e->netstate.eflags & EFLAGS_VIEWMODEL)
+	if (e->eflags & EFLAGS_VIEWMODEL)
 		origin = r_refdef.vieworg;
 	R_LightPoint (origin);
 
@@ -770,7 +770,7 @@ void R_DrawAliasModel (entity_t *e)
 	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
 	R_SetupEntityTransform (e, &lerpdata);
 
-	if (e->netstate.eflags & EFLAGS_VIEWMODEL)
+	if (e->eflags & EFLAGS_VIEWMODEL)
 	{
 		//transform it relative to the view, by rebuilding the modelview matrix without the view position.
 		glPushMatrix ();
@@ -1046,7 +1046,7 @@ cleanup:
 	if (alphatest)
 		glDisable (GL_ALPHA_TEST);
 	glColor3f(1,1,1);
-	if (e->netstate.eflags & EFLAGS_VIEWMODEL)
+	if (e->eflags & EFLAGS_VIEWMODEL)
 		glDepthRange (0, 1);
 	glPopMatrix ();
 }
