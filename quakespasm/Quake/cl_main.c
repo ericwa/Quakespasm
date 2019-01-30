@@ -718,13 +718,13 @@ void CL_RelinkEntities (void)
 		{
 			vec3_t axis[3];
 			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
-			PScript_ParticleTrail(oldorg, ent->origin, cl.particle_precache[ent->netstate.traileffectnum].index, i, axis, &ent->trailstate);
+			PScript_ParticleTrail(oldorg, ent->origin, cl.particle_precache[ent->netstate.traileffectnum].index, frametime, i, axis, &ent->trailstate);
 		}
 		else if (ent->model->traileffect >= 0)
 		{
 			vec3_t axis[3];
 			AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
-			PScript_ParticleTrail(oldorg, ent->origin, ent->model->traileffect, i, axis, &ent->trailstate);
+			PScript_ParticleTrail(oldorg, ent->origin, ent->model->traileffect, frametime, i, axis, &ent->trailstate);
 		}
 		else
 #endif

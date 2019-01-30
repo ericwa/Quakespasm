@@ -4481,7 +4481,7 @@ static void PF_cl_trailparticles(void)
 	if (efnum <= 0)
 		return;
 	efnum = PF_CL_GetParticle(efnum);
-	PScript_ParticleTrail(start, end, efnum, -NUM_FOR_EDICT(ent), NULL, NULL/*&ent->trailstate*/);
+	PScript_ParticleTrail(start, end, efnum, host_frametime, -NUM_FOR_EDICT(ent), NULL, NULL/*&ent->trailstate*/);
 }
 static void PF_cl_pointparticles(void)
 {

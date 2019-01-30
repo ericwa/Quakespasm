@@ -126,7 +126,7 @@ static int pe_defaulttrail = P_INVALID;
 static float psintable[256];
 
 int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk);
-int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t axis[3], trailstate_t **tsk);
+int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timeinterval, int dlkey, vec3_t axis[3], trailstate_t **tsk);
 static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwarning);
 static void R_Particles_KillAllEffects(void);
 
@@ -313,6 +313,8 @@ typedef struct part_type_s {
 	float countextra;
 	float count;
 	float countrand;
+	float countspacing; //for trails.
+	float countoverflow; //for badly-designed effects, instead of depending on trail state.
 	float rainfrequency;	//surface emitter multiplier
 
 	int assoc;
@@ -1791,12 +1793,14 @@ skipread:
 
 		else if (!strcmp(var, "step"))
 		{
+			ptype->countspacing = atof(value);
 			ptype->count = 1/atof(value);
 			if (Cmd_Argc()>2)
 				ptype->countrand = 1/atof(Cmd_Argv(2));
 		}
 		else if (!strcmp(var, "count"))
 		{
+			ptype->countspacing = 0;
 			ptype->count = atof(value);
 			if (Cmd_Argc()>2)
 				ptype->countrand = atof(Cmd_Argv(2));
@@ -3240,7 +3244,10 @@ static void P_ImportEffectInfo(const char *config, char *line, qboolean part_par
 		else if (!strcmp(arg[0], "velocitymultiplier") && args == 2)
 			ptype->veladd = atof(arg[1]);
 		else if (!strcmp(arg[0], "trailspacing") && args == 2)
-			ptype->count = 1 / atof(arg[1]);
+		{
+			ptype->countspacing = atof(arg[1]);
+			ptype->count = 1 / ptype->countspacing;
+		}
 		else if (!strcmp(arg[0], "time") && args == 3)
 		{
 			ptype->die = atof(arg[1]);
@@ -5483,13 +5490,14 @@ int PScript_RunParticleEffectTypeString (vec3_t org, vec3_t dir, float count, co
 
 int PScript_EntParticleTrail(vec3_t oldorg, entity_t *ent, const char *name)
 {
+	float timeinterval = cl.time - cl.oldtime;
 	vec3_t axis[3];
 	int type = PScript_FindParticleType(name);
 	if (type < 0)
 		return 1;
 
 	AngleVectors(ent->angles, axis[0], axis[1], axis[2]);
-	return PScript_ParticleTrail(oldorg, ent->origin, type, ent-cl.entities, axis, &ent->trailstate);
+	return PScript_ParticleTrail(oldorg, ent->origin, type, timeinterval, ent-cl.entities, axis, &ent->trailstate);
 }
 
 /*
@@ -5774,7 +5782,7 @@ void PScript_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, float coun
 	}
 }
 
-static void PScript_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk, int dlkey, vec3_t dlaxis[3])
+static void PScript_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptype, float timeinterval, trailstate_t **tsk, int dlkey, vec3_t dlaxis[3])
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
@@ -5827,9 +5835,9 @@ static void PScript_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t 
 	if (ptype->assoc>=0)
 	{
 		if (ts)
-			PScript_ParticleTrail(start, end, ptype->assoc, dlkey, NULL, &(ts->assoc));
+			PScript_ParticleTrail(start, end, ptype->assoc, timeinterval, dlkey, NULL, &(ts->assoc));
 		else
-			PScript_ParticleTrail(start, end, ptype->assoc, dlkey, NULL, NULL);
+			PScript_ParticleTrail(start, end, ptype->assoc, timeinterval, dlkey, NULL, NULL);
 	}
 
 	if (r_part_contentswitch.value && (ptype->flags & (PT_TRUNDERWATER | PT_TROVERWATER)) && cl.worldmodel)
@@ -5860,19 +5868,35 @@ static void PScript_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t 
 	if (!ptype->die)
 		ts = NULL;
 
-	// use ptype step to calc step vector and step size
-	step = (ptype->count*r_part_density.value) + ptype->countextra;
-	if (step>0)
-	{
-		step = 1/step;
-		if (step < 0.01)
-			step = 0.01;
-	}
-	else
-		step = 0;
-
 	VectorSubtract (end, start, vec);
 	len = VectorNormalize (vec);
+
+	// use ptype step to calc step vector and step size
+	if (ptype->countspacing)
+	{
+		step = ptype->countspacing;					//particles per qu
+		step /= r_part_density.value;				//scaled...
+
+		if (ptype->countextra)
+		{
+			count = ptype->countextra;
+			if (step>0)
+				count += len/step;
+			step = len/count;
+		}
+	}
+	else
+	{
+		step = ptype->count * r_part_density.value * timeinterval;
+		step += ptype->countextra;					//particles per frame
+		step += ptype->countoverflow;
+		count = (int)step;
+		ptype->countoverflow = step-count;	//the part that we're forgetting, to add to the next frame...
+		if (count<=0)
+			return;
+		else
+			step = len/count;				//particles per second
+	}
 
 	if (ptype->flags & PT_AVERAGETRAIL)
 	{
@@ -5940,7 +5964,7 @@ static void PScript_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t 
 		step = 0;
 		VectorClear(vstep);
 	}
-	count += ptype->countextra;
+//	count += ptype->countextra;
 
 	while (count-->0)//len < stop)
 	{
@@ -6288,7 +6312,7 @@ static void PScript_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t 
 	return;
 }
 
-int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t axis[3], trailstate_t **tsk)
+int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timeinterval, int dlkey, vec3_t axis[3], trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[type];
 
@@ -6313,7 +6337,7 @@ int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec
 			ptype = &part_type[ptype->inwater];
 	}
 
-	PScript_ParticleTrailDraw (startpos, end, ptype, tsk, dlkey, axis);
+	PScript_ParticleTrailSpawn (startpos, end, ptype, timeinterval, tsk, dlkey, axis);
 	return 0;
 }
 
@@ -7393,7 +7417,7 @@ static void PScript_DrawParticleTypes (float pframetime)
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					PScript_ParticleTrail(oldorg, p->org, type->emit, 0, NULL, &p->state.trailstate);
+					PScript_ParticleTrail(oldorg, p->org, type->emit, pframetime, 0, NULL, &p->state.trailstate);
 				else if (p->state.nextemit < particletime)
 				{
 					p->state.nextemit = particletime + type->emittime + frandom()*type->emitrand;

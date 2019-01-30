@@ -2100,7 +2100,7 @@ static void CL_ParseParticles(int type)
 		ent = CL_EntityNum(entity);
 
 		if (efnum < MAX_PARTICLETYPES && cl.particle_precache[efnum].name)
-			PScript_ParticleTrail(org, vel, cl.particle_precache[efnum].index, 0, NULL, &ent->trailstate);
+			PScript_ParticleTrail(org, vel, cl.particle_precache[efnum].index, 1, 0, NULL, &ent->trailstate);
 	}
 	else
 	{	//point

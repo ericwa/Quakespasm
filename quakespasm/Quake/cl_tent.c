@@ -557,7 +557,7 @@ void CL_UpdateTEnts (void)
 			VectorCopy (cl.entities[cl.viewentity].origin, b->start);
 		}
 
-		if (!PScript_ParticleTrail(b->start, b->end, PScript_FindParticleType(b->trailname), b->entity, NULL, &b->trailstate))
+		if (!PScript_ParticleTrail(b->start, b->end, PScript_FindParticleType(b->trailname), host_frametime, b->entity, NULL, &b->trailstate))
 			continue;
 
 	// calculate pitch and yaw
