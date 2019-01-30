@@ -99,6 +99,11 @@ static void *GLARB_GetXYZOffset_MDL (aliashdr_t *hdr, int pose)
 	const size_t xyzoffs = offsetof (meshxyz_mdl_t, xyz);
 	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_mdl_t)) + xyzoffs);
 }
+static void *GLARB_GetXYZOffset_MDLQF (aliashdr_t *hdr, int pose)
+{
+	const size_t xyzoffs = offsetof (meshxyz_mdl16_t, xyz);
+	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_mdl16_t)) + xyzoffs);
+}
 static void *GLARB_GetXYZOffset_MD3 (aliashdr_t *hdr, int pose)
 {
 	const size_t xyzoffs = offsetof (meshxyz_md3_t, xyz);
@@ -117,6 +122,11 @@ static void *GLARB_GetNormalOffset_MDL (aliashdr_t *hdr, int pose)
 {
 	const size_t normaloffs = offsetof (meshxyz_mdl_t, normal);
 	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_mdl_t)) + normaloffs);
+}
+static void *GLARB_GetNormalOffset_MDLQF (aliashdr_t *hdr, int pose)
+{
+	const size_t normaloffs = offsetof (meshxyz_mdl16_t, normal);
+	return currententity->model->meshvboptr+(hdr->vbovertofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_mdl16_t)) + normaloffs);
 }
 static void *GLARB_GetNormalOffset_MD3 (aliashdr_t *hdr, int pose)
 {
@@ -260,21 +270,29 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
 
 	GL_VertexAttribPointerFunc (texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, 0, currententity->model->meshvboptr+paliashdr->vbostofs);
-	if (paliashdr->posevertssize == 1)
+	switch(paliashdr->poseverttype)
 	{
+	case PV_QUAKE1:
 		GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_mdl_t), GLARB_GetXYZOffset_MDL (paliashdr, lerpdata.pose1));
 		GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_mdl_t), GLARB_GetXYZOffset_MDL (paliashdr, lerpdata.pose2));
 		// GL_TRUE to normalize the signed bytes to [-1 .. 1]
 		GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_mdl_t), GLARB_GetNormalOffset_MDL (paliashdr, lerpdata.pose1));
 		GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_mdl_t), GLARB_GetNormalOffset_MDL (paliashdr, lerpdata.pose2));
-	}
-	else if (paliashdr->posevertssize == 2)
-	{
+		break;
+	case PV_QUAKEFORGE:
+		GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_SHORT, GL_FALSE, sizeof (meshxyz_mdl16_t), GLARB_GetXYZOffset_MDLQF (paliashdr, lerpdata.pose1));
+		GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_SHORT, GL_FALSE, sizeof (meshxyz_mdl16_t), GLARB_GetXYZOffset_MDLQF (paliashdr, lerpdata.pose2));
+		// GL_TRUE to normalize the signed bytes to [-1 .. 1]
+		GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_mdl16_t), GLARB_GetNormalOffset_MDLQF (paliashdr, lerpdata.pose1));
+		GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_mdl16_t), GLARB_GetNormalOffset_MDLQF (paliashdr, lerpdata.pose2));
+		break;
+	case PV_QUAKE3:
 		GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_SHORT, GL_FALSE, sizeof (meshxyz_md3_t), GLARB_GetXYZOffset_MD3 (paliashdr, lerpdata.pose1));
 		GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_SHORT, GL_FALSE, sizeof (meshxyz_md3_t), GLARB_GetXYZOffset_MD3 (paliashdr, lerpdata.pose2));
 		// GL_TRUE to normalize the signed bytes to [-1 .. 1]
 		GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_md3_t), GLARB_GetNormalOffset_MD3 (paliashdr, lerpdata.pose1));
 		GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_md3_t), GLARB_GetNormalOffset_MD3 (paliashdr, lerpdata.pose2));
+		break;
 	}
 
 // set uniforms
@@ -347,146 +365,152 @@ void GL_DrawAliasFrame (aliashdr_t *paliashdr, lerpdata_t lerpdata)
 	}
 
 	glEnableClientState(GL_VERTEX_ARRAY);
-	if (paliashdr->posevertssize == 1)
+	switch(paliashdr->poseverttype)
 	{
-		trivertx_t *verts1 = (trivertx_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose1 * paliashdr->numverts_vbo;
-		trivertx_t *verts2 = (trivertx_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose2 * paliashdr->numverts_vbo;
-
-		if (iblend)
+	case PV_QUAKE1:
+	case PV_QUAKEFORGE:	//just going to ignore the extra data here.
 		{
-			for (i = 0; i < paliashdr->numverts_vbo; i++)
-			{
-				vpos[i][0] = verts1[i].v[0] * iblend + blend * verts2[i].v[0];
-				vpos[i][1] = verts1[i].v[1] * iblend + blend * verts2[i].v[1];
-				vpos[i][2] = verts1[i].v[2] * iblend + blend * verts2[i].v[2];
-			}
-			GL_BindBuffer (GL_ARRAY_BUFFER, 0);
-			glVertexPointer(3, GL_FLOAT, sizeof (vpos[0]), vpos);
+			trivertx_t *verts1 = (trivertx_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose1 * paliashdr->numverts_vbo*(paliashdr->poseverttype==PV_QUAKEFORGE?2:1);
+			trivertx_t *verts2 = (trivertx_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose2 * paliashdr->numverts_vbo*(paliashdr->poseverttype==PV_QUAKEFORGE?2:1);
 
-			if (shading)
+			if (iblend)
 			{
 				for (i = 0; i < paliashdr->numverts_vbo; i++)
 				{
-					vc[i][0] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[0];
-					vc[i][1] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[1];
-					vc[i][2] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[2];
-					vc[i][3] = entalpha;
+					vpos[i][0] = verts1[i].v[0] * iblend + blend * verts2[i].v[0];
+					vpos[i][1] = verts1[i].v[1] * iblend + blend * verts2[i].v[1];
+					vpos[i][2] = verts1[i].v[2] * iblend + blend * verts2[i].v[2];
 				}
-				glEnableClientState(GL_COLOR_ARRAY);
-				glColorPointer(4, GL_FLOAT, sizeof(*vc), vc);
-			}
-		}
-		else
-		{
-			if (shading)
-			{
-				for (i = 0; i < paliashdr->numverts_vbo; i++)
-				{
-					vc[i][0] = shadedots[verts2->lightnormalindex] * lightcolor[0];
-					vc[i][1] = shadedots[verts2->lightnormalindex] * lightcolor[1];
-					vc[i][2] = shadedots[verts2->lightnormalindex] * lightcolor[2];
-					vc[i][3] = entalpha;
-				}
-				glEnableClientState(GL_COLOR_ARRAY);
 				GL_BindBuffer (GL_ARRAY_BUFFER, 0);
-				glColorPointer(4, GL_FLOAT, 0, vc);
-			}
+				glVertexPointer(3, GL_FLOAT, sizeof (vpos[0]), vpos);
 
-			//glVertexPointer may not take GL_UNSIGNED_BYTE, which means we can't use our vbos. attribute 0 MAY be vertex coords, but I don't want to depend on that.
-			for (i = 0; i < paliashdr->numverts_vbo; i++)
-			{
-				vpos[i][0] = verts2[i].v[0];
-				vpos[i][1] = verts2[i].v[1];
-				vpos[i][2] = verts2[i].v[2];
+				if (shading)
+				{
+					for (i = 0; i < paliashdr->numverts_vbo; i++)
+					{
+						vc[i][0] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[0];
+						vc[i][1] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[1];
+						vc[i][2] = (shadedots[verts1->lightnormalindex]*iblend + shadedots[verts2->lightnormalindex]*blend) * lightcolor[2];
+						vc[i][3] = entalpha;
+					}
+					glEnableClientState(GL_COLOR_ARRAY);
+					glColorPointer(4, GL_FLOAT, sizeof(*vc), vc);
+				}
 			}
-			GL_BindBuffer (GL_ARRAY_BUFFER, 0);
-			glVertexPointer(3, GL_FLOAT, sizeof (vpos[0]), vpos);
-		}
-	}
-	else if (paliashdr->posevertssize == 2)
-	{
-		md3XyzNormal_t *verts1 = (md3XyzNormal_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose1 * paliashdr->numverts_vbo;
-		md3XyzNormal_t *verts2 = (md3XyzNormal_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose2 * paliashdr->numverts_vbo;
-
-		if (iblend)
-		{
-			for (i = 0; i < paliashdr->numverts_vbo; i++)
+			else
 			{
-				vpos[i][0] = verts1[i].xyz[0] * iblend + blend * verts2[i].xyz[0];
-				vpos[i][1] = verts1[i].xyz[1] * iblend + blend * verts2[i].xyz[1];
-				vpos[i][2] = verts1[i].xyz[2] * iblend + blend * verts2[i].xyz[2];
-			}
-			GL_BindBuffer (GL_ARRAY_BUFFER, 0);
-			glVertexPointer(3, GL_FLOAT, sizeof (vpos[0]), vpos);
+				if (shading)
+				{
+					for (i = 0; i < paliashdr->numverts_vbo; i++)
+					{
+						vc[i][0] = shadedots[verts2->lightnormalindex] * lightcolor[0];
+						vc[i][1] = shadedots[verts2->lightnormalindex] * lightcolor[1];
+						vc[i][2] = shadedots[verts2->lightnormalindex] * lightcolor[2];
+						vc[i][3] = entalpha;
+					}
+					glEnableClientState(GL_COLOR_ARRAY);
+					GL_BindBuffer (GL_ARRAY_BUFFER, 0);
+					glColorPointer(4, GL_FLOAT, 0, vc);
+				}
 
-			if (shading)
-			{
+				//glVertexPointer may not take GL_UNSIGNED_BYTE, which means we can't use our vbos. attribute 0 MAY be vertex coords, but I don't want to depend on that.
 				for (i = 0; i < paliashdr->numverts_vbo; i++)
 				{
-					vec3_t n;
-					float dot;
-					// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
-					// this introduces some error (less than 0.004), but the normals were very coarse
-					// to begin with
-					//this should be a table.
-					float lat = (float)verts2[i].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
-					float lng = (float)verts2[i].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
-					n[0] = blend * cos ( lng ) * sin ( lat );
-					n[1] = blend * sin ( lng ) * sin ( lat );
-					n[2] = blend * cos ( lat );
-					lat = (float)verts1[i].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
-					lng = (float)verts1[i].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
-					n[0] += iblend * cos ( lng ) * sin ( lat );
-					n[1] += iblend * sin ( lng ) * sin ( lat );
-					n[2] += iblend * cos ( lat );
-					dot = DotProduct(n, shadevector);
-					if (dot < 0.0)	//bizzare maths guessed by mh
-						dot = 1.0 + dot * (13.0 / 44.0);
-					else
-						dot = 1.0 + dot;
-					vc[i][0] = dot * lightcolor[0];
-					vc[i][1] = dot * lightcolor[1];
-					vc[i][2] = dot * lightcolor[2];
-					vc[i][3] = entalpha;
+					vpos[i][0] = verts2[i].v[0];
+					vpos[i][1] = verts2[i].v[1];
+					vpos[i][2] = verts2[i].v[2];
 				}
-				glEnableClientState(GL_COLOR_ARRAY);
-				glColorPointer(4, GL_FLOAT, 0, vc);
-			}
-		}
-		else
-		{
-			if (shading)
-			{
-				for (i = 0; i < paliashdr->numverts_vbo; i++)
-				{
-					vec3_t n;
-					float dot;
-					// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
-					// this introduces some error (less than 0.004), but the normals were very coarse
-					// to begin with
-					//this should be a table.
-					float lat = (float)verts2[i].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
-					float lng = (float)verts2[i].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
-					n[0] = cos ( lng ) * sin ( lat );
-					n[1] = sin ( lng ) * sin ( lat );
-					n[2] = cos ( lat );
-					dot = DotProduct(n, shadevector);
-					if (dot < 0.0)	//bizzare maths guessed by mh
-						dot = 1.0 + dot * (13.0 / 44.0);
-					else
-						dot = 1.0 + dot;
-					vc[i][0] = dot * lightcolor[0];
-					vc[i][1] = dot * lightcolor[1];
-					vc[i][2] = dot * lightcolor[2];
-					vc[i][3] = entalpha;
-				}
-				glEnableClientState(GL_COLOR_ARRAY);
 				GL_BindBuffer (GL_ARRAY_BUFFER, 0);
-				glColorPointer(4, GL_FLOAT, 0, vc);
+				glVertexPointer(3, GL_FLOAT, sizeof (vpos[0]), vpos);
 			}
-			GL_BindBuffer (GL_ARRAY_BUFFER, currententity->model->meshvbo);
-			glVertexPointer(3, GL_SHORT, sizeof (meshxyz_md3_t), GLARB_GetXYZOffset_MD3 (paliashdr, lerpdata.pose2));
 		}
+		break;
+	case PV_QUAKE3:
+		{
+			md3XyzNormal_t *verts1 = (md3XyzNormal_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose1 * paliashdr->numverts_vbo;
+			md3XyzNormal_t *verts2 = (md3XyzNormal_t*)((byte *)paliashdr + paliashdr->vertexes) + lerpdata.pose2 * paliashdr->numverts_vbo;
+
+			if (iblend)
+			{
+				for (i = 0; i < paliashdr->numverts_vbo; i++)
+				{
+					vpos[i][0] = verts1[i].xyz[0] * iblend + blend * verts2[i].xyz[0];
+					vpos[i][1] = verts1[i].xyz[1] * iblend + blend * verts2[i].xyz[1];
+					vpos[i][2] = verts1[i].xyz[2] * iblend + blend * verts2[i].xyz[2];
+				}
+				GL_BindBuffer (GL_ARRAY_BUFFER, 0);
+				glVertexPointer(3, GL_FLOAT, sizeof (vpos[0]), vpos);
+
+				if (shading)
+				{
+					for (i = 0; i < paliashdr->numverts_vbo; i++)
+					{
+						vec3_t n;
+						float dot;
+						// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
+						// this introduces some error (less than 0.004), but the normals were very coarse
+						// to begin with
+						//this should be a table.
+						float lat = (float)verts2[i].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
+						float lng = (float)verts2[i].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
+						n[0] = blend * cos ( lng ) * sin ( lat );
+						n[1] = blend * sin ( lng ) * sin ( lat );
+						n[2] = blend * cos ( lat );
+						lat = (float)verts1[i].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
+						lng = (float)verts1[i].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
+						n[0] += iblend * cos ( lng ) * sin ( lat );
+						n[1] += iblend * sin ( lng ) * sin ( lat );
+						n[2] += iblend * cos ( lat );
+						dot = DotProduct(n, shadevector);
+						if (dot < 0.0)	//bizzare maths guessed by mh
+							dot = 1.0 + dot * (13.0 / 44.0);
+						else
+							dot = 1.0 + dot;
+						vc[i][0] = dot * lightcolor[0];
+						vc[i][1] = dot * lightcolor[1];
+						vc[i][2] = dot * lightcolor[2];
+						vc[i][3] = entalpha;
+					}
+					glEnableClientState(GL_COLOR_ARRAY);
+					glColorPointer(4, GL_FLOAT, 0, vc);
+				}
+			}
+			else
+			{
+				if (shading)
+				{
+					for (i = 0; i < paliashdr->numverts_vbo; i++)
+					{
+						vec3_t n;
+						float dot;
+						// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
+						// this introduces some error (less than 0.004), but the normals were very coarse
+						// to begin with
+						//this should be a table.
+						float lat = (float)verts2[i].latlong[0] * (2 * M_PI)*(1.0 / 255.0);
+						float lng = (float)verts2[i].latlong[1] * (2 * M_PI)*(1.0 / 255.0);
+						n[0] = cos ( lng ) * sin ( lat );
+						n[1] = sin ( lng ) * sin ( lat );
+						n[2] = cos ( lat );
+						dot = DotProduct(n, shadevector);
+						if (dot < 0.0)	//bizzare maths guessed by mh
+							dot = 1.0 + dot * (13.0 / 44.0);
+						else
+							dot = 1.0 + dot;
+						vc[i][0] = dot * lightcolor[0];
+						vc[i][1] = dot * lightcolor[1];
+						vc[i][2] = dot * lightcolor[2];
+						vc[i][3] = entalpha;
+					}
+					glEnableClientState(GL_COLOR_ARRAY);
+					GL_BindBuffer (GL_ARRAY_BUFFER, 0);
+					glColorPointer(4, GL_FLOAT, 0, vc);
+				}
+				GL_BindBuffer (GL_ARRAY_BUFFER, currententity->model->meshvbo);
+				glVertexPointer(3, GL_SHORT, sizeof (meshxyz_md3_t), GLARB_GetXYZOffset_MD3 (paliashdr, lerpdata.pose2));
+			}
+		}
+		break;
 	}
 
 // set textures

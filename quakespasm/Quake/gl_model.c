@@ -31,7 +31,7 @@ char	loadname[32];	// for hunk tags
 
 void Mod_LoadSpriteModel (qmodel_t *mod, void *buffer);
 void Mod_LoadBrushModel (qmodel_t *mod, void *buffer);
-void Mod_LoadAliasModel (qmodel_t *mod, void *buffer);
+void Mod_LoadAliasModel (qmodel_t *mod, void *buffer, int pvtype);
 void Mod_LoadMD3Model (qmodel_t *mod, void *buffer);
 qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash);
 
@@ -373,7 +373,10 @@ qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 	switch (mod_type)
 	{
 	case IDPOLYHEADER:
-		Mod_LoadAliasModel (mod, buf);
+		Mod_LoadAliasModel (mod, buf, PV_QUAKE1);
+		break;
+	case (('M'<<0)+('D'<<8)+('1'<<16)+('6'<<24)):	//QF 16bit variation
+		Mod_LoadAliasModel (mod, buf, PV_QUAKEFORGE);
 		break;
 
 	case IDSPRITEHEADER:
@@ -1441,8 +1444,8 @@ void Mod_LoadFaces (lump_t *l, qboolean bsp2)
 		if (Mod_ParseWorldspawnKey(loadmodel, "lightmap_scale", scalebuf, sizeof(scalebuf)))
 		{
 			i = atoi(scalebuf);
-			for (defaultshift = 0; (1<<defaultshift) < i && defaultshift < 254; defaultshift++)
-				break;
+			for(defaultshift = 0; i > 1; defaultshift++)
+				i >>= 1;
 		}
 	}
 
@@ -2578,7 +2581,7 @@ byte		*player_8bit_texels;
 Mod_LoadAliasFrame
 =================
 */
-void * Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
+static void * Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame, int pvtype)
 {
 	trivertx_t		*pinframe;
 	int				i;
@@ -2604,7 +2607,7 @@ void * Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
 	poseverts_mdl[posenum] = pinframe;
 	posenum++;
 
-	pinframe += pheader->numverts;
+	pinframe += pheader->numverts*(pvtype==PV_QUAKEFORGE?2:1);
 
 	return (void *)pinframe;
 }
@@ -2615,7 +2618,7 @@ void * Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
 Mod_LoadAliasGroup
 =================
 */
-void *Mod_LoadAliasGroup (void * pin,  maliasframedesc_t *frame)
+static void *Mod_LoadAliasGroup (void * pin,  maliasframedesc_t *frame, int pvtype)
 {
 	daliasgroup_t		*pingroup;
 	int					i, numframes;
@@ -2650,7 +2653,7 @@ void *Mod_LoadAliasGroup (void * pin,  maliasframedesc_t *frame)
 		poseverts_mdl[posenum] = (trivertx_t *)((daliasframe_t *)ptemp + 1);
 		posenum++;
 
-		ptemp = (trivertx_t *)((daliasframe_t *)ptemp + 1) + pheader->numverts;
+		ptemp = (trivertx_t *)((daliasframe_t *)ptemp + 1) + pheader->numverts*(pvtype==PV_QUAKEFORGE?2:1);
 	}
 
 	return ptemp;
@@ -2868,8 +2871,9 @@ void Mod_CalcAliasBounds (aliashdr_t *a)
 	{
 		if (a->numposes && a->numverts)
 		{
-			if (a->posevertssize == 1)
+			switch(a->poseverttype)
 			{
+			case PV_QUAKE1:
 				//process verts
 				for (i=0 ; i<a->numposes; i++)
 					for (j=0; j<a->numverts; j++)
@@ -2889,9 +2893,29 @@ void Mod_CalcAliasBounds (aliashdr_t *a)
 						if (radius < dist)
 							radius = dist;
 					}
-			}
-			else if (a->posevertssize == 2)
-			{
+				break;
+			case PV_QUAKEFORGE:
+				//process verts
+				for (i=0 ; i<a->numposes; i++)
+					for (j=0; j<a->numverts; j++)
+					{
+						for (k=0; k<3;k++)
+							v[k] = (poseverts_mdl[i][j].v[k] * pheader->scale[k]) + (poseverts_mdl[i][j+a->numverts].v[k] * pheader->scale[k]/256.f) + (pheader->scale_origin[k]);
+
+						for (k=0; k<3;k++)
+						{
+							loadmodel->mins[k] = q_min(loadmodel->mins[k], v[k]);
+							loadmodel->maxs[k] = q_max(loadmodel->maxs[k], v[k]);
+						}
+						dist = v[0] * v[0] + v[1] * v[1];
+						if (yawradius < dist)
+							yawradius = dist;
+						dist += v[2] * v[2];
+						if (radius < dist)
+							radius = dist;
+					}
+				break;
+			case PV_QUAKE3:
 				//process verts
 				for (i=0 ; i<a->numposes; i++)
 				{
@@ -2914,6 +2938,7 @@ void Mod_CalcAliasBounds (aliashdr_t *a)
 							radius = dist;
 					}
 				}
+				break;
 			}
 		}
 
@@ -3018,7 +3043,7 @@ void Mod_SetExtraFlags (qmodel_t *mod)
 Mod_LoadAliasModel
 =================
 */
-void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
+void Mod_LoadAliasModel (qmodel_t *mod, void *buffer, int pvtype)
 {
 	int					i, j;
 	mdl_t				*pinmodel;
@@ -3165,13 +3190,13 @@ void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 		aliasframetype_t	frametype;
 		frametype = (aliasframetype_t) LittleLong (pframetype->type);
 		if (frametype == ALIAS_SINGLE)
-			pframetype = (daliasframetype_t *) Mod_LoadAliasFrame (pframetype + 1, &pheader->frames[i]);
+			pframetype = (daliasframetype_t *) Mod_LoadAliasFrame (pframetype + 1, &pheader->frames[i], pvtype);
 		else
-			pframetype = (daliasframetype_t *) Mod_LoadAliasGroup (pframetype + 1, &pheader->frames[i]);
+			pframetype = (daliasframetype_t *) Mod_LoadAliasGroup (pframetype + 1, &pheader->frames[i], pvtype);
 	}
 
 	pheader->numposes = posenum;
-	pheader->posevertssize = 1;
+	pheader->poseverttype = pvtype;	//it would be safe to always store PV_QUAKE1 here if you wanted to drop the low-order data.
 
 	mod->type = mod_alias;
 

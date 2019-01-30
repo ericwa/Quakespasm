@@ -293,6 +293,12 @@ typedef struct meshxyz_mdl_s
 	signed char normal[4];
 } meshxyz_mdl_t;
 
+typedef struct meshxyz_mdl16_s
+{
+	unsigned short xyz[4];
+	signed char normal[4];
+} meshxyz_mdl16_t;
+
 typedef struct meshxyz_md3_s
 {
 	signed short xyz[4];
@@ -369,7 +375,12 @@ typedef struct {
 
 	intptr_t					nextsurface;	//spike
 	int					numposes;
-	int					posevertssize;	//spike 1=mdl, 2=md3
+	enum
+	{
+		PV_QUAKE1 = 1,	//trivertx_t
+		PV_QUAKE3 = 2,	//md3XyzNormal_t
+		PV_QUAKEFORGE,	//trivertx16_t
+	} poseverttype;	//spike
 	struct gltexture_s	*gltextures[MAX_SKINS][4]; //johnfitz
 	struct gltexture_s	*fbtextures[MAX_SKINS][4]; //johnfitz
 	intptr_t					texels[MAX_SKINS];	// only for player skins

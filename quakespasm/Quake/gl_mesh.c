@@ -107,11 +107,28 @@ void GL_MakeAliasModelDisplayLists (qmodel_t *m, aliashdr_t *paliashdr)
 		}
 	}
 
-	verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts_vbo * sizeof(*verts));
-	paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
-	for (i=0 ; i<paliashdr->numposes ; i++)
-		for (j=0 ; j<paliashdr->numverts_vbo ; j++)
-			verts[i*paliashdr->numverts_vbo + j] = poseverts_mdl[i][desc[j].vertindex];
+	switch(paliashdr->poseverttype)
+	{
+	case PV_QUAKEFORGE:
+		verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts_vbo*2 * sizeof(*verts));
+		paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
+		for (i=0 ; i<paliashdr->numposes ; i++)
+			for (j=0 ; j<paliashdr->numverts_vbo ; j++)
+			{
+				verts[i*paliashdr->numverts_vbo*2 + j] = poseverts_mdl[i][desc[j].vertindex];
+				verts[i*paliashdr->numverts_vbo*2 + j + paliashdr->numverts_vbo] = poseverts_mdl[i][desc[j].vertindex + paliashdr->numverts_vbo];
+			}
+		break;
+	case PV_QUAKE1:
+		verts = (trivertx_t *) Hunk_Alloc (paliashdr->numposes * paliashdr->numverts_vbo * sizeof(*verts));
+		paliashdr->vertexes = (byte *)verts - (byte *)paliashdr;
+		for (i=0 ; i<paliashdr->numposes ; i++)
+			for (j=0 ; j<paliashdr->numverts_vbo ; j++)
+				verts[i*paliashdr->numverts_vbo + j] = poseverts_mdl[i][desc[j].vertindex];
+		break;
+	case PV_QUAKE3:
+		break;	//invalid here.
+	}
 }
 
 #define NUMVERTEXNORMALS	 162
@@ -147,10 +164,18 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 	//count how much space we're going to need.
 	for(hdr = mainhdr, numverts = 0, numindexes = 0; ; )
 	{
-		if (hdr->posevertssize == 1)
+		switch(hdr->poseverttype)
+		{
+		case PV_QUAKE1:
 			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_mdl_t)); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
-		else if (hdr->posevertssize == 2)
-			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_md3_t)); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+			break;
+		case PV_QUAKEFORGE:
+			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_mdl16_t));
+			break;
+		case PV_QUAKE3:
+			totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_md3_t));
+			break;
+		}
 
 		numverts += hdr->numverts_vbo;
 		numindexes += hdr->numindexes;
@@ -200,8 +225,9 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 		hdr->vbovertofs = vertofs;
 
 	// fill in the vertices at the start of the buffer
-		if (hdr->posevertssize == 1)
+		switch(hdr->poseverttype)
 		{
+		case PV_QUAKE1:
 			for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 			{
 				int v;
@@ -225,9 +251,33 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 					xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
 				}
 			}
-		}
-		else if (hdr->posevertssize == 2)
-		{
+			break;
+		case PV_QUAKEFORGE:
+			for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+			{
+				int v;
+				meshxyz_mdl16_t *xyz = (meshxyz_mdl16_t *) (vbodata + vertofs);
+				const trivertx_t *tv = (trivertx_t*)trivertexes + (hdr->numverts_vbo*2 * f);
+				vertofs += hdr->numverts_vbo * sizeof (*xyz);
+
+				for (v = 0; v < hdr->numverts_vbo; v++, tv++)
+				{
+					xyz[v].xyz[0] = (tv->v[0]<<8) | tv[hdr->numverts_vbo].v[0];
+					xyz[v].xyz[1] = (tv->v[1]<<8) | tv[hdr->numverts_vbo].v[0];
+					xyz[v].xyz[2] = (tv->v[2]<<8) | tv[hdr->numverts_vbo].v[0];
+					xyz[v].xyz[3] = 1;	// need w 1 for 4 byte vertex compression
+
+					// map the normal coordinates in [-1..1] to [-127..127] and store in an unsigned char.
+					// this introduces some error (less than 0.004), but the normals were very coarse
+					// to begin with
+					xyz[v].normal[0] = 127 * r_avertexnormals[tv->lightnormalindex][0];
+					xyz[v].normal[1] = 127 * r_avertexnormals[tv->lightnormalindex][1];
+					xyz[v].normal[2] = 127 * r_avertexnormals[tv->lightnormalindex][2];
+					xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
+				}
+			}
+			break;
+		case PV_QUAKE3:
 			for (f = 0; f < hdr->numposes; f++) // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 			{
 				int v;
@@ -254,6 +304,7 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 					xyz[v].normal[3] = 0;	// unused; for 4-byte alignment
 				}
 			}
+			break;
 		}
 
 		// fill in the ST coords at the end of the buffer
@@ -269,21 +320,23 @@ void GLMesh_LoadVertexBuffer (qmodel_t *m, aliashdr_t *mainhdr)
 			hdr->vbostofs = stofs; 
 			st = (meshst_t *) (vbodata + stofs);
 			stofs += hdr->numverts_vbo*sizeof(*st);
-			if (hdr->posevertssize == 2)
+			switch(hdr->poseverttype)
 			{
+			case PV_QUAKE3:
 				for (f = 0; f < hdr->numverts_vbo; f++)
 				{	//md3 has floating-point skin coords. use the values directly.
 					st[f].st[0] = hscale * desc[f].st[0];
 					st[f].st[1] = vscale * desc[f].st[1];
 				}
-			}
-			else
-			{
+				break;
+			case PV_QUAKEFORGE:
+			case PV_QUAKE1:
 				for (f = 0; f < hdr->numverts_vbo; f++)
 				{
 					st[f].st[0] = hscale * ((float) desc[f].st[0] + 0.5f) / (float) hdr->skinwidth;
 					st[f].st[1] = vscale * ((float) desc[f].st[1] + 0.5f) / (float) hdr->skinheight;
 				}
+				break;
 			}
 		}
 
@@ -528,7 +581,7 @@ void Mod_LoadMD3Model (qmodel_t *mod, void *buffer)
 		else
 			osurf->nextsurface = 0;
 		
-		osurf->posevertssize = 2;
+		osurf->poseverttype = PV_QUAKE3;
 		osurf->numverts_vbo = osurf->numverts = LittleLong(pinsurface->numVerts);
 		pinvert = (md3XyzNormal_t*)((byte*)pinsurface + LittleLong(pinsurface->ofsXyzNormals));
 		poutvert = (md3XyzNormal_t *) Hunk_Alloc (numframes * osurf->numverts * sizeof(*poutvert));
