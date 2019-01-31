@@ -3005,7 +3005,10 @@ void SV_SpawnServer (const char *server)
 	{
 		// set up the protocol flags used by this server
 		// (note - these could be cvar-ised so that server admins could choose the protocol features used by their servers)
-		sv.protocolflags = PRFL_INT32COORD | PRFL_SHORTANGLE;
+		if (sv_protocol_pext2)	//spike: I don't really want to step on anyone's toes, but floats have the exact same precision as qc does.
+			sv.protocolflags = PRFL_FLOATCOORD | PRFL_SHORTANGLE;
+		else	//spike: purists might want to preserve the inprecision and just extend the range though. This matches vanilla QS. should compress a bit better too.
+			sv.protocolflags = PRFL_INT32COORD | PRFL_SHORTANGLE;
 	}
 	else sv.protocolflags = 0;
 
