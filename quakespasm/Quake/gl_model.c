@@ -2773,22 +2773,59 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 			pheader->texels[i] = texels - (byte *)pheader;
 			memcpy (texels, (byte *)(pskintype + 1), size);
 
-			//johnfitz -- rewritten
-			q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, i);
-			offset = (src_offset_t)(pskintype+1) - (src_offset_t)mod_base;
-			if (Mod_CheckFullbrights ((byte *)(pskintype+1), size))
+			//spike - external model textures with dp naming -- eg progs/foo.mdl_0.tga
+			//always use the alpha channel for external images. gpus prefer aligned data anyway.
+			int mark = Hunk_LowMark ();
+			char filename[MAX_QPATH];
+			char filename2[MAX_QPATH];
+			byte *data;
+			int fwidth, fheight;
+			qboolean malloced;
+			q_snprintf (filename, sizeof(filename), "%s_%i", loadmodel->name, i);
+			data = !gl_load24bit.value?NULL:Image_LoadImage (filename, &fwidth, &fheight, &malloced);
+			//now load whatever we found
+			if (data) //load external image
 			{
-				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
-				q_snprintf (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_glow", loadmodel->name, i);
-				pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
-					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
+				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, filename, fwidth, fheight,
+					SRC_RGBA, data, filename, 0, TEXPREF_ALPHA|texflags|TEXPREF_MIPMAP );
+
+				//now try to load glow/luma image from the same place
+				if (malloced)
+					free(data);
+				Hunk_FreeToLowMark (mark);
+				q_snprintf (filename2, sizeof(filename2), "%s_glow", filename);
+				data = !gl_load24bit.value?NULL:Image_LoadImage (filename2, &fwidth, &fheight, &malloced);
+				if (!data)
+				{
+					q_snprintf (filename2, sizeof(filename2), "%s_luma", filename);
+					data = !gl_load24bit.value?NULL:Image_LoadImage (filename2, &fwidth, &fheight, &malloced);
+				}
+
+				if (data)
+					pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, filename2, fwidth, fheight,
+						SRC_RGBA, data, filename, 0, TEXPREF_ALPHA|texflags|TEXPREF_MIPMAP );
+				else
+					pheader->fbtextures[i][j&3] = NULL;
 			}
 			else
 			{
-				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags);
-				pheader->fbtextures[i][0] = NULL;
+				//johnfitz -- rewritten
+				q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, i);
+				offset = (src_offset_t)(pskintype+1) - (src_offset_t)mod_base;
+				if (Mod_CheckFullbrights ((byte *)(pskintype+1), size))
+				{
+					pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
+					q_snprintf (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_glow", loadmodel->name, i);
+					pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
+				}
+				else
+				{
+					pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags);
+					pheader->fbtextures[i][0] = NULL;
+				}
 			}
 
 			pheader->gltextures[i][3] = pheader->gltextures[i][2] = pheader->gltextures[i][1] = pheader->gltextures[i][0];
