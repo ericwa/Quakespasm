@@ -2805,7 +2805,7 @@ void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 					pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, filename2, fwidth, fheight,
 						SRC_RGBA, data, filename, 0, TEXPREF_ALPHA|texflags|TEXPREF_MIPMAP );
 				else
-					pheader->fbtextures[i][j&3] = NULL;
+					pheader->fbtextures[i][0] = NULL;
 			}
 			else
 			{
