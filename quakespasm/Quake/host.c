@@ -775,7 +775,7 @@ void _Host_Frame (double time)
 					pr_global_struct->deathmatch = cl.gametype;
 					pr_global_struct->coop = (cl.gametype == GAME_COOP) && cl.maxclients != 1;
 					if (qcvm->extglobals.player_localnum)
-						*qcvm->extglobals.player_localnum = cl.viewentity;	//this is a guess, but is important for scoreboards.
+						*qcvm->extglobals.player_localnum = cl.viewentity-1;	//this is a guess, but is important for scoreboards.
 
 					//and call the init function... if it exists.
 					qcvm->worldmodel = cl.worldmodel;
@@ -796,6 +796,7 @@ void _Host_Frame (double time)
 			cl.sendprespawn = false;
 			MSG_WriteByte (&cls.message, clc_stringcmd);
 			MSG_WriteString (&cls.message, "prespawn");
+			vid.recalc_refdef = true;
 		}
 		else if (!cls.message.cursize)
 			MSG_WriteByte (&cls.message, clc_nop);
