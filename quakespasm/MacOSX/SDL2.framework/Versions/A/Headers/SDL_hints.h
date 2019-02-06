@@ -339,7 +339,7 @@ extern "C" {
 #define SDL_HINT_IDLE_TIMER_DISABLED "SDL_IOS_IDLE_TIMER_DISABLED"
 
 /**
- *  \brief  A variable controlling which orientations are allowed on iOS.
+ *  \brief  A variable controlling which orientations are allowed on iOS/Android.
  *
  *  In some circumstances it is necessary to be able to explicitly control
  *  which UI orientations are allowed.
@@ -619,6 +619,10 @@ extern "C" {
 *  This is specially useful if you build SDL against a non glibc libc library (such as musl) which
 *  provides a relatively small default thread stack size (a few kilobytes versus the default 8MB glibc uses).
 *  Support for this hint is currently available only in the pthread, Windows, and PSP backend.
+*
+*  Instead of this hint, in 2.0.9 and later, you can use
+*  SDL_CreateThreadWithStackSize(). This hint only works with the classic
+*  SDL_CreateThread().
 */
 #define SDL_HINT_THREAD_STACK_SIZE              "SDL_THREAD_STACK_SIZE"
 
@@ -1038,6 +1042,31 @@ extern "C" {
  *  https://developer.apple.com/library/content/documentation/Audio/Conceptual/AudioSessionProgrammingGuide/AudioSessionCategoriesandModes/AudioSessionCategoriesandModes.html
  */
 #define SDL_HINT_AUDIO_CATEGORY   "SDL_AUDIO_CATEGORY"
+
+/**
+ *  \brief  A variable controlling whether the 2D render API is compatible or efficient.
+ *
+ *  This variable can be set to the following values:
+ *
+ *    "0"     - Don't use batching to make rendering more efficient.
+ *    "1"     - Use batching, but might cause problems if app makes its own direct OpenGL calls.
+ *
+ *  Up to SDL 2.0.9, the render API would draw immediately when requested. Now
+ *  it batches up draw requests and sends them all to the GPU only when forced
+ *  to (during SDL_RenderPresent, when changing render targets, by updating a
+ *  texture that the batch needs, etc). This is significantly more efficient,
+ *  but it can cause problems for apps that expect to render on top of the
+ *  render API's output. As such, SDL will disable batching if a specific
+ *  render backend is requested (since this might indicate that the app is
+ *  planning to use the underlying graphics API directly). This hint can
+ *  be used to explicitly request batching in this instance. It is a contract
+ *  that you will either never use the underlying graphics API directly, or
+ *  if you do, you will call SDL_RenderFlush() before you do so any current
+ *  batch goes to the GPU before your work begins. Not following this contract
+ *  will result in undefined behavior.
+ */
+#define SDL_HINT_RENDER_BATCHING  "SDL_RENDER_BATCHING"
+
 
 /**
  *  \brief  An enumeration of hint priorities

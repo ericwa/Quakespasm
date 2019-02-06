@@ -1,4 +1,4 @@
-; lib /def:SDL2.def /out:SDL2.lib /machine:x86
+;; lib /def:SDL2.def /out:SDL2.lib /machine:x86
 LIBRARY SDL2.dll
 EXPORTS
 SDL_AddEventWatch
@@ -57,6 +57,7 @@ SDL_CreateSystemCursor
 SDL_CreateTexture
 SDL_CreateTextureFromSurface
 SDL_CreateThread
+SDL_CreateThreadWithStackSize
 SDL_CreateWindow
 SDL_CreateWindowAndRenderer
 SDL_CreateWindowFrom
@@ -123,6 +124,7 @@ SDL_GameControllerGetBindForButton
 SDL_GameControllerGetButton
 SDL_GameControllerGetButtonFromString
 SDL_GameControllerGetJoystick
+SDL_GameControllerGetPlayerIndex
 SDL_GameControllerGetProduct
 SDL_GameControllerGetProductVersion
 SDL_GameControllerGetStringForAxis
@@ -223,6 +225,7 @@ SDL_GetThreadID
 SDL_GetThreadName
 SDL_GetTicks
 SDL_GetTouchDevice
+SDL_GetTouchDeviceType
 SDL_GetTouchFinger
 SDL_GetVersion
 SDL_GetVideoDriver
@@ -315,6 +318,7 @@ SDL_JoystickGetBall
 SDL_JoystickGetButton
 SDL_JoystickGetDeviceGUID
 SDL_JoystickGetDeviceInstanceID
+SDL_JoystickGetDevicePlayerIndex
 SDL_JoystickGetDeviceProduct
 SDL_JoystickGetDeviceProductVersion
 SDL_JoystickGetDeviceType
@@ -323,6 +327,7 @@ SDL_JoystickGetGUID
 SDL_JoystickGetGUIDFromString
 SDL_JoystickGetGUIDString
 SDL_JoystickGetHat
+SDL_JoystickGetPlayerIndex
 SDL_JoystickGetProduct
 SDL_JoystickGetProductVersion
 SDL_JoystickGetType
@@ -413,14 +418,25 @@ SDL_RemoveTimer
 SDL_RenderClear
 SDL_RenderCopy
 SDL_RenderCopyEx
+SDL_RenderCopyExF
+SDL_RenderCopyF
 SDL_RenderDrawLine
+SDL_RenderDrawLineF
 SDL_RenderDrawLines
+SDL_RenderDrawLinesF
 SDL_RenderDrawPoint
+SDL_RenderDrawPointF
 SDL_RenderDrawPoints
+SDL_RenderDrawPointsF
 SDL_RenderDrawRect
+SDL_RenderDrawRectF
 SDL_RenderDrawRects
+SDL_RenderDrawRectsF
 SDL_RenderFillRect
+SDL_RenderFillRectF
 SDL_RenderFillRects
+SDL_RenderFillRectsF
+SDL_RenderFlush
 SDL_RenderGetClipRect
 SDL_RenderGetD3D9Device
 SDL_RenderGetIntegerScale
