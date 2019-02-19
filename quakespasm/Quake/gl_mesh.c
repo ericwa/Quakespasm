@@ -629,41 +629,44 @@ void Mod_LoadMD3Model (qmodel_t *mod, void *buffer)
 		osurf->skinheight = 200;
 
 		//load the textures
-		pinshader = (md3Shader_t*)((byte*)pinsurface + LittleLong(pinsurface->ofsShaders));
-		osurf->numskins = LittleLong(pinsurface->numShaders);
-		for (j = 0; j < osurf->numskins; j++, pinshader++)
+		if (!isDedicated)
 		{
-			char texturename[MAX_QPATH];
-			char fullbrightname[MAX_QPATH];
-			char *ext;
-			//texture names in md3s are kinda fucked. they could be just names relative to the mdl, or full paths, or just simple shader names.
-			//our texture manager is too lame to scan all 1000 possibilities
-			if (strchr(pinshader->name, '/') || strchr(pinshader->name, '\\'))
-			{	//so if there's a path then we want to use that.
-				q_strlcpy(texturename, pinshader->name, sizeof(texturename));
+			pinshader = (md3Shader_t*)((byte*)pinsurface + LittleLong(pinsurface->ofsShaders));
+			osurf->numskins = LittleLong(pinsurface->numShaders);
+			for (j = 0; j < osurf->numskins; j++, pinshader++)
+			{
+				char texturename[MAX_QPATH];
+				char fullbrightname[MAX_QPATH];
+				char *ext;
+				//texture names in md3s are kinda fucked. they could be just names relative to the mdl, or full paths, or just simple shader names.
+				//our texture manager is too lame to scan all 1000 possibilities
+				if (strchr(pinshader->name, '/') || strchr(pinshader->name, '\\'))
+				{	//so if there's a path then we want to use that.
+					q_strlcpy(texturename, pinshader->name, sizeof(texturename));
+				}
+				else
+				{	//and if there's no path then we want to prefix it with our own.
+					q_strlcpy(texturename, mod->name, sizeof(texturename));
+					*(char*)COM_SkipPath(texturename) = 0;
+					//and concat the specified name
+					q_strlcat(texturename, pinshader->name, sizeof(texturename));
+				}
+				//and make sure there's no extensions. these get ignored in q3, which is kinda annoying, but this is an md3 and standards are standards (and it makes luma easier).
+				ext = (char*)COM_FileGetExtension(texturename);
+				if (*ext)
+					*--ext = 0;
+				//luma has an extra postfix.
+				q_snprintf(fullbrightname, sizeof(fullbrightname), "%s_luma", texturename);
+				osurf->gltextures[j][0] = TexMgr_LoadImage(mod, texturename, osurf->skinwidth, osurf->skinheight, SRC_EXTERNAL, NULL, texturename, 0, TEXPREF_PAD|TEXPREF_ALPHA|TEXPREF_NOBRIGHT|TEXPREF_MIPMAP);
+				osurf->fbtextures[j][0] = TexMgr_LoadImage(mod, fullbrightname, osurf->skinwidth, osurf->skinheight, SRC_EXTERNAL, NULL, texturename, 0, TEXPREF_PAD|TEXPREF_ALPHA|TEXPREF_FULLBRIGHT|TEXPREF_MIPMAP);
+				osurf->gltextures[j][3] = osurf->gltextures[j][2] = osurf->gltextures[j][1] = osurf->gltextures[j][0];
+				osurf->fbtextures[j][3] = osurf->fbtextures[j][2] = osurf->fbtextures[j][1] = osurf->fbtextures[j][0];
 			}
-			else
-			{	//and if there's no path then we want to prefix it with our own.
-				q_strlcpy(texturename, mod->name, sizeof(texturename));
-				*(char*)COM_SkipPath(texturename) = 0;
-				//and concat the specified name
-				q_strlcat(texturename, pinshader->name, sizeof(texturename));
+			if (osurf->numskins)
+			{
+				osurf->skinwidth = osurf->gltextures[0][0]->source_width;
+				osurf->skinheight = osurf->gltextures[0][0]->source_height;
 			}
-			//and make sure there's no extensions. these get ignored in q3, which is kinda annoying, but this is an md3 and standards are standards (and it makes luma easier).
-			ext = (char*)COM_FileGetExtension(texturename);
-			if (*ext)
-				*--ext = 0;
-			//luma has an extra postfix.
-			q_snprintf(fullbrightname, sizeof(fullbrightname), "%s_luma", texturename);
-			osurf->gltextures[j][0] = TexMgr_LoadImage(mod, texturename, osurf->skinwidth, osurf->skinheight, SRC_EXTERNAL, NULL, texturename, 0, TEXPREF_PAD|TEXPREF_ALPHA|TEXPREF_NOBRIGHT|TEXPREF_MIPMAP);
-			osurf->fbtextures[j][0] = TexMgr_LoadImage(mod, fullbrightname, osurf->skinwidth, osurf->skinheight, SRC_EXTERNAL, NULL, texturename, 0, TEXPREF_PAD|TEXPREF_ALPHA|TEXPREF_FULLBRIGHT|TEXPREF_MIPMAP);
-			osurf->gltextures[j][3] = osurf->gltextures[j][2] = osurf->gltextures[j][1] = osurf->gltextures[j][0];
-			osurf->fbtextures[j][3] = osurf->fbtextures[j][2] = osurf->fbtextures[j][1] = osurf->fbtextures[j][0];
-		}
-		if (osurf->numskins)
-		{
-			osurf->skinwidth = osurf->gltextures[0][0]->source_width;
-			osurf->skinheight = osurf->gltextures[0][0]->source_height;
 		}
 
 		//and figure out the texture coords properly, now we know the actual sizes.
