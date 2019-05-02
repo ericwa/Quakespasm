@@ -1687,8 +1687,17 @@ static void PF_sv_setspawnparms (void)
 	// copy spawn parms out of the client_t
 	client = svs.clients + (i-1);
 
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_BASIC_SPAWN_PARMS; i++)
 		(&pr_global_struct->parm1)[i] = client->spawn_parms[i];
+	if (pr_checkextension.value)
+	{	//extended spawn parms
+		for ( ; i< NUM_TOTAL_SPAWN_PARMS ; i++)
+		{
+			ddef_t *g = ED_FindGlobal(va("parm%i", i+1));
+			if (g)
+				qcvm->globals[g->ofs] = client->spawn_parms[i];
+		}
+	}
 }
 
 /*

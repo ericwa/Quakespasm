@@ -1139,7 +1139,7 @@ void Host_Savegame_f (void)
 	fprintf (f, "%i\n", SAVEGAME_VERSION);
 	Host_SavegameComment (comment);
 	fprintf (f, "%s\n", comment);
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_BASIC_SPAWN_PARMS; i++)
 		fprintf (f, "%f\n", svs.clients->spawn_parms[i]);
 	fprintf (f, "%d\n", current_skill);
 	fprintf (f, "%s\n", sv.name);
@@ -1190,6 +1190,13 @@ void Host_Savegame_f (void)
 		if (sv.particle_precache[i])
 			fprintf (f, "sv.particle_precache %i \"%s\"\n", i, sv.particle_precache[i]);
 	}
+
+	for (i = NUM_BASIC_SPAWN_PARMS ; i < NUM_TOTAL_SPAWN_PARMS ; i++)
+	{
+		if (svs.clients->spawn_parms[i])
+			fprintf (f, "spawnparm %i \"%f\"\n", i+1, svs.clients->spawn_parms[i]);
+	}
+
 	fprintf(f, "*/\n");
 
 
@@ -1216,7 +1223,7 @@ void Host_Loadgame_f (void)
 	edict_t	*ent;
 	int	entnum;
 	int	version;
-	float	spawn_parms[NUM_SPAWN_PARMS];
+	float	spawn_parms[NUM_TOTAL_SPAWN_PARMS];
 
 	if (cmd_source != src_command)
 		return;
@@ -1265,8 +1272,10 @@ void Host_Loadgame_f (void)
 		return;
 	}
 	data = COM_ParseStringNewline (data);
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_BASIC_SPAWN_PARMS; i++)
 		data = COM_ParseFloatNewline (data, &spawn_parms[i]);
+	for (; i < NUM_TOTAL_SPAWN_PARMS; i++)
+		spawn_parms[i] = 0;
 // this silliness is so we can load 1.06 save files, which have float skill values
 	data = COM_ParseFloatNewline(data, &tfloat);
 	current_skill = (int)(tfloat + 0.1);
@@ -1361,6 +1370,15 @@ void Host_Loadgame_f (void)
 					if (idx >= 1 && idx < MAX_PARTICLETYPES)
 						sv.particle_precache[idx] = (const char *)Hunk_Strdup (com_token, "particle_precache");
 				}
+				else if (!strcmp(com_token, "spawnparm"))
+				{
+					int idx;
+					ext = COM_Parse(ext);
+					idx = atoi(com_token);
+					ext = COM_Parse(ext);
+					if (idx >= 1 && idx <= NUM_TOTAL_SPAWN_PARMS)
+						spawn_parms[idx-1] = atof(com_token);
+				}
 				*end = '\n';
 				ext = end+1;
 			}
@@ -1404,7 +1422,7 @@ void Host_Loadgame_f (void)
 	free (start);
 	start = NULL;
 
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_TOTAL_SPAWN_PARMS; i++)
 		svs.clients->spawn_parms[i] = spawn_parms[i];
 
 	PR_SwitchQCVM(NULL);
@@ -1803,8 +1821,17 @@ void Host_Spawn_f (void)
 		ent->v.netname = PR_SetEngineString(host_client->name);
 
 		// copy spawn parms out of the client_t
-		for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
+		for (i=0 ; i< NUM_BASIC_SPAWN_PARMS ; i++)
 			(&pr_global_struct->parm1)[i] = host_client->spawn_parms[i];
+		if (pr_checkextension.value)
+		{	//extended spawn parms
+			for ( ; i< NUM_TOTAL_SPAWN_PARMS ; i++)
+			{
+				ddef_t *g = ED_FindGlobal(va("parm%i", i+1));
+				if (g)
+					qcvm->globals[g->ofs] = host_client->spawn_parms[i];
+			}
+		}
 		// call the spawn function
 		pr_global_struct->time = qcvm->time;
 		pr_global_struct->self = EDICT_TO_PROG(sv_player);

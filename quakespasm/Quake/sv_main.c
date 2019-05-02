@@ -1763,7 +1763,7 @@ void SV_ConnectClient (int clientnum)
 	int				edictnum;
 	struct qsocket_s *netconnection;
 	int				i;
-	float			spawn_parms[NUM_SPAWN_PARMS];
+	float			spawn_parms[NUM_TOTAL_SPAWN_PARMS];
 
 	client = svs.clients + clientnum;
 
@@ -1806,8 +1806,13 @@ void SV_ConnectClient (int clientnum)
 	{
 	// call the progs to get default spawn parms for the new client
 		PR_ExecuteProgram (pr_global_struct->SetNewParms);
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		for (i=0 ; i<NUM_BASIC_SPAWN_PARMS ; i++)
 			client->spawn_parms[i] = (&pr_global_struct->parm1)[i];
+		for ( ; i< NUM_TOTAL_SPAWN_PARMS ; i++)
+		{
+			ddef_t *g = ED_FindGlobal(va("parm%i", i+1));
+			client->spawn_parms[i] = g?qcvm->globals[g->ofs]:0;
+		}
 	}
 
 	SV_SendServerinfo (client);
@@ -2933,8 +2938,13 @@ void SV_SaveSpawnparms (void)
 	// call the progs to get default spawn parms for the new client
 		pr_global_struct->self = EDICT_TO_PROG(host_client->edict);
 		PR_ExecuteProgram (pr_global_struct->SetChangeParms);
-		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+		for (j=0 ; j<NUM_BASIC_SPAWN_PARMS ; j++)
 			host_client->spawn_parms[j] = (&pr_global_struct->parm1)[j];
+		for ( ; i< NUM_TOTAL_SPAWN_PARMS ; i++)
+		{
+			ddef_t *g = ED_FindGlobal(va("parm%i", i+1));
+			host_client->spawn_parms[i] = g?qcvm->globals[g->ofs]:0;
+		}
 	}
 }
 

@@ -101,7 +101,8 @@ typedef struct
 
 
 #define	NUM_PING_TIMES		16
-#define	NUM_SPAWN_PARMS		16
+#define	NUM_BASIC_SPAWN_PARMS		16
+#define	NUM_TOTAL_SPAWN_PARMS		64
 
 typedef struct client_s
 {
@@ -130,7 +131,7 @@ typedef struct client_s
 	int				num_pings;			// ping_times[num_pings%NUM_PING_TIMES]
 
 // spawn parms are carried from level to level
-	float			spawn_parms[NUM_SPAWN_PARMS];
+	float			spawn_parms[NUM_TOTAL_SPAWN_PARMS];
 
 // client known data for deltas
 	int				old_frags;
