@@ -553,9 +553,9 @@ int	Datagram_GetMessage (qsocket_t *sock)
 
 		if (sfunc.AddrCompare(&readaddr, &sock->addr) != 0)
 		{
-			Con_Printf("Forged packet received\n");
-			Con_Printf("Expected: %s\n", StrAddr (&sock->addr));
-			Con_Printf("Received: %s\n", StrAddr (&readaddr));
+			Con_Printf("Stray/Forged packet received\n");
+			Con_Printf("Expected: %s\n", sfunc.AddrToString(&sock->addr, false));
+			Con_Printf("Received: %s\n", sfunc.AddrToString(&readaddr, false));
 			continue;
 		}
 
@@ -2061,7 +2061,7 @@ static qsocket_t *_Datagram_Connect (struct qsockaddr *serveraddr)
 			if (ret > 0)
 			{
 				// is it from the right place?
-				if (sfunc.AddrCompare(&readaddr, serveraddr) != 0)
+				if (dfunc.AddrCompare(&readaddr, serveraddr) != 0)
 				{
 					Con_SafePrintf("wrong reply address\n");
 					Con_SafePrintf("Expected: %s | %s\n", dfunc.AddrToString (serveraddr, false), StrAddr(serveraddr));
