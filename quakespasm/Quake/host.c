@@ -777,6 +777,9 @@ void _Host_Frame (double time)
 					if (qcvm->extglobals.player_localnum)
 						*qcvm->extglobals.player_localnum = cl.viewentity-1;	//this is a guess, but is important for scoreboards.
 
+					//set a few worldspawn fields too
+					qcvm->edicts->v.message = PR_SetEngineString(cl.levelname);
+
 					//and call the init function... if it exists.
 					qcvm->worldmodel = cl.worldmodel;
 					SV_ClearWorld();
