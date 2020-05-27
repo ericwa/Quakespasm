@@ -310,7 +310,7 @@ FUNC_NORETURN void Host_EndGame (const char *message, ...) FUNC_PRINTF(1,2);
 #pragma aux Host_Error aborts;
 #pragma aux Host_EndGame aborts;
 #endif
-void Host_Frame (float time);
+void Host_Frame (double time);
 void Host_Quit_f (void);
 void Host_ClientCommands (const char *fmt, ...) FUNC_PRINTF(1,2);
 void Host_ShutdownServer (qboolean crash);
