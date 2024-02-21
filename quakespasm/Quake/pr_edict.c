@@ -742,23 +742,21 @@ static string_t ED_NewString (const char *string)
 	int		i, l;
 	string_t	num;
 
-	l = strlen(string) + 1;
-	num = PR_AllocString (l, &new_p);
+	l = strlen (string) + 1;
+	new = Hunk_Alloc (l);
+	new_p = new;
 
-	for (i = 0; i < l; i++)
+	for (i = 0 ; i < l ; ++i)
 	{
-		if (string[i] == '\\' && i < l-1)
+		if (i < l - 1 && string[i] == '\\' && string[i + 1] == 'n')
 		{
-			i++;
-			if (string[i] == 'n')
-				*new_p++ = '\n';
-			else
-				*new_p++ = '\\';
+			// converts both characters into a single newline character
+			++i;
+			*new_p++ = '\n';
 		}
 		else
 			*new_p++ = string[i];
 	}
-
 	return num;
 }
 
